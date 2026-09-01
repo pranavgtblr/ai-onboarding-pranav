@@ -1,0 +1,40 @@
+[project]
+name = "phase-0-baseline"
+version = "0.1.0"
+description = "Phase 0 Baseline project configuration and CI setup"
+readme = "README.md"
+authors = [
+    { name = "Pranav G", email = "pranav.g@toobler.com" }
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+phase-0-baseline = "phase_0_baseline:main"
+
+[build-system]
+requires = ["uv_build>=0.12.8,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "ruff>=0.16.5",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
