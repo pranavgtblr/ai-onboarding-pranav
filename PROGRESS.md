@@ -1,6 +1,12 @@
 # Progress tracker
 
-- [ ] Phase 0 - Baseline           (0.1  - 0.6)
+- [x] Phase 0 - Baseline           (0.1  - 0.6)
+  - [x] 0.1 Install uv, pyproject.toml, uv.lock
+  - [x] 0.2 Ruff, Pyright, Pytest, GitHub Actions CI
+  - [x] 0.3 FastAPI POST /echo & GET /stream
+  - [x] 0.4 Async concurrency benchmark (asyncio.gather vs sequential)
+  - [x] 0.5 Config with pydantic-settings from .env & .env.example
+  - [x] 0.6 Pytest suite for /echo & Dockerfile
 - [ ] Phase 1 - LLM fundamentals   (1.1  - 1.4)
 - [ ] Phase 2 - Raw API            (2.1  - 2.7)
 - [ ] Phase 3 - RAG                (3.1  - 3.22)

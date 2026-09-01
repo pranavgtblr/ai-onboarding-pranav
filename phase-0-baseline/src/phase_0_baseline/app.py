@@ -7,10 +7,15 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from phase_0_baseline.config import Settings, get_settings
+
+settings: Settings = get_settings()
+
 app = FastAPI(
-    title="Phase 0 Baseline API",
-    description="FastAPI baseline service with echo and stream endpoints",
+    title=settings.app_name,
+    description="FastAPI baseline service with echo, stream, and config endpoints",
     version="0.1.0",
+    debug=settings.debug,
 )
 
 
@@ -25,6 +30,24 @@ class EchoResponse(BaseModel):
     message: str
     received_at: datetime
     metadata: dict[str, Any]
+
+
+class HealthResponse(BaseModel):
+    status: str
+    app_name: str
+    app_env: str
+    debug: bool
+
+
+@app.get("/health", response_model=HealthResponse, summary="Service health check")
+async def health_check() -> HealthResponse:
+    """Return health status and sanitized non-secret environment config."""
+    return HealthResponse(
+        status="healthy",
+        app_name=settings.app_name,
+        app_env=settings.app_env,
+        debug=settings.debug,
+    )
 
 
 @app.post("/echo", response_model=EchoResponse, summary="Echo request payload")
@@ -64,7 +87,13 @@ async def delay_endpoint(ms: int) -> dict[str, Any]:
 
 
 def start() -> None:
-    """Entry point to run the FastAPI service."""
+    """Entry point to run the FastAPI service using configured host/port."""
     import uvicorn
 
-    uvicorn.run("phase_0_baseline.app:app", host="0.0.0.0", port=8000, reload=True)
+    active_settings = get_settings()
+    uvicorn.run(
+        "phase_0_baseline.app:app",
+        host=active_settings.host,
+        port=active_settings.port,
+        reload=active_settings.debug or active_settings.app_env == "development",
+    )

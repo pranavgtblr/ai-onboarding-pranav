@@ -1,19 +1,22 @@
 # Phase 0: Baseline Setup & FastAPI Service
 
-This directory contains the baseline Python development environment, a FastAPI service implementing `/echo` and `/stream` endpoints, and an asynchronous concurrency benchmark comparing `asyncio.gather` vs. sequential execution.
+This directory contains the complete baseline Python environment, application configuration management with `pydantic-settings`, a containerized FastAPI service (`/echo`, `/stream`, `/health`), and asynchronous benchmarking.
 
 ---
 
 ## Features
 
-- **Package Management:** Managed with [uv](https://docs.astral.sh/uv/) and locked in `uv.lock`.
+- **Package & Dependency Management:** Managed with [uv](https://docs.astral.sh/uv/) and locked in `uv.lock`.
+- **Environment & Configuration:** Type-safe settings loaded from `.env` via `pydantic-settings`.
 - **Code Quality:** Linting & formatting via `ruff`, static type analysis via `pyright`.
-- **Testing:** Automated tests via `pytest` and `httpx` (`TestClient`).
+- **Testing:** 11 automated unit and integration tests via `pytest` and `httpx` (`TestClient`).
+- **Containerization:** Production-ready `Dockerfile` optimized with `uv` multi-stage layer caching.
 - **FastAPI Endpoints:**
   - `POST /echo`: Accepts a Pydantic-validated payload (`message`, optional `metadata`) and returns a typed `EchoResponse` with timestamp.
   - `GET /stream`: Emits 20 chunks spaced 100ms apart using `StreamingResponse`.
+  - `GET /health`: Returns service health status and sanitized non-secret configuration.
   - `GET /delay/{ms}`: Simulates endpoint latency for benchmarking.
-- **Async Concurrency Benchmark (Task 0.4):** Evaluates `asyncio.gather` concurrent HTTP GETs vs. sequential execution.
+- **Async Concurrency Benchmark:** Evaluates `asyncio.gather` concurrent HTTP GETs vs. sequential execution.
 
 ---
 
@@ -28,11 +31,75 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ---
 
-## Installation
+## Installation & Environment Setup
+
+1. Synchronize the virtual environment:
+   ```bash
+   cd phase-0-baseline
+   uv sync
+   ```
+
+2. Configure environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+   > **Note:** `.env` is ignored by `.gitignore`. Never commit secrets or API keys to git.
+
+---
+
+## Running the FastAPI Service
+
+Start the local development server:
 
 ```bash
-cd phase-0-baseline
-uv sync
+uv run uvicorn phase_0_baseline.app:app --reload --port 8000
+```
+*(Alternatively: `uv run phase-0-baseline`)*
+
+The interactive API documentation is available at:
+- **Swagger UI:** `http://localhost:8000/docs`
+- **ReDoc:** `http://localhost:8000/redoc`
+
+---
+
+## Testing Endpoints via cURL
+
+### 1. Test `POST /echo` (Valid Payload)
+```bash
+curl -X POST http://localhost:8000/echo \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello from client!", "metadata": {"env": "dev"}}'
+```
+
+### 2. Test `POST /echo` (Invalid Payload -> 422 Error)
+```bash
+curl -i -X POST http://localhost:8000/echo \
+  -H "Content-Type: application/json" \
+  -d '{"message": ""}'
+```
+
+### 3. Test `GET /stream` (Progressive Stream)
+```bash
+curl -N http://localhost:8000/stream
+```
+
+### 4. Test `GET /health`
+```bash
+curl http://localhost:8000/health
+```
+
+---
+
+## Docker Support
+
+### Build the Image
+```bash
+docker build -t phase-0-baseline:latest .
+```
+
+### Run the Container
+```bash
+docker run -p 8000:8000 --env-file .env phase-0-baseline:latest
 ```
 
 ---
@@ -76,37 +143,6 @@ Speedup Factor:        8.71x faster
 
 ---
 
-## Running the FastAPI Service
-
-Start the local development server:
-
-```bash
-uv run uvicorn phase_0_baseline.app:app --reload --port 8000
-```
-*(Alternatively: `uv run phase-0-baseline`)*
-
-The interactive API documentation is available at:
-- **Swagger UI:** `http://localhost:8000/docs`
-- **ReDoc:** `http://localhost:8000/redoc`
-
----
-
-## Testing Endpoints via cURL
-
-### 1. Test `POST /echo`
-```bash
-curl -X POST http://localhost:8000/echo \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello from client!", "metadata": {"env": "dev"}}'
-```
-
-### 2. Test `GET /stream` (Emits 20 chunks with 100ms delay)
-```bash
-curl -N http://localhost:8000/stream
-```
-
----
-
 ## Quality Checks & Automated Tests
 
 ### Run All Tests
@@ -133,4 +169,4 @@ uv run pyright
 
 ## CI/CD Integration
 
-All checks (`ruff`, `pyright`, `pytest`) run automatically across all project phases on every pull request and push via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+All checks (`ruff`, `pyright`, `pytest`, and `docker build`) run automatically across all project phases on every pull request and push via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).

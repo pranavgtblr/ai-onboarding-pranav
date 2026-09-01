@@ -55,3 +55,15 @@ jobs:
               uv run pytest
             )
           done
+
+      - name: Validate Docker builds
+        run: |
+          set -e
+          DOCKERFILES=$(find . -name "Dockerfile" -not -path "*/.*")
+          for df in $DOCKERFILES; do
+            dir=$(dirname "$df")
+            echo "=================================================="
+            echo "Building Docker image for $dir"
+            echo "=================================================="
+            docker build -t test-build:latest "$dir"
+          done

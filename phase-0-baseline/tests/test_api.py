@@ -6,24 +6,51 @@ from phase_0_baseline.app import app, generate_chunks
 client = TestClient(app)
 
 
-def test_echo_endpoint_success() -> None:
-    payload = {"message": "Hello FastAPI", "metadata": {"source": "test"}}
+def test_health_check() -> None:
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert "app_name" in data
+    assert "app_env" in data
+
+
+def test_echo_endpoint_valid_body() -> None:
+    # Standard valid payload
+    payload = {"message": "Hello FastAPI", "metadata": {"source": "test", "id": 123}}
     response = client.post("/echo", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["message"] == "Hello FastAPI"
-    assert data["metadata"] == {"source": "test"}
+    assert data["metadata"] == {"source": "test", "id": 123}
     assert "received_at" in data
 
+    # Valid payload with default empty metadata
+    response_no_meta = client.post("/echo", json={"message": "No metadata"})
+    assert response_no_meta.status_code == 200
+    assert response_no_meta.json()["metadata"] == {}
 
-def test_echo_endpoint_validation_error() -> None:
-    # Missing required 'message' field
-    response = client.post("/echo", json={"metadata": {}})
-    assert response.status_code == 422
 
-    # Empty message should also fail due to min_length=1
+def test_echo_endpoint_invalid_body() -> None:
+    # 1. Missing required 'message' field
+    response_missing = client.post("/echo", json={"metadata": {}})
+    assert response_missing.status_code == 422
+
+    # 2. Empty string message (violates min_length=1)
     response_empty = client.post("/echo", json={"message": ""})
     assert response_empty.status_code == 422
+
+    # 3. Invalid body type (e.g. dictionary passed as message string)
+    response_invalid_obj = client.post("/echo", json={"message": {"nested": "obj"}})
+    assert response_invalid_obj.status_code == 422
+
+    # 4. Invalid JSON payload entirely
+    response_not_json = client.post(
+        "/echo",
+        content="not valid json",
+        headers={"Content-Type": "application/json"},
+    )
+    assert response_not_json.status_code == 422
 
 
 def test_stream_endpoint() -> None:
