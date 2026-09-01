@@ -56,6 +56,13 @@ async def stream() -> StreamingResponse:
     )
 
 
+@app.get("/delay/{ms}", summary="Simulate delayed endpoint response")
+async def delay_endpoint(ms: int) -> dict[str, Any]:
+    """Simulate server processing latency in milliseconds."""
+    await asyncio.sleep(ms / 1000.0)
+    return {"status": "ok", "delayed_ms": ms}
+
+
 def start() -> None:
     """Entry point to run the FastAPI service."""
     import uvicorn
