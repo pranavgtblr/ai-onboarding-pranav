@@ -1,6 +1,17 @@
-# Phase 0: Baseline Setup
+# Phase 0: Baseline Setup & FastAPI Service
 
-This directory sets up the baseline Python development environment with `uv`, linting via `ruff`, static type checking via `pyright`, and testing via `pytest`.
+This directory contains the baseline Python development environment and a FastAPI service implementing `/echo` and `/stream` endpoints.
+
+---
+
+## Features
+
+- **Package Management:** Managed with [uv](https://docs.astral.sh/uv/) and locked in `uv.lock`.
+- **Code Quality:** Linting & formatting via `ruff`, static type analysis via `pyright`.
+- **Testing:** Automated tests via `pytest` and `httpx` (`TestClient`).
+- **FastAPI Endpoints:**
+  - `POST /echo`: Accepts a Pydantic-validated payload (`message`, optional `metadata`) and returns a typed `EchoResponse` with timestamp.
+  - `GET /stream`: Emits 20 chunks spaced 100ms apart using `StreamingResponse`.
 
 ---
 
@@ -9,58 +20,87 @@ This directory sets up the baseline Python development environment with `uv`, li
 - Python `>= 3.10`
 - [uv](https://docs.astral.sh/uv/) package manager
 
-### Installing `uv`
-
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ---
 
-## Getting Started
+## Installation
 
-1. Navigate to the `phase-0-baseline` directory:
-   ```bash
-   cd phase-0-baseline
-   ```
-
-2. Synchronize virtual environment and install all dependencies:
-   ```bash
-   uv sync
-   ```
+```bash
+cd phase-0-baseline
+uv sync
+```
 
 ---
 
-## Running Quality Checks and Tests
+## Running the FastAPI Service
 
-### 1. Run Linter (Ruff)
+Start the local development server:
+
 ```bash
-uv run ruff check .
+uv run uvicorn phase_0_baseline.app:app --reload --port 8000
+```
+*(Alternatively: `uv run phase-0-baseline`)*
+
+The interactive API documentation is available at:
+- **Swagger UI:** `http://localhost:8000/docs`
+- **ReDoc:** `http://localhost:8000/redoc`
+
+---
+
+## Testing Endpoints via cURL
+
+### 1. Test `POST /echo`
+```bash
+curl -X POST http://localhost:8000/echo \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello from client!", "metadata": {"env": "dev"}}'
 ```
 
-### 2. Check Code Formatting (Ruff)
-```bash
-uv run ruff format --check .
+**Sample Response:**
+```json
+{
+  "message": "Hello from client!",
+  "received_at": "2026-09-01T11:18:00Z",
+  "metadata": {
+    "env": "dev"
+  }
+}
 ```
-*(To auto-format, run `uv run ruff format .`)*
 
-### 3. Run Static Type Checking (Pyright)
+### 2. Test `GET /stream` (Emits 20 chunks with 100ms delay)
 ```bash
-uv run pyright
+curl -N http://localhost:8000/stream
 ```
 
-### 4. Run Test Suite (Pytest)
+---
+
+## Quality Checks & Automated Tests
+
+### Run All Tests
 ```bash
 uv run pytest
 ```
 
-### 5. Run the Application
+### Run Linter
 ```bash
-uv run phase-0-baseline
+uv run ruff check .
+```
+
+### Run Format Check
+```bash
+uv run ruff format --check .
+```
+
+### Run Type Checker
+```bash
+uv run pyright
 ```
 
 ---
 
 ## CI/CD Integration
 
-All checks (`ruff`, `pyright`, and `pytest`) are automated via GitHub Actions in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) and run automatically on every pull request and push.
+All checks (`ruff`, `pyright`, `pytest`) run automatically across all project phases on every pull request and push via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).

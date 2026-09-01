@@ -7,7 +7,11 @@ authors = [
     { name = "Pranav G", email = "pranav.g@toobler.com" }
 ]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "fastapi>=0.141.1",
+    "pydantic>=2.13.5",
+    "uvicorn>=0.52.4",
+]
 
 [project.scripts]
 phase-0-baseline = "phase_0_baseline:main"
@@ -18,8 +22,10 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.16.5",
 ]
 

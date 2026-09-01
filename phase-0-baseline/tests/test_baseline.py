@@ -1,7 +1,8 @@
-from phase_0_baseline import main
+from fastapi import FastAPI
+
+from phase_0_baseline import app
 
 
-def test_main(capsys: object) -> None:
-    main()
-    # verify main runs without crashing
-    assert True
+def test_app_instance() -> None:
+    assert isinstance(app, FastAPI)
+    assert app.title == "Phase 0 Baseline API"
