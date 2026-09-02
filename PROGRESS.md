@@ -8,6 +8,7 @@
   - [x] 0.5 Config with pydantic-settings from .env & .env.example
   - [x] 0.6 Pytest suite for /echo & Dockerfile
 - [ ] Phase 1 - LLM fundamentals   (1.1  - 1.4)
+  - [x] 1.1 Multilingual tokenization, ratio calculation, and cost analysis
 - [ ] Phase 2 - Raw API            (2.1  - 2.7)
 - [ ] Phase 3 - RAG                (3.1  - 3.22)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
