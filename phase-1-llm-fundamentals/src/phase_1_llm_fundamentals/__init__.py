@@ -1,5 +1,12 @@
 """Phase 1: LLM Fundamentals package."""
 
+from phase_1_llm_fundamentals.temperature_experiment import (
+    ExperimentOutput,
+    PromptRunResult,
+    Settings,
+    TemperatureSummary,
+    execute_temperature_experiment,
+)
 from phase_1_llm_fundamentals.tokenizer import (
     TokenStats,
     calculate_token_stats,
@@ -14,4 +21,9 @@ __all__ = [
     "decode_tokens_to_pieces",
     "calculate_token_stats",
     "compare_tokenization",
+    "Settings",
+    "PromptRunResult",
+    "TemperatureSummary",
+    "ExperimentOutput",
+    "execute_temperature_experiment",
 ]

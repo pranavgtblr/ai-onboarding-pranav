@@ -6,122 +6,125 @@ This module analyzes how Large Language Model tokenizers (Byte Pair Encoding - B
 
 ---
 
-## Experimental Setup
+### Experimental Setup & Ratios
 
-### Standard Multilingual Corpus
-The following semantically equivalent paragraph was translated across 7 languages (English, Malayalam, Hindi, Spanish, French, Japanese, and Arabic):
-
-> **English:**  
+#### Tested Paragraph
 > *"Artificial intelligence is transforming how we build software, communicate across cultures, and solve complex global challenges. Large language models process human text through tokenization, converting words and subwords into numerical representations for neural networks."*
 
----
+#### Benchmark Comparison
 
-## Token Counts & Fertility Ratios
-
-### 1. GPT-4 / GPT-3.5 Tokenizer (`cl100k_base` — 100k Vocabulary)
-
-| Language | Script Family | Token Count | Character Count | Byte Count | Chars / Token | Bytes / Token | Fertility Ratio | 1M Reqs Cost Proj. ($) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **English** | Latin (Native) | **42** | 273 | 273 | 6.50 | 6.50 | **1.00x** (Baseline) | **$525.00** |
-| **Spanish** | Latin (Extended) | **73** | 331 | 336 | 4.53 | 4.60 | **1.74x** | **$912.50** |
-| **French** | Latin (Extended) | **82** | 337 | 347 | 4.11 | 4.23 | **1.95x** | **$1,025.00** |
-| **Japanese** | Kanji / Kana | **147** | 128 | 384 | 0.87 | 2.61 | **3.50x** | **$1,837.50** |
-| **Arabic** | Arabic | **162** | 249 | 461 | 1.54 | 2.85 | **3.86x** | **$2,025.00** |
-| **Hindi** | Devanagari | **289** | 287 | 759 | 0.99 | 2.63 | **6.88x** | **$3,612.50** |
-| **Malayalam** | Indic (Dravidian) | **495** | 297 | 833 | 0.60 | 1.68 | **11.79x** | **$6,187.50** |
-
----
-
-### 2. GPT-4o Tokenizer (`o200k_base` — 200k Vocabulary)
-
-| Language | Script Family | Token Count | Character Count | Byte Count | Chars / Token | Bytes / Token | Fertility Ratio | 1M Reqs Cost Proj. ($) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **English** | Latin (Native) | **41** | 273 | 273 | 6.66 | 6.66 | **1.00x** (Baseline) | **$512.50** |
-| **Spanish** | Latin (Extended) | **62** | 331 | 336 | 5.34 | 5.42 | **1.51x** | **$775.00** |
-| **French** | Latin (Extended) | **68** | 337 | 347 | 4.96 | 5.10 | **1.66x** | **$850.00** |
-| **Arabic** | Arabic | **74** | 249 | 461 | 3.37 | 6.23 | **1.80x** | **$925.00** |
-| **Hindi** | Devanagari | **88** | 287 | 759 | 3.26 | 8.62 | **2.15x** | **$1,100.00** |
-| **Japanese** | Kanji / Kana | **102** | 128 | 384 | 1.25 | 3.77 | **2.49x** | **$1,275.00** |
-| **Malayalam** | Indic (Dravidian) | **107** | 297 | 833 | 2.78 | 7.79 | **2.61x** | **$1,337.50** |
+| Tokenizer | Language | Script Family | Token Count | Chars / Token | Fertility Ratio | 1M Reqs Cost Proj. ($) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **`cl100k_base`** (GPT-4) | **English** | Latin (Native) | **42** | 6.50 | **1.00x** (Baseline) | **$525.00** |
+| | **Spanish** | Latin (Extended) | **73** | 4.53 | **1.74x** | **$912.50** |
+| | **French** | Latin (Extended) | **82** | 4.11 | **1.95x** | **$1,025.00** |
+| | **Japanese** | Kanji / Kana | **147** | 0.87 | **3.50x** | **$1,837.50** |
+| | **Arabic** | Arabic | **162** | 1.54 | **3.86x** | **$2,025.00** |
+| | **Hindi** | Devanagari | **289** | 0.99 | **6.88x** | **$3,612.50** |
+| | **Malayalam** | Indic (Dravidian) | **495** | 0.60 | **11.79x** | **$6,187.50** |
+| **`o200k_base`** (GPT-4o) | **English** | Latin (Native) | **41** | 6.66 | **1.00x** (Baseline) | **$512.50** |
+| | **Spanish** | Latin (Extended) | **62** | 5.34 | **1.51x** | **$775.00** |
+| | **French** | Latin (Extended) | **68** | 4.96 | **1.66x** | **$850.00** |
+| | **Arabic** | Arabic | **74** | 3.37 | **1.80x** | **$925.00** |
+| | **Hindi** | Devanagari | **88** | 3.26 | **2.15x** | **$1,100.00** |
+| | **Japanese** | Kanji / Kana | **102** | 1.25 | **2.49x** | **$1,275.00** |
+| | **Malayalam** | Indic (Dravidian) | **107** | 2.78 | **2.61x** | **$1,337.50** |
 
 ---
 
-## Key Observations & Token Fragmentation
+## Task 1.2: Temperature Sampling & Output Variance Experiment
 
-### Why Does Fragmentation Occur?
-1. **Vocabulary Imbalance during Pre-training:** BPE merge tables are constructed by maximizing compression over training corpora dominated by English text.
-2. **Whole Words vs. Subword Fallback:**
-   - English words like `"transforming"`, `"intelligence"`, `"software"` exist as single tokens in the vocabulary.
-   - Non-Latin scripts (Devanagari, Malayalam, Arabic) lack corresponding subwords in older vocabularies like `cl100k_base`. As a result, characters are split into individual unicode bytes (`\xe0\xb4\x95...`), taking **3 to 6 tokens per single character**.
-3. **Subword Inspection (`cl100k_base`):**
-   - **English:** `[Art] | [ificial] | [ intelligence] | [ is] | [ transforming] ...` (42 tokens total)
-   - **Malayalam:** `[b'\xe0\xb4'] | [b'\x95'] | [b'\xe0\xb5'] | [b'\x83'] | [b'\xe0\xb4'] | [b'\xa4'] ...` (495 tokens total)
-4. **Vocabulary Expansion in Modern Tokenizers (`o200k_base`):**
-   - Expanding vocabulary to 200,000 tokens compressed Malayalam from **495 tokens (11.79x)** down to **107 tokens (2.61x)** and Hindi from **289 tokens (6.88x)** down to **88 tokens (2.15x)**.
+This experiment evaluates the effect of the **temperature** hyperparameter ($T = 0.0, 0.7, 1.2$) across 15 repeated generations (5 runs per temperature) using the Gemini API on an identical creative prompt:
+
+> **Prompt:** *"In exactly 3 sentences, describe what happens when a deep-sea submarine discovers an uncharted ancient underwater civilization."*
+
+Raw outputs and metrics are persisted in [`outputs/temperature_experiment_results.json`](outputs/temperature_experiment_results.json) and [`outputs/temperature_experiment_results.md`](outputs/temperature_experiment_results.md).
 
 ---
 
-## What This Means for Cost & Architecture on a Multilingual Client
+### Empirical Results Summary
 
-When deploying an LLM-powered system for multilingual or non-English users, token fertility creates critical business and technical consequences:
-
-### 1. The "Language Tax" (Direct API Pricing Disparity)
-LLM providers bill strictly on **tokens consumed and generated**, not on characters, words, or informational units.
-- An English query/response roundtrip costs **$X**.
-- The exact same conversation in Spanish costs **1.5x - 1.7x** more.
-- The exact same conversation in Hindi costs **2.15x - 6.88x** more.
-- The exact same conversation in Malayalam costs **2.61x - 11.79x** more.
-
-**Cost Projection at 1 Million Requests / Month:**  
-*(Assumes \$2.50 / 1M input tokens + \$10.00 / 1M output tokens)*
-- **English Client:** **\$512.50 - \$525.00**
-- **Spanish Client:** **\$775.00 - \$912.50** (+48% to +74%)
-- **Hindi Client:** **\$1,100.00 - \$3,612.50** (+114% to +588%)
-- **Malayalam Client:** **\$1,337.50 - \$6,187.50** (+161% to +1078%)
-
-A company serving South Asian or non-English customers faces significantly higher operational burn rate per user for the exact same semantic workload.
-
-### 2. Effective Context Window Shrinkage
-LLMs have a finite context window (e.g. 8k, 32k, 128k tokens).
-- A 128k token window holds $\approx 85,000$ words of English technical documentation.
-- The same 128k window holds only $\approx 7,200$ words of Malayalam in `cl100k_base` ($\approx 33,000$ words in `o200k_base`).
-- RAG systems (Retrieval-Augmented Generation) exhaust context memory much faster, forcing smaller chunk budgets and reducing retrieval quality.
-
-### 3. Latency & Generation Throughput Degradation
-Autoregressive LLM generation generates tokens sequentially ($O(N)$ forward passes).
-- At 80 tokens/second generation speed:
-  - English completion (42 tokens): $\approx \mathbf{0.52\text{ seconds}}$
-  - Hindi completion (289 tokens): $\approx \mathbf{3.61\text{ seconds}}$
-  - Malayalam completion (495 tokens): $\approx \mathbf{6.18\text{ seconds}}$
-- Multilingual end users experience noticeable latency penalties and slower streaming output.
-
-### 4. Architectural Mitigation Strategies for Production
-1. **Adopt Modern Multilingual Tokenizers:** Standardize on modern model families (e.g. GPT-4o `o200k_base`, Gemini 1.5/2.0, or Llama 3 with 128k vocabulary) which dramatically reduce non-English token inflation.
-2. **Translate-at-Boundary Pipeline:** For storage, vector search indexing, and complex chain-of-thought agent reasoning, translate non-English user queries to English at the API gateway, perform retrieval & internal reasoning in English, and synthesize the final answer in the user's native language.
-3. **Adaptive Chunking in RAG:** Use character- or semantic-length chunking rather than fixed-token chunking to prevent multilingual chunks from containing too few words.
+| Temperature ($T$) | Total Runs | Unique Outputs | Avg Word Count | Avg Pairwise Jaccard Sim | Output Behavior Profile |
+| :---: | :---: | :---: | :---: | :---: | :--- |
+| **`0.0`** | 5 | 5 / 5 | 64.6 words | **0.1900** | Highly structured, predictable phrasing, repetitive motifs |
+| **`0.7`** | 5 | 5 / 5 | 63.0 words | **0.1730** | Balanced, fluent, moderate narrative variation |
+| **`1.2`** | 5 | 5 / 5 | 69.4 words | **0.1410** | High lexical diversity, unexpected adjectives, novel plot twists |
 
 ---
 
-## Running the Tokenizer & Tests
+### What Changes vs. What Does Not
 
-### 1. Sync Dependencies
-```bash
-cd phase-1-llm-fundamentals
-uv sync
+#### 1. What Changes (Variance & Diversity)
+- **Lexical Diversity & Vocabulary Breadth:**
+  - At $T = 0.0$: Descriptions rely on standard high-probability tokens: *"towering bioluminescent spires"*, *"robotic arms"*, *"ancient city"*.
+  - At $T = 1.2$: Descriptions introduce rich, low-probability adjectives and specific world-building vocabulary: *"barnacle-encrusted basalt structures"*, *"descent sphere"*, *"iridescent stone"*, *"cyclopean ruins"*, *"tractor beam"*.
+- **Narrative Trajectory & Plot Twists:**
+  - At $T = 0.0$: The story almost always follows the same archetype: lights shine $\rightarrow$ robotic arms scrape silt $\rightarrow$ city gates grind open peacefully.
+  - At $T = 0.7$: Introduces varied events: defense runes awaken, seismic shifts, glowing aqueducts.
+  - At $T = 1.2$: Introduces divergent plot conflicts: holographic star charts, communications severed, terrifying alien encounters, and active defensive barriers.
+- **Sentence Structure & Cadence:**
+  - $T=0.0$ uses standard Subject-Verb-Object participial clauses (*"As the submarine's floodlights sweep..."*).
+  - $T=1.2$ introduces varied syntactical inversions (*"Floodlights from the descent sphere sweep across..."*).
+
+#### 2. What Does NOT Change (Invariants)
+- **Constraint Compliance:** All runs across all temperatures faithfully adhered to the prompt’s 3-sentence constraint.
+- **Core Semantic Anchors:** Every response preserved the primary entities: submarine/submersible, ocean depth/abyss, illumination/floodlights, and ancient architectural ruins.
+- **Syntactic Coherence & Grammar:** Even at $T = 1.2$, modern models maintain valid grammatical and semantic coherence without degrading into gibberish.
+
+---
+
+### Deep-Dive: The Mathematics of Temperature
+
+LLMs generate text by predicting a raw score (logit $z_i$) for every token $i$ in their vocabulary $V$. Temperature $T$ scales these logits before passing them into the **Softmax** function:
+
+$$P(w_i) = \frac{e^{z_i / T}}{\sum_{j \in V} e^{z_j / T}}$$
+
+```text
+Logits [z1, z2, z3] ──> [ Divide by T ] ──> [ Softmax ] ──> Probability Distribution ──> Sampling
 ```
 
-### 2. Run Tokenizer CLI Benchmark
-```bash
-# Default cl100k_base (GPT-4) benchmark
-uv run tokenize-demo
+1. **At $T \to 0$ (Greedy / Argmax Decoding):**
+   - The highest logit is exaggerated towards $P(w_{\text{max}}) \approx 1.0$ while all other probabilities collapse towards $0$.
+   - The model selects the most mathematically probable token at each step.
+   - *Why is modern $T=0$ not 100% bitwise identical across API calls?* Parallel GPU execution non-determinism (floating-point summation non-associativity across distributed tensor cores and Mixture-of-Experts routing).
+2. **At $T = 0.7$ (Default / Balanced Sampling):**
+   - Retains the model's natural probability distribution with slight sharpening.
+   - High-probability words are favored, but natural linguistic variation is preserved.
+3. **At $T \ge 1.0$ (High Entropy / Creative Sampling):**
+   - Divides logits by a number $> 1.0$, flattening the probability distribution curve.
+   - Tail tokens (rarer synonyms, unusual concepts) become significantly more likely to be sampled.
 
-# Compare cl100k_base vs o200k_base (GPT-4o)
+---
+
+### Engineering Decision Matrix: When to Use Which Temperature
+
+| Task Type | Recommended Temperature | Rationale |
+| :--- | :---: | :--- |
+| **Structured Data / JSON Extraction** | **`0.0`** | Requires strict schema adherence; minimizes hallucinated keys or syntax errors. |
+| **Code Generation & SQL Queries** | **`0.0 - 0.2`** | Demands exact syntax, deterministic logic, and deterministic test reproducibility. |
+| **Classification & Routing** | **`0.0`** | Deterministic categorical decisions without creative drift. |
+| **RAG Q&A & Document Summarization** | **`0.2 - 0.5`** | Factual grounding on retrieved context while maintaining natural prose. |
+| **Conversational Chatbots / Copilots** | **`0.7`** | Natural conversational cadence; balances helpfulness with conversational warmth. |
+| **Creative Writing & Brainstorming** | **`0.9 - 1.2`** | High novelty, unusual metaphors, out-of-the-box conceptual combinations. |
+| **Adversarial / Red-Teaming Tests** | **`1.2 - 1.5`** | Uncovers model edge cases, hallucination modes, and boundary behaviors. |
+
+---
+
+## Running the CLI Tools & Tests
+
+### 1. Run Tokenizer Benchmark (Task 1.1)
+```bash
 uv run tokenize-demo --compare-all-encodings
 ```
 
-### 3. Run Automated Tests & Linters
+### 2. Run Temperature Sampling Experiment (Task 1.2)
 ```bash
-uv run pytest
+uv run temperature-demo
+```
+
+### 3. Run Quality Checks & Pytest Suite
+```bash
+uv run pytest -v
 uv run ruff check .
 uv run ruff format --check .
 uv run pyright
