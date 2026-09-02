@@ -17,6 +17,7 @@ dependencies = [
 [project.scripts]
 tokenize-demo = "phase_1_llm_fundamentals.tokenizer_demo:main"
 temperature-demo = "phase_1_llm_fundamentals.temperature_experiment:main"
+embed-demo = "phase_1_llm_fundamentals.embeddings_demo:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]

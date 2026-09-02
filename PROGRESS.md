@@ -10,6 +10,7 @@
 - [ ] Phase 1 - LLM fundamentals   (1.1  - 1.4)
   - [x] 1.1 Multilingual tokenization, ratio calculation, and cost analysis
   - [x] 1.2 Temperature sampling experiment (0.0, 0.7, 1.2) & variance analysis
+  - [x] 1.3 Embed 10 sentences, 10x10 cosine similarity matrix, and semantic vs lexical analysis
 - [ ] Phase 2 - Raw API            (2.1  - 2.7)
 - [ ] Phase 3 - RAG                (3.1  - 3.22)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)

@@ -1,0 +1,207 @@
+{
+  "model": "gemini-embedding-001",
+  "dimensions": 3072,
+  "sentences": [
+    {
+      "index": 0,
+      "label": "S1 (Pair A1)",
+      "text": "The infant is asleep.",
+      "category": "Infant Sleep"
+    },
+    {
+      "index": 1,
+      "label": "S2 (Pair A2)",
+      "text": "A newborn baby rests quietly.",
+      "category": "Infant Sleep"
+    },
+    {
+      "index": 2,
+      "label": "S3 (Pair B1)",
+      "text": "Initiate a refund for defective widget SKU-98421 returned by the customer.",
+      "category": "Customer Support"
+    },
+    {
+      "index": 3,
+      "label": "S4 (Pair B2)",
+      "text": "Review the tensile strength specifications and steel alloy blueprint for component SKU-98421.",
+      "category": "Mechanical Engineering"
+    },
+    {
+      "index": 4,
+      "label": "S5 (Food 1)",
+      "text": "Whisk the egg yolks with fresh cream and sugar until smooth.",
+      "category": "Cooking"
+    },
+    {
+      "index": 5,
+      "label": "S6 (Food 2)",
+      "text": "Beat the milk, butter, and vanilla extract in a large glass bowl.",
+      "category": "Cooking"
+    },
+    {
+      "index": 6,
+      "label": "S7 (Code 1)",
+      "text": "Write a unit test for the REST API endpoint using pytest.",
+      "category": "Software"
+    },
+    {
+      "index": 7,
+      "label": "S8 (Code 2)",
+      "text": "Debug the async route handler in FastAPI to prevent memory leaks.",
+      "category": "Software"
+    },
+    {
+      "index": 8,
+      "label": "S9 (Astronomy)",
+      "text": "Astronomers detected a supermassive black hole at the center of the distant galaxy.",
+      "category": "Astronomy"
+    },
+    {
+      "index": 9,
+      "label": "S10 (Finance)",
+      "text": "The central bank raised benchmark interest rates to combat rising inflation.",
+      "category": "Finance"
+    }
+  ],
+  "matrix": [
+    [
+      1.0,
+      0.8188,
+      0.5308,
+      0.509,
+      0.5453,
+      0.5519,
+      0.5093,
+      0.5014,
+      0.5357,
+      0.5568
+    ],
+    [
+      0.8188,
+      1.0,
+      0.519,
+      0.5077,
+      0.5449,
+      0.5235,
+      0.5034,
+      0.4792,
+      0.5305,
+      0.5215
+    ],
+    [
+      0.5308,
+      0.519,
+      1.0,
+      0.5947,
+      0.5205,
+      0.5235,
+      0.54,
+      0.4967,
+      0.4803,
+      0.4992
+    ],
+    [
+      0.509,
+      0.5077,
+      0.5947,
+      1.0,
+      0.5083,
+      0.5255,
+      0.516,
+      0.4883,
+      0.5102,
+      0.5136
+    ],
+    [
+      0.5453,
+      0.5449,
+      0.5205,
+      0.5083,
+      1.0,
+      0.7042,
+      0.4886,
+      0.4481,
+      0.5141,
+      0.5536
+    ],
+    [
+      0.5519,
+      0.5235,
+      0.5235,
+      0.5255,
+      0.7042,
+      1.0,
+      0.4987,
+      0.448,
+      0.4893,
+      0.5486
+    ],
+    [
+      0.5093,
+      0.5034,
+      0.54,
+      0.516,
+      0.4886,
+      0.4987,
+      1.0,
+      0.6029,
+      0.4573,
+      0.49
+    ],
+    [
+      0.5014,
+      0.4792,
+      0.4967,
+      0.4883,
+      0.4481,
+      0.448,
+      0.6029,
+      1.0,
+      0.4728,
+      0.4697
+    ],
+    [
+      0.5357,
+      0.5305,
+      0.4803,
+      0.5102,
+      0.5141,
+      0.4893,
+      0.4573,
+      0.4728,
+      1.0,
+      0.5507
+    ],
+    [
+      0.5568,
+      0.5215,
+      0.4992,
+      0.5136,
+      0.5536,
+      0.5486,
+      0.49,
+      0.4697,
+      0.5507,
+      1.0
+    ]
+  ],
+  "pair_a_analysis": {
+    "sentence_1": "The infant is asleep.",
+    "sentence_2": "A newborn baby rests quietly.",
+    "shared_words_count": 0,
+    "shared_words": [],
+    "cosine_similarity": 0.8188,
+    "phenomenon": "Dense semantic capture: High similarity score despite zero lexical overlap, demonstrating that embeddings map conceptual meaning rather than keyword tokens."
+  },
+  "pair_b_analysis": {
+    "sentence_1": "Initiate a refund for defective widget SKU-98421 returned by the customer.",
+    "sentence_2": "Review the tensile strength specifications and steel alloy blueprint for component SKU-98421.",
+    "shared_words_count": 2,
+    "shared_words": [
+      "the",
+      "for"
+    ],
+    "cosine_similarity": 0.5947,
+    "phenomenon": "Lexical collision with semantic divergence: Shows how a unique product ID token interacts with contrasting context (customer refund vs engineering spec)."
+  }
+}
