@@ -31,15 +31,7 @@ class SingleCompletionResponse(BaseModel):
 
 def build_generate_content_payload(prompt: str) -> dict[str, Any]:
     """Construct the raw JSON payload expected by the Gemini REST API."""
-    return {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt}
-                ]
-            }
-        ]
-    }
+    return {"contents": [{"parts": [{"text": prompt}]}]}
 
 
 def parse_gemini_response(data: dict[str, Any]) -> SingleCompletionResponse:
@@ -114,9 +106,7 @@ def generate_single_completion(
     except httpx.HTTPStatusError as exc:
         status = exc.response.status_code
         err_msg = exc.response.text
-        raise RuntimeError(
-            f"API request failed with HTTP {status}: {err_msg}"
-        ) from exc
+        raise RuntimeError(f"API request failed with HTTP {status}: {err_msg}") from exc
     finally:
         if should_close_client:
             client.close()
@@ -161,9 +151,7 @@ async def generate_single_completion_async(
     except httpx.HTTPStatusError as exc:
         status = exc.response.status_code
         err_msg = exc.response.text
-        raise RuntimeError(
-            f"API request failed with HTTP {status}: {err_msg}"
-        ) from exc
+        raise RuntimeError(f"API request failed with HTTP {status}: {err_msg}") from exc
     finally:
         if should_close_client:
             await client.aclose()

@@ -53,8 +53,7 @@ def test_parse_gemini_response() -> None:
     """Verifies content, stop reason, and token usage parsing."""
     result = parse_gemini_response(SAMPLE_GEMINI_RESPONSE)
     assert (
-        result.content
-        == "Inception represents recursion: a dream within a dream "
+        result.content == "Inception represents recursion: a dream within a dream "
         "where each level executes until the kick triggers."
     )
     assert result.stop_reason == "STOP"

@@ -101,13 +101,43 @@ Or pass a custom prompt:
 uv run completion-demo --prompt "Explain the Matrix using JavaScript event loop analogy."
 ```
 
-#### 2. Run the Test Suite
+#### 2. Run the Streaming Demo (Task 2.2)
+```bash
+uv run stream-demo
+uv run stream-demo --prompt "Write a short story about an AI discovering coffee."
+```
+
+#### 3. Run the Test Suite
 ```bash
 uv run pytest -v
 ```
 
-#### 3. Run Linting and Type Checking
+#### 4. Run Linting and Type Checking
 ```bash
 uv run ruff check .
 uv run pyright
 ```
+
+---
+
+## Task 2.2: Streaming Completion (Server-Sent Events)
+
+### Objective
+Stream the LLM completion in real time. Print tokens to stdout as they arrive over the wire, rather than waiting for the entire response to finish buffering.
+
+### How It Works (Frontend / JS Analogy)
+In a modern web app (ChatGPT, Claude), the backend streams tokens to the browser using **Server-Sent Events (SSE)** or `ReadableStream`.
+- **HTTP Endpoint**: `POST .../models/{model}:streamGenerateContent?alt=sse`
+- **Wire Format**: Lines starting with `data: { ...JSON... }` separated by newlines (`\n\n`).
+- **Python Primitives**: `client.stream("POST", ...)` + Python Generators (`yield`) and `sys.stdout.flush()`.
+- **Frontend Equivalent**:
+  ```ts
+  const res = await fetch(url, { method: "POST", body: ... });
+  const reader = res.body.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    // update React state or append to DOM
+  }
+  ```
+

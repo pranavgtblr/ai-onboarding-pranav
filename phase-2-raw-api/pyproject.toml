@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 completion-demo = "phase_2_raw_api.single_completion:main"
+stream-demo = "phase_2_raw_api.streaming_completion:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]

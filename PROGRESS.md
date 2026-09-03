@@ -14,6 +14,7 @@
   - [x] 1.4 ANSWERS.md core architectural questions and answers
 - [ ] Phase 2 - Raw API            (2.1  - 2.7)
   - [x] 2.1 Single completion call with raw httpx (content, stop reason, token counts)
+  - [x] 2.2 Stream completion with real-time token delivery via SSE
 - [ ] Phase 3 - RAG                (3.1  - 3.22)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
