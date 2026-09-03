@@ -1,0 +1,45 @@
+[project]
+name = "phase-2-raw-api"
+version = "0.1.0"
+description = "Phase 2: Raw API - Direct LLM Interaction without Frameworks"
+readme = "README.md"
+authors = [
+    { name = "Pranav G", email = "pranav.g@toobler.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.27.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.0.0",
+]
+
+[project.scripts]
+completion-demo = "phase_2_raw_api.single_completion:main"
+
+[build-system]
+requires = ["uv_build>=0.12.8,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.5",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

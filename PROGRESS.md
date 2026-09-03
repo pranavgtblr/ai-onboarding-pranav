@@ -13,6 +13,7 @@
   - [x] 1.3 Embed 10 sentences, 10x10 cosine similarity matrix, and semantic vs lexical analysis
   - [x] 1.4 ANSWERS.md core architectural questions and answers
 - [ ] Phase 2 - Raw API            (2.1  - 2.7)
+  - [x] 2.1 Single completion call with raw httpx (content, stop reason, token counts)
 - [ ] Phase 3 - RAG                (3.1  - 3.22)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
