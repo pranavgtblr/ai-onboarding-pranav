@@ -191,8 +191,16 @@ def main() -> None:
     parser.add_argument(
         "--prompt",
         type=str,
-        default="Write a 4-line poem about an async event loop in JavaScript.",
+        default=(
+            "Explain how a browser renders a web page from HTML parsing to GPU "
+            "painting, step by step in three detailed paragraphs."
+        ),
         help="Prompt text to send to the LLM",
+    )
+    parser.add_argument(
+        "--show-chunks",
+        action="store_true",
+        help="Show explicit chunk boundaries and timing metadata",
     )
     args = parser.parse_args()
 
@@ -200,8 +208,7 @@ def main() -> None:
     print("PHASE 2.2: STREAMING COMPLETION (TOKEN-BY-TOKEN)")
     print("=" * 60)
     print(f"Prompt: {args.prompt}\n")
-    print("Streaming response:")
-    print("-" * 60)
+    print("Connecting to stream (measuring Time-To-First-Token)...")
 
     chunk_count = 0
     full_text = []
@@ -209,11 +216,20 @@ def main() -> None:
     input_tokens = None
     output_tokens = None
     total_tokens = None
+    first_token_received = False
 
     try:
         for chunk in stream_completion(args.prompt):
+            if not first_token_received and chunk.text:
+                first_token_received = True
+                print("First token received! Live stream starting:")
+                print("-" * 60)
+
             if chunk.text:
-                sys.stdout.write(chunk.text)
+                if args.show_chunks:
+                    sys.stdout.write(f"\n[Chunk {chunk_count + 1}]: {chunk.text}")
+                else:
+                    sys.stdout.write(chunk.text)
                 sys.stdout.flush()
                 full_text.append(chunk.text)
                 chunk_count += 1
