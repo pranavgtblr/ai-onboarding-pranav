@@ -178,4 +178,30 @@ With optional sliding window pruning:
 uv run chat-demo --max-turns 3
 ```
 
+---
+
+## Task 2.4: History Management (Drop vs Summarize)
+
+### Objective
+When a conversation exceeds N tokens, manage history by either:
+1. **`drop`**: Evict the oldest turns (sliding window), dropping memory of early facts.
+2. **`summarize`**: Use the model to compress the oldest turns into a concise summary, preserving key facts and entity state while drastically reducing token count.
+
+### Frontend / Cache Analogy
+- **`drop` strategy**: Like an **LRU Cache (Least Recently Used)**. When the cache is full, the oldest items get thrown away. Fast, zero-cost, but loses historical memory.
+- **`summarize` strategy**: Like **Data Compaction / Rollups**. In databases and logging (like Prometheus), granular second-by-second data is summarized into hourly averages to save space while keeping trends. In LLMs, past conversation turns are distilled into a compact summary statement so identity and preferences survive.
+
+### Running and Comparing Both Strategies
+
+#### Strategy A: Dropping Old Turns
+```bash
+uv run history-demo --strategy drop --max-tokens 120
+```
+
+#### Strategy B: Summarizing Old Turns
+```bash
+uv run history-demo --strategy summarize --max-tokens 120
+```
+
+
 

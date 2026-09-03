@@ -17,6 +17,7 @@ dependencies = [
 completion-demo = "phase_2_raw_api.single_completion:main"
 stream-demo = "phase_2_raw_api.streaming_completion:main"
 chat-demo = "phase_2_raw_api.multi_turn_chat:main"
+history-demo = "phase_2_raw_api.history_management:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]
