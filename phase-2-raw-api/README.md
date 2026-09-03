@@ -141,3 +141,41 @@ In a modern web app (ChatGPT, Claude), the backend streams tokens to the browser
   }
   ```
 
+---
+
+## Task 2.3: Multi-turn Chat & Running Token Tracking
+
+### Objective
+Build a multi-turn CLI chat where you manage the message list manually without frameworks. Print the running token count after every turn and observe how the context window grows.
+
+### How It Works (Frontend / JS Analogy)
+LLMs are completely **stateless**. The server does not remember who you are or what you said 5 seconds ago.
+- **Frontend Equivalent**: Managing an array in React state:
+  ```ts
+  const [messages, setMessages] = useState<Message[]>([
+    { role: "user", text: "My name is Pranav" },
+    { role: "model", text: "Nice to meet you, Pranav!" },
+  ]);
+  ```
+- **The Catch**: On Turn 10, your request sends **all 10 previous turns** across the wire.
+- **Context Growth**:
+  - Turn 1: 15 prompt tokens.
+  - Turn 2: 45 prompt tokens (includes Turn 1 user + Turn 1 model + Turn 2 user).
+  - Turn 3: 85 prompt tokens (includes Turn 1, Turn 2, and Turn 3).
+  - Your costs scale quadratically with conversation length unless pruned!
+
+### Running the Interactive Chat
+```bash
+uv run chat-demo
+```
+Commands inside the chat:
+- Type your message and hit Enter.
+- `/reset`: Clears the conversation history and resets token counters.
+- `exit` or `/exit`: Ends the session.
+
+With optional sliding window pruning:
+```bash
+uv run chat-demo --max-turns 3
+```
+
+
