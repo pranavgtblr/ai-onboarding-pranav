@@ -18,6 +18,7 @@
   - [x] 2.3 Multi-turn CLI chat with manual message list and context tracking
   - [x] 2.4 History management with token thresholds (drop vs summarize strategy)
   - [x] 2.5 Structured output: return validated Pydantic object with retry on failure
+  - [x] 2.6 Hand-write tool-calling loop (calculator & weather, max-iteration guard)
 - [ ] Phase 3 - RAG                (3.1  - 3.22)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)

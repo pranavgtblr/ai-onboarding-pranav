@@ -286,3 +286,67 @@ This flag injects 4 deliberate schema violations on attempt 1 (`power_level: 999
 ```bash
 uv run pytest tests/test_structured_output.py -v
 ```
+
+---
+
+## Task 2.6: Hand-Written Tool-Calling Loop
+
+### Objective
+Hand-write the autonomous tool-calling loop without agent frameworks.
+1. Provide schemas for two tools: `calculator` and `get_weather`.
+2. Parse tool requests emitted by the model.
+3. Execute the matching function locally.
+4. Append the tool output to the conversation history.
+5. Re-invoke the model and repeat until it finishes or hits a `max_iterations` guard.
+6. Log each iteration's inputs, outputs, and token counts.
+
+---
+
+### What Happens Under the Hood? (Frontend / JS Analogy)
+
+In frontend state management, think of tool calling as an **Async Action Dispatcher Loop** (like Redux Thunk or an Event Bus):
+
+1. **Schema Declaration**: You publish available API actions:
+   ```ts
+   type Tool =
+     | { type: "calculator"; a: number; b: number; operation: "add" | "multiply" }
+     | { type: "get_weather"; city: string };
+   ```
+2. **Model as Intent Router**: The model doesn't execute code. It decides *which* action to dispatch and with *what* arguments:
+   ```ts
+   // Model emits:
+   { functionCall: { name: "calculator", args: { a: 42, b: 17, operation: "multiply" } } }
+   ```
+3. **Local Dispatcher**: Your backend runs the actual function:
+   ```ts
+   const result = executeCalculator(args); // 714
+   ```
+4. **Action Resolution**: You pass the result back into the loop:
+   ```ts
+   history.push({ role: "user", parts: [{ functionResponse: { name: "calculator", response: { result: 714 } } }] });
+   ```
+5. **Synthesis**: The model inspects the returned data and answers the user in plain English!
+
+---
+
+### Running & Verifying
+
+#### 1. Multi-Tool Calling (Both Calculator and Weather)
+```bash
+uv run tool-demo
+```
+Or with custom query:
+```bash
+uv run tool-demo --prompt "What is 125 divided by 5, and what is the weather in Paris?"
+```
+
+#### 2. Max-Iterations Safety Guard
+```bash
+uv run tool-demo --max-iterations 1
+```
+Demonstrates the safety circuit breaker: if an agent enters an infinite tool-calling loop, it halts execution safely and reports `Hit Max Guard: True`.
+
+#### 3. Run Test Suite
+```bash
+uv run pytest tests/test_tool_calling.py -v
+```
