@@ -203,5 +203,86 @@ uv run history-demo --strategy drop --max-tokens 120
 uv run history-demo --strategy summarize --max-tokens 120
 ```
 
+---
 
+## Task 2.5: Structured Output & Self-Healing Retry
 
+### Objective
+Return a validated Pydantic object from an LLM prompt. If the model returns malformed JSON or violates field validation rules, catch the error, append the diagnostic details into the conversation history, and retry once. Deliberately force a bad output to prove that the validation interception and self-healing loop works.
+
+---
+
+### What Happens Under the Hood? (Frontend / TypeScript Analogy)
+
+In frontend development, TypeScript gives you compile-time type safety, but runtime safety requires schema validation libraries like **Zod** or **Valibot**:
+
+```ts
+// TypeScript / Zod equivalent
+import { z } from "zod";
+
+const HeroSchema = z.object({
+  name: z.string(),
+  real_name: z.string(),
+  role: z.string(),
+  power_level: z.number().min(1).max(100),
+  abilities: z.array(z.string()).min(1).max(5),
+  is_active: z.boolean(),
+  summary: z.string().max(200),
+});
+
+type HeroProfile = z.infer<typeof HeroSchema>;
+```
+
+In Python with **Pydantic**:
+- `HeroProfile(BaseModel)` defines field types and strict validation constraints (`ge=1, le=100`, `min_length=1, max_length=5`, `max_length=200`).
+- `HeroProfile.model_json_schema()` exports the machine-readable JSON Schema standard.
+- `HeroProfile.model_validate_json(raw_text)` runs runtime parsing and validation.
+
+---
+
+### The Self-Healing Feedback Loop
+
+LLMs are probabilistic text generators. Even with `responseMimeType: "application/json"`, models can:
+1. Violate boundaries (e.g. `power_level: 9999` when the maximum is 100).
+2. Miss required array constraints (e.g. `abilities: []` when at least 1 item is required).
+3. Return invalid types (e.g. `is_active: "not-a-boolean"`).
+4. Exceed string lengths (e.g. `summary` > 200 characters).
+
+Instead of crashing your application, we implement **Self-Correction via Conversational Retries**:
+```
+[Turn 1 - User]    Prompt + JSON Schema
+        │
+        ▼
+[Turn 2 - Model]   Generates output
+        │
+   Pydantic Validation Fails!
+        │
+        ▼
+[Turn 3 - User]    "Your output failed validation:
+                    - Field 'power_level': Input should be <= 100 (got 9999)
+                    - Field 'abilities': List must have at least 1 item (got 0)
+                    Please fix these errors and return valid JSON."
+        │
+        ▼
+[Turn 4 - Model]   Self-heals! Produces valid JSON conforming to constraints.
+```
+
+---
+
+### Running & Verifying
+
+#### 1. Clean Generation (Attempt 1 Success)
+```bash
+uv run structured-demo --prompt "Generate a profile for Spider-Man (Peter Parker)"
+```
+
+#### 2. Forced Bad Output (Proving Self-Healing Retry Works)
+```bash
+uv run structured-demo --prompt "Generate a profile for Iron Man (Tony Stark)" --force-bad
+```
+This flag injects 4 deliberate schema violations on attempt 1 (`power_level: 9999`, empty `abilities`, string `is_active`, 280-char `summary`), captures Pydantic's exact field-level errors, sends them to the live model in a retry turn, and displays the self-healed, validated Pydantic object on attempt 2!
+
+#### 3. Run Test Suite
+```bash
+uv run pytest tests/test_structured_output.py -v
+```
