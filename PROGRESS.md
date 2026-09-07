@@ -12,13 +12,14 @@
   - [x] 1.2 Temperature sampling experiment (0.0, 0.7, 1.2) & variance analysis
   - [x] 1.3 Embed 10 sentences, 10x10 cosine similarity matrix, and semantic vs lexical analysis
   - [x] 1.4 ANSWERS.md core architectural questions and answers
-- [ ] Phase 2 - Raw API            (2.1  - 2.7)
+- [x] Phase 2 - Raw API            (2.1  - 2.7)
   - [x] 2.1 Single completion call with raw httpx (content, stop reason, token counts)
   - [x] 2.2 Stream completion with real-time token delivery via SSE
   - [x] 2.3 Multi-turn CLI chat with manual message list and context tracking
   - [x] 2.4 History management with token thresholds (drop vs summarize strategy)
   - [x] 2.5 Structured output: return validated Pydantic object with retry on failure
   - [x] 2.6 Hand-write tool-calling loop (calculator & weather, max-iteration guard)
+  - [x] 2.7 Resilient error handling (429 backoff, timeouts, context limits, provider failover)
 - [ ] Phase 3 - RAG                (3.1  - 3.22)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)

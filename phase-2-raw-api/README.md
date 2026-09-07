@@ -350,3 +350,61 @@ Demonstrates the safety circuit breaker: if an agent enters an infinite tool-cal
 ```bash
 uv run pytest tests/test_tool_calling.py -v
 ```
+
+---
+
+## Task 2.7: Resilient Error Handling & Provider Failover
+
+### Objective
+Build an enterprise-grade error handling layer:
+1. **Exponential Backoff on 429**: Handle rate limits with exponential growth and random jitter, respecting `Retry-After` headers.
+2. **Timeout Handling**: Detect `httpx.TimeoutException` and execute retries with backoff.
+3. **Context-Length-Exceeded Handling**: Detect prompts that exceed model limits, offering automatic prompt truncation or routing to high-context providers.
+4. **Fallback to Second Provider**: When primary provider is exhausted (rate limits, 5xx server outages, persistent timeouts), automatically fail over to a secondary provider.
+5. **Full Observability**: Detailed audit logs of attempts, sleep intervals, and failover reasons.
+
+---
+
+### What Happens Under the Hood? (Frontend / JS Analogy)
+
+In modern web development, you don't let network glitches crash your UI. You implement resilience patterns:
+
+| AI / Error Handling Concept | Frontend / TypeScript Equivalent | Purpose |
+| :--- | :--- | :--- |
+| **Exponential Backoff on 429** | **React Query / `p-retry`** | Avoid hammering rate-limited endpoints; double wait time with jitter. |
+| **Timeout Handling** | **`AbortController` + timeout** | Cancel hanging network calls and retry without freezing the app. |
+| **Context Length Exceeded** | **Payload Limit / Slice Guard** | Catch oversized payloads and trim/paginate before crashing. |
+| **Provider Failover** | **Multi-CDN / Multi-API Fallback** | When primary API goes down (HTTP 503), switch seamlessly to secondary. |
+| **Audit Logs & State** | **Sentry Breadcrumbs / Redux Logs** | Full visibility into retries, sleep times, and failovers. |
+
+---
+
+### Running & Verifying
+
+#### 1. Normal Clean Completion
+```bash
+uv run resilience-demo --prompt "Explain circuit breakers in 1 sentence."
+```
+
+#### 2. Rate Limit (429) Exponential Backoff Simulation
+```bash
+uv run resilience-demo --simulate-429 2
+```
+Simulates two consecutive 429s. Watch the exponential sleep with random jitter before succeeding on Attempt 3.
+
+#### 3. Context-Length-Exceeded Auto-Truncation
+```bash
+uv run resilience-demo --simulate-context-exceeded
+```
+Catches context overflow, automatically truncates the prompt to the token budget, and succeeds on retry.
+
+#### 4. Primary Provider Outage & Failover
+```bash
+uv run resilience-demo --simulate-failover
+```
+Simulates a primary provider outage (HTTP 503) and immediately fails over to the Secondary Provider.
+
+#### 5. Run Test Suite
+```bash
+uv run pytest tests/test_error_handling.py -v
+```
