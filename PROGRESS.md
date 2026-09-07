@@ -21,6 +21,7 @@
   - [x] 2.6 Hand-write tool-calling loop (calculator & weather, max-iteration guard)
   - [x] 2.7 Resilient error handling (429 backoff, timeouts, context limits, provider failover)
 - [ ] Phase 3 - RAG                (3.1  - 3.22)
+  - [x] 3.1 Naive RAG baseline (20 documents, fixed 500-token chunks, vector search, top 5, prompt stuffing)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
