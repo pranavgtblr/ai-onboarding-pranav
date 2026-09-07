@@ -1,0 +1,1094 @@
+{
+  "pipeline_name": "Phase 3.3: Two-Stage Reranked RAG",
+  "k": 8,
+  "total_questions": 40,
+  "avg_hit_at_k": 0.95,
+  "avg_recall_at_k": 0.9375,
+  "avg_context_precision": 0.883125,
+  "avg_faithfulness": 0.61875,
+  "avg_answer_relevance": 0.3770833333333334,
+  "avg_latency_seconds": 3.5597749999999997,
+  "total_prompt_tokens": 59737,
+  "total_completion_tokens": 2485,
+  "question_results": [
+    {
+      "question_id": "q01",
+      "question": "What is the primary method used by MOXIE-II to generate breathable oxygen?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_01"
+      ],
+      "retrieved_doc_ids": [
+        "doc_01",
+        "doc_15",
+        "doc_19",
+        "doc_20",
+        "doc_04",
+        "doc_18",
+        "doc_01",
+        "doc_01"
+      ],
+      "generated_answer": "Based on the provided documents, the MOXIE-II system generates breathable oxygen by extracting it directly from the Martian atmospheric carbon dioxide ($CO_2$) using Solid Oxide Electrolysis across yttria-stabilized zirconia (YSZ) ceramic membranes. The system compresses ambient Martian air to 1.2 bar, heats it to an operating temperature of 800\u00b0C (1073 K), and applies the chemical reduction reaction:\n\n$2 CO_2 \\rightarrow 2 CO + O_2$",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 2.442,
+      "prompt_tokens": 1551,
+      "completion_tokens": 107
+    },
+    {
+      "question_id": "q02",
+      "question": "What is the daily oxygen production rate of the base electrolysis subsystem?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_01"
+      ],
+      "retrieved_doc_ids": [
+        "doc_05",
+        "doc_01",
+        "doc_01",
+        "doc_05",
+        "doc_01",
+        "doc_01",
+        "doc_11",
+        "doc_17"
+      ],
+      "generated_answer": "Based on the provided documents, the primary electrolysis unit produces **2.4 kg of medical-grade oxygen per hour** (99.6% purity).",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 0.5,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 1.846,
+      "prompt_tokens": 1559,
+      "completion_tokens": 32
+    },
+    {
+      "question_id": "q03",
+      "question": "What technology does the water recovery subsystem use to purify wastewater?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_02"
+      ],
+      "retrieved_doc_ids": [
+        "doc_02",
+        "doc_12",
+        "doc_15",
+        "doc_10",
+        "doc_11",
+        "doc_05",
+        "doc_10",
+        "doc_06"
+      ],
+      "generated_answer": "Based on the provided documents, wastewater is collected into greywater storage sumps before passing through multi-stage filtration. Additionally, urine processing utilizes a rotary drum Vapor Compression Distillation (VCD) centrifuge. \n\n*(Note: The provided context mentions multi-stage filtration and Vapor Compression Distillation as part of the Water Recovery System, but does not provide further specific technical details on other technologies used to purify wastewater.)*",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.6666666666666666,
+      "answer_relevance": 0.3333333333333333,
+      "latency_seconds": 2.351,
+      "prompt_tokens": 1516,
+      "completion_tokens": 84
+    },
+    {
+      "question_id": "q04",
+      "question": "What is the target recovery efficiency percentage of the Closed-Loop Water Recovery System?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_02"
+      ],
+      "retrieved_doc_ids": [
+        "doc_02",
+        "doc_04",
+        "doc_13",
+        "doc_08",
+        "doc_15",
+        "doc_04",
+        "doc_05",
+        "doc_01"
+      ],
+      "generated_answer": "Based on the provided documents, the Closed-Loop Water Recovery System (WRS) achieves a 98.2% closed-loop recycling efficiency.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 1.844,
+      "prompt_tokens": 1520,
+      "completion_tokens": 31
+    },
+    {
+      "question_id": "q05",
+      "question": "What coolant fluids are utilized in the internal and external loops of the Habitation Active Thermal Control System?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_03"
+      ],
+      "retrieved_doc_ids": [
+        "doc_03",
+        "doc_14",
+        "doc_14",
+        "doc_07",
+        "doc_16",
+        "doc_18",
+        "doc_05",
+        "doc_10"
+      ],
+      "generated_answer": "Based on the provided documents, there is not enough information to state what coolant fluids are utilized in the internal and external loops of the Habitation Active Thermal Control System. The text mentions that the ATCS consists of two distinct thermal loops, but the specific coolant fluids are not detailed in the provided context.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.25,
+      "latency_seconds": 2.356,
+      "prompt_tokens": 1557,
+      "completion_tokens": 60
+    },
+    {
+      "question_id": "q06",
+      "question": "What is the nominal temperature range maintained inside the habitation modules?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_03"
+      ],
+      "retrieved_doc_ids": [
+        "doc_03",
+        "doc_06",
+        "doc_07",
+        "doc_05",
+        "doc_09",
+        "doc_07",
+        "doc_14",
+        "doc_01"
+      ],
+      "generated_answer": "Based on the provided documents, the internal pressurized habitat modules are maintained at a steady 21.5\u00b0C +/- 1.0\u00b0C.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 2.149,
+      "prompt_tokens": 1566,
+      "completion_tokens": 31
+    },
+    {
+      "question_id": "q07",
+      "question": "What nuclear reactor powers Odyssey Base and what is its electrical output capacity?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_04"
+      ],
+      "retrieved_doc_ids": [
+        "doc_04",
+        "doc_05",
+        "doc_20",
+        "doc_18",
+        "doc_03",
+        "doc_11",
+        "doc_05",
+        "doc_17"
+      ],
+      "generated_answer": "Odyssey Base is powered by two Kilopower KRUSTY-II nuclear fission units. Each unit produces a net electrical power output of 40 kWe.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 2.256,
+      "prompt_tokens": 1500,
+      "completion_tokens": 34
+    },
+    {
+      "question_id": "q08",
+      "question": "What safety mechanism automatically scrams the Kilopower reactor during an over-temperature event?",
+      "question_type": "procedural",
+      "expected_doc_ids": [
+        "doc_04"
+      ],
+      "retrieved_doc_ids": [
+        "doc_17",
+        "doc_17",
+        "doc_03",
+        "doc_05",
+        "doc_04",
+        "doc_06",
+        "doc_17",
+        "doc_04"
+      ],
+      "generated_answer": "Based on the provided documents, there is no information explaining what safety mechanism automatically scrams the Kilopower reactor during an over-temperature event. The text mentions that an automated safety scram occurred on Kilopower Reactor 1 due to severe electrostatic discharge damaging the digital control bus during a dust storm, but it does not detail an over-temperature scram mechanism. Therefore, I do not have enough information from the provided documents to answer the question.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 0.2,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.3333333333333333,
+      "latency_seconds": 2.25,
+      "prompt_tokens": 1573,
+      "completion_tokens": 89
+    },
+    {
+      "question_id": "q09",
+      "question": "How does the photovoltaic solar farm remove accumulated Martian dust from panels?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_05"
+      ],
+      "retrieved_doc_ids": [
+        "doc_05",
+        "doc_08",
+        "doc_08",
+        "doc_05",
+        "doc_05",
+        "doc_07",
+        "doc_07",
+        "doc_01"
+      ],
+      "generated_answer": "Based on the provided documents, the photovoltaic solar farm removes accumulated Martian dust using an embedded Electrostatic Dust Removal System (EDS). The panels are equipped with transparent indium-tin-oxide (ITO) electrode tracks. Every sol at 03:00 local time, a four-phase travelling electrostatic wave (1,500 Volts at 20 Hz) is energized for 8 minutes, which repels and lofts the charged dust particles into the wind with a 94% clearance efficiency.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.3333333333333333,
+      "latency_seconds": 29.902,
+      "prompt_tokens": 1517,
+      "completion_tokens": 104
+    },
+    {
+      "question_id": "q10",
+      "question": "What is the peak power output of the solar farm under clear atmospheric conditions?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_05"
+      ],
+      "retrieved_doc_ids": [
+        "doc_05",
+        "doc_05",
+        "doc_04",
+        "doc_05",
+        "doc_18",
+        "doc_10",
+        "doc_13",
+        "doc_11"
+      ],
+      "generated_answer": "Based on the provided documents, the solar array produces a peak power of 65 kW under clear skies (at solar noon with an optical depth tau = 0.3).",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 1.948,
+      "prompt_tokens": 1417,
+      "completion_tokens": 36
+    },
+    {
+      "question_id": "q11",
+      "question": "What battery chemistry is used in the base energy storage matrix?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_06"
+      ],
+      "retrieved_doc_ids": [
+        "doc_06",
+        "doc_05",
+        "doc_05",
+        "doc_06",
+        "doc_12",
+        "doc_02",
+        "doc_15",
+        "doc_01"
+      ],
+      "generated_answer": "Based on the provided documents, the base energy storage matrix uses Lithium-Sulfur (Li-S) battery chemistry.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 1.973,
+      "prompt_tokens": 1525,
+      "completion_tokens": 24
+    },
+    {
+      "question_id": "q12",
+      "question": "What are the three load-shedding stages triggered during an emergency battery event?",
+      "question_type": "procedural",
+      "expected_doc_ids": [
+        "doc_06"
+      ],
+      "retrieved_doc_ids": [
+        "doc_05",
+        "doc_03",
+        "doc_07",
+        "doc_16",
+        "doc_17",
+        "doc_16",
+        "doc_11",
+        "doc_17"
+      ],
+      "generated_answer": "I do not have enough information from the provided documents to answer the question about the three load-shedding stages triggered during an emergency battery event.",
+      "hit_at_k": 0.0,
+      "recall_at_k": 0.0,
+      "context_precision": 0.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.75,
+      "latency_seconds": 1.813,
+      "prompt_tokens": 1406,
+      "completion_tokens": 29
+    },
+    {
+      "question_id": "q13",
+      "question": "What is the nominal operating pressure of the EMU-X extravehicular spacesuit?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_07"
+      ],
+      "retrieved_doc_ids": [
+        "doc_07",
+        "doc_02",
+        "doc_01",
+        "doc_06",
+        "doc_14",
+        "doc_05",
+        "doc_08",
+        "doc_07"
+      ],
+      "generated_answer": "Based on the provided documents, the nominal operating pressure of the EMU-X extravehicular spacesuit is 29.6 kPa (4.3 psi).",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 2.151,
+      "prompt_tokens": 1547,
+      "completion_tokens": 33
+    },
+    {
+      "question_id": "q14",
+      "question": "What CO2 scrubbers are used in the EMU-X portable life support system?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_07"
+      ],
+      "retrieved_doc_ids": [
+        "doc_07",
+        "doc_11",
+        "doc_20",
+        "doc_16",
+        "doc_16",
+        "doc_20",
+        "doc_07",
+        "doc_09"
+      ],
+      "generated_answer": "Based on the provided documents, carbon dioxide removal in the EMU-X Portable Life Support System (PLSS) is handled by twin regenerable amine beds (Metal-Organic Framework MOF-74).",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 2.047,
+      "prompt_tokens": 1370,
+      "completion_tokens": 41
+    },
+    {
+      "question_id": "q15",
+      "question": "What is the standard pump-down duration when cycling the hyperbaric airlock?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_08"
+      ],
+      "retrieved_doc_ids": [
+        "doc_13",
+        "doc_05",
+        "doc_10",
+        "doc_03",
+        "doc_17",
+        "doc_07",
+        "doc_02",
+        "doc_08"
+      ],
+      "generated_answer": "I do not have enough information from the provided documents to answer the pump-down duration when cycling the hyperbaric airlock.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 0.125,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.3333333333333333,
+      "latency_seconds": 1.846,
+      "prompt_tokens": 1472,
+      "completion_tokens": 26
+    },
+    {
+      "question_id": "q16",
+      "question": "What dust mitigation steps must astronauts complete before entering the main habitat from an EVA?",
+      "question_type": "procedural",
+      "expected_doc_ids": [
+        "doc_08"
+      ],
+      "retrieved_doc_ids": [
+        "doc_08",
+        "doc_18",
+        "doc_01",
+        "doc_08",
+        "doc_18",
+        "doc_19",
+        "doc_16",
+        "doc_05"
+      ],
+      "generated_answer": "Based on the provided documents, upon returning from an EVA, astronauts enter Chamber 1 (Outer Vestibule) of the three-chamber airlock system, where they complete the following dust mitigation steps:\n\n1. They undergo an automated high-velocity carbon dioxide jet shower (at 25 m/s) to strip surface dust from the suit fabric.\n2. Concurrently, an electrostatic ionizing grid neutralizes particle surface charges, causing the dust to fall through a floor grating into an electrostatic collection hopper.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 2.355,
+      "prompt_tokens": 1473,
+      "completion_tokens": 104
+    },
+    {
+      "question_id": "q17",
+      "question": "What staple crops are cultivated in the Botanical Sustenance Facility aeroponic greenhouse?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_09"
+      ],
+      "retrieved_doc_ids": [
+        "doc_09",
+        "doc_13",
+        "doc_05",
+        "doc_10",
+        "doc_14",
+        "doc_16",
+        "doc_04",
+        "doc_07"
+      ],
+      "generated_answer": "Based on the provided documents, the staple crops cultivated in the greenhouse are:\n- Dwarf Sweet Potatoes (noted for high caloric density)\n\nThe provided text cuts off before listing any additional staple crops.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.25,
+      "latency_seconds": 2.045,
+      "prompt_tokens": 1531,
+      "completion_tokens": 41
+    },
+    {
+      "question_id": "q18",
+      "question": "What percentage of the crew's daily caloric requirement is provided by the greenhouse facility?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_09"
+      ],
+      "retrieved_doc_ids": [
+        "doc_09",
+        "doc_01",
+        "doc_07",
+        "doc_09",
+        "doc_05",
+        "doc_06",
+        "doc_13",
+        "doc_19"
+      ],
+      "generated_answer": "Based on the provided documents, the crew's diet is 35% supplemented by fresh produce from the greenhouse facility (as stated in Doc_09, Section 2). The provided context does not explicitly mention the exact percentage of the daily *caloric* requirement provided by the facility.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 2.173,
+      "prompt_tokens": 1524,
+      "completion_tokens": 60
+    },
+    {
+      "question_id": "q19",
+      "question": "What optical communication system connects Odyssey Base with Earth relays?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_10"
+      ],
+      "retrieved_doc_ids": [
+        "doc_10",
+        "doc_20",
+        "doc_19",
+        "doc_03",
+        "doc_11",
+        "doc_05",
+        "doc_12",
+        "doc_04"
+      ],
+      "generated_answer": "Based on the provided documents, Odyssey Base maintains its primary communication link with Earth using the Deep Space Optical Communications (DSOC) 1550 nm near-infrared laser transceiver (which operates with 30 W laser power).",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 1.924,
+      "prompt_tokens": 1532,
+      "completion_tokens": 47
+    },
+    {
+      "question_id": "q20",
+      "question": "What is the typical one-way radio latency range between Mars and Earth?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_10"
+      ],
+      "retrieved_doc_ids": [
+        "doc_10",
+        "doc_10",
+        "doc_03",
+        "doc_19",
+        "doc_16",
+        "doc_20",
+        "doc_10",
+        "doc_08"
+      ],
+      "generated_answer": "The one-way light time latency between Earth and Mars ranges from 3.1 minutes (at the closest distance of 55 million km) to 22.4 minutes (at the farthest distance of 401 million km).",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 2.149,
+      "prompt_tokens": 1438,
+      "completion_tokens": 50
+    },
+    {
+      "question_id": "q21",
+      "question": "What is the maximum operating range of the Ares-IV pressurized rover from Odyssey Base?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_11"
+      ],
+      "retrieved_doc_ids": [
+        "doc_11",
+        "doc_03",
+        "doc_01",
+        "doc_10",
+        "doc_18",
+        "doc_17",
+        "doc_06",
+        "doc_19"
+      ],
+      "generated_answer": "Based on the provided documents, the maximum operating range of the Ares-IV pressurized rover from base is up to 500 km.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 1.944,
+      "prompt_tokens": 1487,
+      "completion_tokens": 28
+    },
+    {
+      "question_id": "q22",
+      "question": "What emergency life support reserve duration is onboard the Ares-IV rover?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_11"
+      ],
+      "retrieved_doc_ids": [
+        "doc_07",
+        "doc_11",
+        "doc_20",
+        "doc_16",
+        "doc_06",
+        "doc_11",
+        "doc_06",
+        "doc_04"
+      ],
+      "generated_answer": "Based on the provided documents, there is no mention of an emergency life support reserve duration for the Ares-IV rover. (The provided documents only state that the rover carries \"14 sols of consumables\" and that PLSS backpacks provide a 30-minute secondary emergency reserve). Therefore, I do not have enough information from the provided documents to answer the question.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 0.5,
+      "faithfulness": 0.3333333333333333,
+      "answer_relevance": 0.3333333333333333,
+      "latency_seconds": 2.048,
+      "prompt_tokens": 1440,
+      "completion_tokens": 74
+    },
+    {
+      "question_id": "q23",
+      "question": "How does the outpost construct radiation shielding and structures from native Martian regolith?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_12"
+      ],
+      "retrieved_doc_ids": [
+        "doc_08",
+        "doc_08",
+        "doc_08",
+        "doc_01",
+        "doc_19",
+        "doc_19",
+        "doc_04",
+        "doc_19"
+      ],
+      "generated_answer": "Based on the provided documents, I do not have enough information to explain how the outpost constructs structures from native Martian regolith. The text only mentions that the KRUSTY-II fission reactor core is shielded by 3 meters of compacted Martian regolith, but it does not provide details on how structures or radiation shielding are constructed.",
+      "hit_at_k": 0.0,
+      "recall_at_k": 0.0,
+      "context_precision": 0.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 2.356,
+      "prompt_tokens": 1425,
+      "completion_tokens": 66
+    },
+    {
+      "question_id": "q24",
+      "question": "What thickness of sintered regolith is required over habitation modules for radiation protection?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_12"
+      ],
+      "retrieved_doc_ids": [
+        "doc_12",
+        "doc_18",
+        "doc_11",
+        "doc_15",
+        "doc_01",
+        "doc_11",
+        "doc_18",
+        "doc_12"
+      ],
+      "generated_answer": "Based on the provided documents, the inflatable habitat modules are enclosed within an arched outer protective shell composed of sintered regolith pavers stacked **1.5 meters thick**, which attenuates galactic cosmic ray (GCR) exposure by 72%.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.6666666666666666,
+      "latency_seconds": 1.951,
+      "prompt_tokens": 1494,
+      "completion_tokens": 48
+    },
+    {
+      "question_id": "q25",
+      "question": "What emergency medical protocols exist for acute radiation exposure exceeding 500 mSv?",
+      "question_type": "procedural",
+      "expected_doc_ids": [
+        "doc_13"
+      ],
+      "retrieved_doc_ids": [
+        "doc_13",
+        "doc_05",
+        "doc_11",
+        "doc_18",
+        "doc_05",
+        "doc_11",
+        "doc_16",
+        "doc_06"
+      ],
+      "generated_answer": "Based on the provided documents, unshielded crew members at risk of Acute Radiation Syndrome during major Solar Particle Events are evaluated using active biodosimetry kits that measure chromosomal dicentric aberrations in peripheral blood lymphocytes. The exposure thresholds and associated symptoms are:\n- Mild (0.5 to 1.5 Gy / 500 to 1,500 mSv): Nausea, mild fatigue, and a transient drop in white blood cell count.\n- Moderate (1.5 to 4.0 Gy): Severe vomiting.\n\nThe provided text does not contain additional medical protocol details for exposures exceeding these specific thresholds.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.75,
+      "answer_relevance": 0.0,
+      "latency_seconds": 24.879,
+      "prompt_tokens": 1501,
+      "completion_tokens": 128
+    },
+    {
+      "question_id": "q26",
+      "question": "What diagnostic imaging equipment is available in the base medical bay?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_13"
+      ],
+      "retrieved_doc_ids": [
+        "doc_13",
+        "doc_13",
+        "doc_01",
+        "doc_03",
+        "doc_01",
+        "doc_11",
+        "doc_18",
+        "doc_12"
+      ],
+      "generated_answer": "I do not have enough information from the provided documents to answer what diagnostic imaging equipment is available in the base medical bay.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 1.95,
+      "prompt_tokens": 1518,
+      "completion_tokens": 24
+    },
+    {
+      "question_id": "q27",
+      "question": "What are the storage quantities and temperatures for liquid methane and oxygen stored for the ERV?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_14"
+      ],
+      "retrieved_doc_ids": [
+        "doc_14",
+        "doc_05",
+        "doc_07",
+        "doc_18",
+        "doc_05",
+        "doc_18",
+        "doc_19",
+        "doc_10"
+      ],
+      "generated_answer": "Based on the provided documents, Odyssey Base stores the following quantities and boiling temperatures for the Earth Return Vehicle (ERV):\n\n* **Liquid Methane (LCH4):** \n  * Storage quantity: 85 metric tons\n  * Temperature: Boiling point of -161.6\u00b0C at 1 atm\n\n* **Liquid Oxygen (LOX):** \n  * Storage quantity: 340 metric tons\n  * Temperature: Boiling point of -182.96\u00b0C",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "latency_seconds": 2.455,
+      "prompt_tokens": 1553,
+      "completion_tokens": 107
+    },
+    {
+      "question_id": "q28",
+      "question": "How does the Zero-Boil-Off (ZBO) system prevent cryogenic propellant loss over long storage periods?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_14"
+      ],
+      "retrieved_doc_ids": [
+        "doc_14",
+        "doc_14",
+        "doc_08",
+        "doc_14",
+        "doc_18",
+        "doc_06",
+        "doc_02",
+        "doc_19"
+      ],
+      "generated_answer": "Based on the provided documents, the Zero-Boil-Off (ZBO) system prevents cryogenic propellant loss through the following methods:\n\n1. **Multi-Layer Insulation (MLI) & Vacuum Annulus:** The tanks feature an outer stainless steel vacuum shell with an evacuated annulus pressure of < 10^-4 Torr. Inside this vacuum gap, 60 alternating layers of double-aluminized Mylar and Dacron scrim insulation reflect 99.2% of ambient radiant heat.\n2. **Active Cryocoolers (Pulse Tube):** The tanks are cooled by active closed-cycle Pulse Tube Cryocoolers (PTCs) that deliver 40W of heat lift at 90 K to achieve ZBO over 500-sol holding periods.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.75,
+      "answer_relevance": 1.0,
+      "latency_seconds": 2.148,
+      "prompt_tokens": 1555,
+      "completion_tokens": 163
+    },
+    {
+      "question_id": "q29",
+      "question": "What are the primary end products of the solid waste thermochemical pyrolysis reactor?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_15"
+      ],
+      "retrieved_doc_ids": [
+        "doc_15",
+        "doc_18",
+        "doc_10",
+        "doc_16",
+        "doc_13",
+        "doc_09",
+        "doc_11",
+        "doc_04"
+      ],
+      "generated_answer": "Based on the provided documents, there is not enough information to determine the primary end products of the solid waste thermochemical pyrolysis reactor. The provided text only mentions that waste is shredded into 5 mm pellets and fed into an anaerobic rotary retort, but it does not detail the resulting end products.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 2.458,
+      "prompt_tokens": 1496,
+      "completion_tokens": 58
+    },
+    {
+      "question_id": "q30",
+      "question": "At what operating temperature does the waste pyrolysis reactor operate?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_15"
+      ],
+      "retrieved_doc_ids": [
+        "doc_15",
+        "doc_06",
+        "doc_04",
+        "doc_02",
+        "doc_01",
+        "doc_01",
+        "doc_17",
+        "doc_03"
+      ],
+      "generated_answer": "Based on the provided documents, there is no mention of the operating temperature of the waste pyrolysis reactor. I do not have enough information from the provided documents to answer this question.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 2.049,
+      "prompt_tokens": 1545,
+      "completion_tokens": 35
+    },
+    {
+      "question_id": "q31",
+      "question": "Where is the storm shelter located and what materials provide shielding during a Solar Particle Event?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_16"
+      ],
+      "retrieved_doc_ids": [
+        "doc_16",
+        "doc_05",
+        "doc_16",
+        "doc_17",
+        "doc_07",
+        "doc_05",
+        "doc_10",
+        "doc_11"
+      ],
+      "generated_answer": "Based on the provided documents, the central storm shelter (The Citadel) is excavated 6 meters below the natural surface beneath a basalt volcanic ridge. \n\nThe shielding during a Solar Particle Event is provided by:\n* A 40 cm water jacket (incorporating the base's 45,000-liter potable water reserve) lining the ceiling and walls.\n* 15 cm of high-density polyethylene (HDPE).",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.3333333333333333,
+      "latency_seconds": 2.567,
+      "prompt_tokens": 1447,
+      "completion_tokens": 92
+    },
+    {
+      "question_id": "q32",
+      "question": "What alert sequence precedes crew relocation to the SPE radiation storm shelter?",
+      "question_type": "procedural",
+      "expected_doc_ids": [
+        "doc_16"
+      ],
+      "retrieved_doc_ids": [
+        "doc_16",
+        "doc_16",
+        "doc_11",
+        "doc_09",
+        "doc_16",
+        "doc_13",
+        "doc_16",
+        "doc_19"
+      ],
+      "generated_answer": "Based on the provided documents, the alarm stages and protocols leading up to crew relocation to the Citadel (the storm shelter) are:\n\n1. **Alert Yellow** (SPE Warning issued by NOAA Space Weather): All surface EVA operations are canceled, and rovers return to base.\n2. **Alert Orange** (Proton flux > 100 pfu at > 10 MeV): All crew members ingress the habitat, and airlocks are locked down.\n3. **Alert Red** (Shockfront arrival imminent): All 12 crew members must muster in the Citadel within 15 minutes.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.75,
+      "answer_relevance": 1.0,
+      "latency_seconds": 2.141,
+      "prompt_tokens": 1407,
+      "completion_tokens": 125
+    },
+    {
+      "question_id": "q33",
+      "question": "What occurred during the 2082 dust storm incident and how long did the base run on emergency batteries?",
+      "question_type": "numeric",
+      "expected_doc_ids": [
+        "doc_17"
+      ],
+      "retrieved_doc_ids": [
+        "doc_17",
+        "doc_17",
+        "doc_17",
+        "doc_08",
+        "doc_05",
+        "doc_11",
+        "doc_01",
+        "doc_05"
+      ],
+      "generated_answer": "During the planet-wide dust storm on 2082-Sol-088, severe electrostatic discharge (arching across an 8 kV differential) damaged the digital control bus on Kilopower Reactor 1, which caused an automated safety scram. \n\nThe base ran on emergency batteries for 18 hours.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "latency_seconds": 1.879,
+      "prompt_tokens": 1563,
+      "completion_tokens": 66
+    },
+    {
+      "question_id": "q34",
+      "question": "What lesson was learned from the Sol 412 airlock seal micro-tear incident?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_17"
+      ],
+      "retrieved_doc_ids": [
+        "doc_17",
+        "doc_17",
+        "doc_08",
+        "doc_17",
+        "doc_17",
+        "doc_19",
+        "doc_18",
+        "doc_06"
+      ],
+      "generated_answer": "I do not have enough information from the provided documents to answer the question about the \"Sol 412 airlock seal micro-tear incident.\"",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.25,
+      "latency_seconds": 2.013,
+      "prompt_tokens": 1520,
+      "completion_tokens": 30
+    },
+    {
+      "question_id": "q35",
+      "question": "What catastrophic trigger conditions authorize the commander to declare Protocol Omega?",
+      "question_type": "procedural",
+      "expected_doc_ids": [
+        "doc_18"
+      ],
+      "retrieved_doc_ids": [
+        "doc_18",
+        "doc_18",
+        "doc_11",
+        "doc_07",
+        "doc_11",
+        "doc_10",
+        "doc_08",
+        "doc_06"
+      ],
+      "generated_answer": "Based on the provided documents, Protocol Omega can be declared by unanimous concurrence of the Base Commander and the Mission Flight Surgeon (or by direct override command from Earth Mission Control) when any of the following triggers occur:\n\n1. Unrecoverable atmospheric hull breach exceeding 0.5 m2 equivalent orifice area across multiple modules.\n2. Total loss of reactor primary coolant combined with secondary battery depletion below 15%.\n3. Irreversible biological contamination of the habitat ecosystem by foreign toxicity or virulent pathogen.\n4. Severe seismic rupture of the underlying Arcadia Planitia lava tube structure.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.25,
+      "latency_seconds": 2.15,
+      "prompt_tokens": 1399,
+      "completion_tokens": 118
+    },
+    {
+      "question_id": "q36",
+      "question": "What is the evacuation sequence and abort timeline once Protocol Omega is initiated?",
+      "question_type": "procedural",
+      "expected_doc_ids": [
+        "doc_18"
+      ],
+      "retrieved_doc_ids": [
+        "doc_18",
+        "doc_18",
+        "doc_20",
+        "doc_09",
+        "doc_01",
+        "doc_06",
+        "doc_10",
+        "doc_10"
+      ],
+      "generated_answer": "Based on the provided documents, the evacuation timeline for Protocol Omega (T-0 to Launch) begins at:\n- **T-00:00**: Siren sounds; automated telemetry locks habitat blast doors.\n\nThe provided context does not contain the remaining steps or timeline details beyond T-00:00.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.5,
+      "answer_relevance": 0.0,
+      "latency_seconds": 9.626,
+      "prompt_tokens": 1512,
+      "completion_tokens": 65
+    },
+    {
+      "question_id": "q37",
+      "question": "What chemical reaction produces methane and water from atmospheric carbon dioxide and hydrogen in the ISRU plant?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_19"
+      ],
+      "retrieved_doc_ids": [
+        "doc_19",
+        "doc_19",
+        "doc_05",
+        "doc_01",
+        "doc_19",
+        "doc_05",
+        "doc_08",
+        "doc_15"
+      ],
+      "generated_answer": "The Sabatier methanation reaction:\nCO2 + 4 H2 -> CH4 + 2 H2O",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.3333333333333333,
+      "latency_seconds": 2.152,
+      "prompt_tokens": 1496,
+      "completion_tokens": 25
+    },
+    {
+      "question_id": "q38",
+      "question": "How does the water produced by the Sabatier reactor feed back into the outpost life support and fuel cycle?",
+      "question_type": "multi_hop",
+      "expected_doc_ids": [
+        "doc_19",
+        "doc_01"
+      ],
+      "retrieved_doc_ids": [
+        "doc_19",
+        "doc_19",
+        "doc_20",
+        "doc_15",
+        "doc_07",
+        "doc_18",
+        "doc_06",
+        "doc_18"
+      ],
+      "generated_answer": "Based on the provided documents, the water produced by the Sabatier reaction is condensed and routed to high-temperature solid polymer electrolyte (SPE) electrolyzers. Through water electrolysis ($2 \\text{ H}_2\\text{O} \\rightarrow 2 \\text{ H}_2 + \\text{O}_2$), the resulting oxygen is liquefied and stored in LOX tanks, while the hydrogen is recycled back into the Sabatier reactor input stream, which drastically reduces the net hydrogen feedstock needed from external sources.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 0.5,
+      "context_precision": 1.0,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.3333333333333333,
+      "latency_seconds": 2.034,
+      "prompt_tokens": 1433,
+      "completion_tokens": 105
+    },
+    {
+      "question_id": "q39",
+      "question": "Who assumes operational command if the Mission Commander is incapacitated or unavailable?",
+      "question_type": "factoid",
+      "expected_doc_ids": [
+        "doc_20"
+      ],
+      "retrieved_doc_ids": [
+        "doc_20",
+        "doc_04",
+        "doc_04",
+        "doc_10",
+        "doc_18",
+        "doc_01",
+        "doc_01",
+        "doc_18"
+      ],
+      "generated_answer": "Based on the provided documents, there is no information regarding who assumes operational command if the Mission Commander is incapacitated or unavailable. Therefore, I do not have enough information from the provided documents to answer the question.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 1.875,
+      "prompt_tokens": 1534,
+      "completion_tokens": 41
+    },
+    {
+      "question_id": "q40",
+      "question": "What protocols govern automated laser relay satellites orbiting the planet Neptune?",
+      "question_type": "negative",
+      "expected_doc_ids": [],
+      "retrieved_doc_ids": [
+        "doc_10",
+        "doc_17",
+        "doc_17",
+        "doc_10",
+        "doc_10",
+        "doc_18",
+        "doc_18",
+        "doc_13"
+      ],
+      "generated_answer": "I do not have enough information from the provided documents to answer the question about automated laser relay satellites orbiting the planet Neptune.",
+      "hit_at_k": 1.0,
+      "recall_at_k": 1.0,
+      "context_precision": 1.0,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.0,
+      "latency_seconds": 1.896,
+      "prompt_tokens": 1318,
+      "completion_tokens": 24
+    }
+  ]
+}

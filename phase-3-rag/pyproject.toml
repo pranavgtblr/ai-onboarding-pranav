@@ -19,6 +19,7 @@ naive-rag = "phase_3_rag.naive_rag:main"
 hybrid-rag = "phase_3_rag.hybrid_rag:main"
 reranked-rag = "phase_3_rag.reranked_rag:main"
 cited-rag = "phase_3_rag.cited_rag:main"
+evaluate-rag = "phase_3_rag.evaluator:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]

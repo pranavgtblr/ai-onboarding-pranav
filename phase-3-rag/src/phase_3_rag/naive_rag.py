@@ -88,10 +88,18 @@ def generate_llm_response(
     }
     payload = {"contents": [{"parts": [{"text": augmented_prompt}]}]}
 
-    for attempt in range(3):
+    for attempt in range(5):
         resp = client.post(url, headers=headers, json=payload)
-        if resp.status_code in (429, 503) and attempt < 2:
-            time.sleep(1.5 * (2**attempt))
+        if resp.status_code in (429, 503) and attempt < 4:
+            retry_after = resp.headers.get("retry-after")
+            wait_time = (
+                float(retry_after) if retry_after else min(30.0, 3.0 * (2**attempt))
+            )
+            print(
+                f"  ⚠️  [Gemini Rate Limit] {resp.status_code} received. "
+                f"Backing off for {wait_time:.1f}s (attempt {attempt + 1}/5)..."
+            )
+            time.sleep(wait_time)
             continue
         resp.raise_for_status()
         data = resp.json()

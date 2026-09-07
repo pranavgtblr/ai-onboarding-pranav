@@ -1,0 +1,402 @@
+{
+  "naive::q01": {
+    "answer": "Based on the provided documents, the MOXIE-II system generates breathable oxygen by extracting it directly from the Martian atmospheric carbon dioxide ($CO_2$) using Solid Oxide Electrolysis across yttria-stabilized zirconia (YSZ) ceramic membranes. The system compresses ambient Martian air to 1.2 bar and heats it to an operating temperature of 800\u00b0C (1073 K) to drive the fundamental chemical reduction reaction: \n$2 CO_2 \\rightarrow 2 CO + O_2$.",
+    "prompt_tokens": 2103,
+    "completion_tokens": 109
+  },
+  "naive::q02": {
+    "answer": "Based on the provided documents, the primary electrolysis unit produces **2.4 kg** of medical-grade oxygen per hour.",
+    "prompt_tokens": 2170,
+    "completion_tokens": 25
+  },
+  "naive::q03": {
+    "answer": "Based on the provided documents, the Water Recovery System (WRS) processes wastewater (crew perspiration, cabin humidity condensate, hygiene wastewater, and urine) using the following purification technologies:\n\n1. **Multi-stage filtration:** Wastewater passes through multi-stage filtration after being collected into greywater storage sumps.\n2. **Vapor Compression Distillation (VCD):** Urine processing uses a rotary drum Vapor Compression Distillation centrifuge operating at 40 rpm with acid pretreatment (Chromium Trioxide and Sulfuric Acid at a pH of 1.8).\n3. **Catalytic Oxidation Reactor:** Distillate passes through a catalytic oxidation reactor heated to 135\u00b0C at 3.5 bar pressure in the presence of platinum-iridium catalysts to oxidize remaining volatile organic carbons (VOCs).\n4. **Post-reactor Mineralization:** Injects 25 ppm calcium carbonate and 15 ppm magnesium sulfate to ensure palatable, non-corrosive drinking water.",
+    "prompt_tokens": 2098,
+    "completion_tokens": 203
+  },
+  "naive::q04": {
+    "answer": "The target recovery efficiency percentage of the Closed-Loop Water Recovery System is 98.2%.",
+    "prompt_tokens": 1940,
+    "completion_tokens": 20
+  },
+  "naive::q05": {
+    "answer": "Based on the provided documents, the coolant fluids utilized in the Active Thermal Control System (ATCS) are:\n- **Internal Heat Collection Loop:** Food-grade uninhibited water-glycol (70/30 mix)\n- **External Heat Rejection Loop:** Low-viscosity silicone fluid (polydimethylsiloxane)",
+    "prompt_tokens": 2037,
+    "completion_tokens": 70
+  },
+  "naive::q06": {
+    "answer": "Odyssey Base maintains internal pressurized habitat modules at a steady 21.5\u00b0C +/- 1.0\u00b0C.",
+    "prompt_tokens": 2051,
+    "completion_tokens": 26
+  },
+  "naive::q07": {
+    "answer": "Primary electrical baseload for Odyssey Base is supplied by two Kilopower KRUSTY-II nuclear fission units. Each unit produces 40 kWe net electrical power.",
+    "prompt_tokens": 2144,
+    "completion_tokens": 35
+  },
+  "naive::q08": {
+    "answer": "Based on the provided documents, there is no mention of a specific safety mechanism that automatically scrams the Kilopower reactor during an *over-temperature* event. \n\nThe documents only note an automated safety scram that occurred during Incident 2082-Sol-088 due to severe electrostatic discharge damaging the digital control bus during a planet-wide dust storm. \n\nTherefore, I do not have enough information from the provided documents to answer what mechanism scrams the reactor during an over-temperature event.",
+    "prompt_tokens": 2049,
+    "completion_tokens": 105
+  },
+  "naive::q09": {
+    "answer": "Based on the provided documents, fine ferric oxide dust particles are removed from the photovoltaic solar panels using an **Electrostatic Dust Removal System (EDS)**. \n\nThe panels are equipped with embedded indium-tin-oxide (ITO) transparent electrode tracks. Every sol at 03:00 local time, a four-phase travelling electrostatic wave (1,500 Volts at 20 Hz) is energized for 8 minutes, which repels and lofts the charged dust particles into the wind with a 94% clearance efficiency.",
+    "prompt_tokens": 2038,
+    "completion_tokens": 112
+  },
+  "naive::q10": {
+    "answer": "Based on the provided documents, the solar array produces a peak power of 65 kW at solar noon under clear skies (optical depth tau = 0.3).",
+    "prompt_tokens": 2089,
+    "completion_tokens": 34
+  },
+  "naive::q11": {
+    "answer": "Lithium-Sulfur (Li-S) chemistry is used in the base energy storage matrix.",
+    "prompt_tokens": 2113,
+    "completion_tokens": 20
+  },
+  "naive::q12": {
+    "answer": "I do not have enough information from the provided documents to answer the question about the three load-shedding stages triggered during an emergency battery event.",
+    "prompt_tokens": 2016,
+    "completion_tokens": 29
+  },
+  "naive::q13": {
+    "answer": "The nominal operating pressure of the EMU-X extravehicular spacesuit is 29.6 kPa (4.3 psi).",
+    "prompt_tokens": 2047,
+    "completion_tokens": 27
+  },
+  "naive::q14": {
+    "answer": "Based on the provided documents, carbon dioxide removal in the EMU-X portable life support system is handled by twin regenerable amine beds (Metal-Organic Framework MOF-74).",
+    "prompt_tokens": 2034,
+    "completion_tokens": 37
+  },
+  "naive::q15": {
+    "answer": "Based on the provided documents, depressurization (pump-down) of the hyperbaric airlock from habitat pressure to Martian atmospheric pressure takes 12 minutes.",
+    "prompt_tokens": 2031,
+    "completion_tokens": 33
+  },
+  "naive::q16": {
+    "answer": "Based on the provided documents, when astronauts return from an EVA, they must complete the following dust mitigation steps in Chamber 1 (Outer Vestibule) of the airlock system:\n\n1. **CO2 Dust Blowdown:** An automated high-velocity carbon dioxide jet shower (operating at 25 m/s) strips surface dust from the suit fabric.\n2. **Electrostatic Shower:** Concurrently, an electrostatic ionizing grid neutralizes particle surface charges, causing the dust to fall through a floor grating into an electrostatic collection hopper.",
+    "prompt_tokens": 1995,
+    "completion_tokens": 110
+  },
+  "naive::q17": {
+    "answer": "Based on the provided documents, the five staple crops cultivated in the aeroponic greenhouse are:\n\n- Dwarf Sweet Potatoes\n- Micro-Tom Tomatoes\n- Soybeans\n- Radishes & Leafy Greens\n- Spirulina Algae Bioreactors",
+    "prompt_tokens": 2111,
+    "completion_tokens": 51
+  },
+  "naive::q18": {
+    "answer": "Based on the provided documents, the text states that the diet of the crew is 35% supplemented by fresh produce from five staple crops grown in the greenhouse, but it does not specify what percentage of the crew's daily *caloric* requirement is provided by the greenhouse facility. \n\nTherefore, I do not have enough information from the provided documents to answer the exact caloric percentage.",
+    "prompt_tokens": 2082,
+    "completion_tokens": 79
+  },
+  "naive::q19": {
+    "answer": "Based on the provided documents, surface communication to Earth is augmented by two orbital relays: the Mars Reconnaissance Orbiter II (MRO-II) and the Odyssey Relay Satellite. However, the provided documents do not contain information specifically detailing which optical communication system connects Odyssey Base to these Earth relays. Therefore, I do not have enough information from the provided documents to answer that specific question.",
+    "prompt_tokens": 2076,
+    "completion_tokens": 77
+  },
+  "naive::q20": {
+    "answer": "Based on the provided documents, the one-way light time latency between Earth and Mars ranges from 3.1 minutes (at closest distance, 55 million km) to 22.4 minutes (at farthest distance, 401 million km).",
+    "prompt_tokens": 2041,
+    "completion_tokens": 54
+  },
+  "naive::q21": {
+    "answer": "Based on the provided documents, the Ares-IV is designed for extended scientific sorties up to 500 km from base.",
+    "prompt_tokens": 2082,
+    "completion_tokens": 26
+  },
+  "naive::q22": {
+    "answer": "Based on the provided documents, there is no mention of an emergency life support reserve duration for the Ares-IV rover. The documents state that the rover carries \"14 sols of consumables\" when fully loaded, but an explicit emergency reserve duration is not provided. Therefore, I do not have enough information from the provided documents to answer your question.",
+    "prompt_tokens": 2020,
+    "completion_tokens": 69
+  },
+  "naive::q23": {
+    "answer": "Based on the provided documents, the outpost constructs radiation shielding and structures from native Martian regolith using the following methods:\n\n* **Microwave Sintering and 3D Printing:** Automated gantry 3D printers equipped with 2.45 GHz microwave magnetron horns (15 kW power) heat the iron oxide-rich regolith to its melting point (1,150\u00b0C) within minutes. This fuses the loose soil into dense, glassy volcanic basalt-like tiles (pavers) with a compressive strength of 62 MPa.\n* **Radiation Shielding Overpressure Domes:** Inflatable habitat modules are enclosed within an arched outer protective shell made of these sintered regolith pavers stacked 1.5 meters thick, which protects against micro-meteoroids and attenuates galactic cosmic ray (GCR) exposure by 72%.\n* **Sulfur Concrete:** For areas requiring rapid structural setting without water, sulfur concrete is prepared by melting elemental sulfur extracted from Martian sulfate minerals at 140\u00b0C, mixing it with 70% graded regolith aggregate, and allowing it to solidify upon cooling to ambient temperature within 45 minutes.",
+    "prompt_tokens": 2032,
+    "completion_tokens": 240
+  },
+  "naive::q24": {
+    "answer": "Based on the provided documents, an arched outer protective shell composed of sintered regolith pavers stacked **1.5 meters thick** is required over inflatable habitat modules to provide protection against micro-meteoroid impacts and attenuate galactic cosmic ray (GCR) exposure.",
+    "prompt_tokens": 2013,
+    "completion_tokens": 51
+  },
+  "naive::q25": {
+    "answer": "Based on the provided documents, exposure thresholds for Acute Radiation Syndrome are measured in Gray (Gy). For exposures exceeding 1.0 Gy (which is greater than 500 mSv / 0.5 Gy), the following emergency medical protocols apply:\n\n- **Medication:** Patients receive Granulocyte Colony-Stimulating Factor (G-CSF, Filgrastim) at 5 mcg/kg daily to stimulate neutrophil regeneration.\n- **Prophylactic Treatments:** Prophylactic broad-spectrum antibiotics (Ciprofloxacin and Vancomycin) and anti-emetics (Ondansetron 8mg IV) are administered immediately.\n\n*(Note: The provided text details clinical thresholds starting at mild exposure from 0.5 to 1.5 Gy and treatment protocols specifically for exposures > 1.0 Gy. The exact term \"500 mSv\" does not appear in the text, but 500 mSv equals 0.5 Gy, which marks the beginning of the mild exposure threshold.)*",
+    "prompt_tokens": 1974,
+    "completion_tokens": 213
+  },
+  "naive::q26": {
+    "answer": "Based on the provided documents, there is no mention of diagnostic imaging equipment available in the base medical bay. Therefore, I do not have enough information from the provided documents to answer your question.",
+    "prompt_tokens": 2057,
+    "completion_tokens": 38
+  },
+  "naive::q27": {
+    "answer": "Based on the provided documents, the storage quantities and temperatures for the propellants stored for the Earth Return Vehicle (ERV) are:\n\n* **Liquid Methane (LCH4):** 85 metric tons, with a boiling point of -161.6\u00b0C at 1 atm.\n* **Liquid Oxygen (LOX):** 340 metric tons, with a boiling point of -182.96\u00b0C.",
+    "prompt_tokens": 2119,
+    "completion_tokens": 94
+  },
+  "naive::q28": {
+    "answer": "Based on the provided documents, the Zero-Boil-Off (ZBO) system prevents cryogenic propellant loss through the following methods:\n\n1. **Multi-Layer Insulation (MLI) & Vacuum Annulus:** Tanks feature an outer stainless steel vacuum shell with an evacuated annulus pressure of < 10^-4 Torr. Inside this vacuum gap, 60 alternating layers of double-aluminized Mylar and Dacron scrim insulation reflect 99.2% of ambient radiant heat.\n2. **Active Cryocoolers (Pulse Tube):** Active closed-cycle Pulse Tube Cryocoolers (PTCs) deliver 40W of heat lift at 90 K to achieve ZBO over 500-sol holding periods. These cryocoolers run on helium gas and consume 3.2 kW of electrical power per tank.\n3. **Tank Ullage Pressure Management:** Tank internal pressure is maintained between 1.8 bar and 2.4 bar. If a cryocooler fails and tank pressure reaches 3.2 bar, automated pneumatic relief valves vent boiled-off gaseous methane through catalytic burners, oxidizing it into inert CO2 and H2O to prevent combustible vapor clouds on the pad.",
+    "prompt_tokens": 2056,
+    "completion_tokens": 256
+  },
+  "naive::q29": {
+    "answer": "Based on the provided documents, the primary phases/end products of the high-temperature vacuum pyrolysis reactor are:\n\n1. **Syngas (62% by volume):** Comprising carbon monoxide, methane, and hydrogen.\n2. **Bio-oil Condensate (23%):** Comprising liquid hydrocarbons and water.\n3. **Solid Biochar (15%):** Comprising high-purity porous activated carbon.",
+    "prompt_tokens": 2104,
+    "completion_tokens": 93
+  },
+  "naive::q30": {
+    "answer": "Based on the provided documents, the anaerobic rotary retort used for solid waste pyrolysis operates at **650\u00b0C** (at 0.1 bar).",
+    "prompt_tokens": 2103,
+    "completion_tokens": 32
+  },
+  "naive::q31": {
+    "answer": "Based on the provided documents, the central storm shelter (The Citadel) is excavated 6 meters below the natural surface beneath a basalt volcanic ridge. \n\nThe shielding materials during a Solar Particle Event consist of:\n- A 40 cm water jacket (incorporating the base's 45,000-liter potable water reserve) lining the ceiling and walls.\n- 15 cm of high-density polyethylene (HDPE).",
+    "prompt_tokens": 2015,
+    "completion_tokens": 92
+  },
+  "naive::q32": {
+    "answer": "Based on the provided documents, the alarm stages and muster protocols preceding crew relocation to the central storm shelter (The Citadel) are:\n\n1. **Alert Yellow** (SPE Warning issued by NOAA Space Weather): All surface EVA operations are canceled, and rovers return to base.\n2. **Alert Orange** (Proton flux > 100 pfu at > 10 MeV): All crew members ingress the habitat, and airlocks are locked down.\n3. **Alert Red** (Shockfront arrival imminent): All 12 crew members must muster in the Citadel within 15 minutes.",
+    "prompt_tokens": 2021,
+    "completion_tokens": 125
+  },
+  "naive::q33": {
+    "answer": "During the 2082 dust storm incident, severe electrostatic discharge (arching across an 8 kV differential) damaged the digital control bus on Kilopower Reactor 1, causing an automated safety scram. As a result, the base ran on emergency batteries for 18 hours.",
+    "prompt_tokens": 2050,
+    "completion_tokens": 58
+  },
+  "naive::q34": {
+    "answer": "Based on the provided documents, there is no mention of a \"Sol 412 airlock seal micro-tear incident.\" Therefore, I do not have enough information from the provided documents to answer your question.",
+    "prompt_tokens": 2107,
+    "completion_tokens": 43
+  },
+  "naive::q35": {
+    "answer": "Based on the provided documents, Protocol Omega can be declared only by unanimous concurrence of the Base Commander and the Mission Flight Surgeon, or by direct override command from Earth Mission Control. The specific trigger conditions that authorize its activation are:\n\n1. Unrecoverable atmospheric hull breach exceeding 0.5 m2 equivalent orifice area across multiple modules.\n2. Total loss of reactor primary coolant combined with secondary battery depletion below 15%.\n3. Irreversible biological contamination of the habitat ecosystem by foreign toxicity or virulent pathogen.\n4. Severe seismic rupture of the underlying Arcadia Planitia lava tube structure.",
+    "prompt_tokens": 2046,
+    "completion_tokens": 121
+  },
+  "naive::q36": {
+    "answer": "Based on the provided documents, the evacuation timeline for Protocol Omega (T-0 to Launch) is as follows:\n\n- **T-00:00:** Siren sounds; automated telemetry locks habitat blast doors.\n- **T-00:15:** Crew musters in the ERV boarding gantry in pressure suits.\n- **T-00:30:** ERV life support activated; umbilical purge complete.\n- **T-01:00:** Methane/LOX rocket ignition and liftoff to low Mars orbit (LMO).",
+    "prompt_tokens": 2011,
+    "completion_tokens": 119
+  },
+  "naive::q37": {
+    "answer": "Based on the provided documents, the chemical reaction that produces methane and water from atmospheric carbon dioxide and hydrogen in the Sabatier methanation reaction is:\n\n$\\text{CO}_2 + 4 \\text{ H}_2 \\rightarrow \\text{CH}_4 + 2 \\text{ H}_2\\text{O}$",
+    "prompt_tokens": 2105,
+    "completion_tokens": 68
+  },
+  "naive::q38": {
+    "answer": "Based on the provided documents, the water produced by the Sabatier reaction is condensed and routed to high-temperature solid polymer electrolyte (SPE) electrolyzers to undergo the reaction:\n2 H2O -> 2 H2 + O2\n\nThrough this process:\n* The oxygen is liquefied and stored in LOX (liquid oxygen) tanks.\n* The hydrogen is recycled back into the Sabatier reactor input stream, which drastically reduces the net hydrogen feedstock needed from external sources.",
+    "prompt_tokens": 2111,
+    "completion_tokens": 99
+  },
+  "naive::q39": {
+    "answer": "Based on the provided documents, there is no mention of who assumes operational command if the Mission Commander is incapacitated or unavailable. I do not have enough information from the provided documents to answer this question.",
+    "prompt_tokens": 2023,
+    "completion_tokens": 39
+  },
+  "naive::q40": {
+    "answer": "I do not have enough information from the provided documents to answer the question about automated laser relay satellites orbiting the planet Neptune.",
+    "prompt_tokens": 2044,
+    "completion_tokens": 24
+  },
+  "reranked::q01": {
+    "answer": "Based on the provided documents, the MOXIE-II system generates breathable oxygen by extracting it directly from the Martian atmospheric carbon dioxide ($CO_2$) using Solid Oxide Electrolysis across yttria-stabilized zirconia (YSZ) ceramic membranes. The system compresses ambient Martian air to 1.2 bar, heats it to an operating temperature of 800\u00b0C (1073 K), and applies the chemical reduction reaction:\n\n$2 CO_2 \\rightarrow 2 CO + O_2$",
+    "prompt_tokens": 1551,
+    "completion_tokens": 107
+  },
+  "reranked::q02": {
+    "answer": "Based on the provided documents, the primary electrolysis unit produces **2.4 kg of medical-grade oxygen per hour** (99.6% purity).",
+    "prompt_tokens": 1559,
+    "completion_tokens": 32
+  },
+  "reranked::q03": {
+    "answer": "Based on the provided documents, wastewater is collected into greywater storage sumps before passing through multi-stage filtration. Additionally, urine processing utilizes a rotary drum Vapor Compression Distillation (VCD) centrifuge. \n\n*(Note: The provided context mentions multi-stage filtration and Vapor Compression Distillation as part of the Water Recovery System, but does not provide further specific technical details on other technologies used to purify wastewater.)*",
+    "prompt_tokens": 1516,
+    "completion_tokens": 84
+  },
+  "reranked::q04": {
+    "answer": "Based on the provided documents, the Closed-Loop Water Recovery System (WRS) achieves a 98.2% closed-loop recycling efficiency.",
+    "prompt_tokens": 1520,
+    "completion_tokens": 31
+  },
+  "reranked::q05": {
+    "answer": "Based on the provided documents, there is not enough information to state what coolant fluids are utilized in the internal and external loops of the Habitation Active Thermal Control System. The text mentions that the ATCS consists of two distinct thermal loops, but the specific coolant fluids are not detailed in the provided context.",
+    "prompt_tokens": 1557,
+    "completion_tokens": 60
+  },
+  "reranked::q06": {
+    "answer": "Based on the provided documents, the internal pressurized habitat modules are maintained at a steady 21.5\u00b0C +/- 1.0\u00b0C.",
+    "prompt_tokens": 1566,
+    "completion_tokens": 31
+  },
+  "reranked::q07": {
+    "answer": "Odyssey Base is powered by two Kilopower KRUSTY-II nuclear fission units. Each unit produces a net electrical power output of 40 kWe.",
+    "prompt_tokens": 1500,
+    "completion_tokens": 34
+  },
+  "reranked::q08": {
+    "answer": "Based on the provided documents, there is no information explaining what safety mechanism automatically scrams the Kilopower reactor during an over-temperature event. The text mentions that an automated safety scram occurred on Kilopower Reactor 1 due to severe electrostatic discharge damaging the digital control bus during a dust storm, but it does not detail an over-temperature scram mechanism. Therefore, I do not have enough information from the provided documents to answer the question.",
+    "prompt_tokens": 1573,
+    "completion_tokens": 89
+  },
+  "reranked::q09": {
+    "answer": "Based on the provided documents, the photovoltaic solar farm removes accumulated Martian dust using an embedded Electrostatic Dust Removal System (EDS). The panels are equipped with transparent indium-tin-oxide (ITO) electrode tracks. Every sol at 03:00 local time, a four-phase travelling electrostatic wave (1,500 Volts at 20 Hz) is energized for 8 minutes, which repels and lofts the charged dust particles into the wind with a 94% clearance efficiency.",
+    "prompt_tokens": 1517,
+    "completion_tokens": 104
+  },
+  "reranked::q10": {
+    "answer": "Based on the provided documents, the solar array produces a peak power of 65 kW under clear skies (at solar noon with an optical depth tau = 0.3).",
+    "prompt_tokens": 1417,
+    "completion_tokens": 36
+  },
+  "reranked::q11": {
+    "answer": "Based on the provided documents, the base energy storage matrix uses Lithium-Sulfur (Li-S) battery chemistry.",
+    "prompt_tokens": 1525,
+    "completion_tokens": 24
+  },
+  "reranked::q12": {
+    "answer": "I do not have enough information from the provided documents to answer the question about the three load-shedding stages triggered during an emergency battery event.",
+    "prompt_tokens": 1406,
+    "completion_tokens": 29
+  },
+  "reranked::q13": {
+    "answer": "Based on the provided documents, the nominal operating pressure of the EMU-X extravehicular spacesuit is 29.6 kPa (4.3 psi).",
+    "prompt_tokens": 1547,
+    "completion_tokens": 33
+  },
+  "reranked::q14": {
+    "answer": "Based on the provided documents, carbon dioxide removal in the EMU-X Portable Life Support System (PLSS) is handled by twin regenerable amine beds (Metal-Organic Framework MOF-74).",
+    "prompt_tokens": 1370,
+    "completion_tokens": 41
+  },
+  "reranked::q15": {
+    "answer": "I do not have enough information from the provided documents to answer the pump-down duration when cycling the hyperbaric airlock.",
+    "prompt_tokens": 1472,
+    "completion_tokens": 26
+  },
+  "reranked::q16": {
+    "answer": "Based on the provided documents, upon returning from an EVA, astronauts enter Chamber 1 (Outer Vestibule) of the three-chamber airlock system, where they complete the following dust mitigation steps:\n\n1. They undergo an automated high-velocity carbon dioxide jet shower (at 25 m/s) to strip surface dust from the suit fabric.\n2. Concurrently, an electrostatic ionizing grid neutralizes particle surface charges, causing the dust to fall through a floor grating into an electrostatic collection hopper.",
+    "prompt_tokens": 1473,
+    "completion_tokens": 104
+  },
+  "reranked::q17": {
+    "answer": "Based on the provided documents, the staple crops cultivated in the greenhouse are:\n- Dwarf Sweet Potatoes (noted for high caloric density)\n\nThe provided text cuts off before listing any additional staple crops.",
+    "prompt_tokens": 1531,
+    "completion_tokens": 41
+  },
+  "reranked::q18": {
+    "answer": "Based on the provided documents, the crew's diet is 35% supplemented by fresh produce from the greenhouse facility (as stated in Doc_09, Section 2). The provided context does not explicitly mention the exact percentage of the daily *caloric* requirement provided by the facility.",
+    "prompt_tokens": 1524,
+    "completion_tokens": 60
+  },
+  "reranked::q19": {
+    "answer": "Based on the provided documents, Odyssey Base maintains its primary communication link with Earth using the Deep Space Optical Communications (DSOC) 1550 nm near-infrared laser transceiver (which operates with 30 W laser power).",
+    "prompt_tokens": 1532,
+    "completion_tokens": 47
+  },
+  "reranked::q20": {
+    "answer": "The one-way light time latency between Earth and Mars ranges from 3.1 minutes (at the closest distance of 55 million km) to 22.4 minutes (at the farthest distance of 401 million km).",
+    "prompt_tokens": 1438,
+    "completion_tokens": 50
+  },
+  "reranked::q21": {
+    "answer": "Based on the provided documents, the maximum operating range of the Ares-IV pressurized rover from base is up to 500 km.",
+    "prompt_tokens": 1487,
+    "completion_tokens": 28
+  },
+  "reranked::q22": {
+    "answer": "Based on the provided documents, there is no mention of an emergency life support reserve duration for the Ares-IV rover. (The provided documents only state that the rover carries \"14 sols of consumables\" and that PLSS backpacks provide a 30-minute secondary emergency reserve). Therefore, I do not have enough information from the provided documents to answer the question.",
+    "prompt_tokens": 1440,
+    "completion_tokens": 74
+  },
+  "reranked::q23": {
+    "answer": "Based on the provided documents, I do not have enough information to explain how the outpost constructs structures from native Martian regolith. The text only mentions that the KRUSTY-II fission reactor core is shielded by 3 meters of compacted Martian regolith, but it does not provide details on how structures or radiation shielding are constructed.",
+    "prompt_tokens": 1425,
+    "completion_tokens": 66
+  },
+  "reranked::q24": {
+    "answer": "Based on the provided documents, the inflatable habitat modules are enclosed within an arched outer protective shell composed of sintered regolith pavers stacked **1.5 meters thick**, which attenuates galactic cosmic ray (GCR) exposure by 72%.",
+    "prompt_tokens": 1494,
+    "completion_tokens": 48
+  },
+  "reranked::q25": {
+    "answer": "Based on the provided documents, unshielded crew members at risk of Acute Radiation Syndrome during major Solar Particle Events are evaluated using active biodosimetry kits that measure chromosomal dicentric aberrations in peripheral blood lymphocytes. The exposure thresholds and associated symptoms are:\n- Mild (0.5 to 1.5 Gy / 500 to 1,500 mSv): Nausea, mild fatigue, and a transient drop in white blood cell count.\n- Moderate (1.5 to 4.0 Gy): Severe vomiting.\n\nThe provided text does not contain additional medical protocol details for exposures exceeding these specific thresholds.",
+    "prompt_tokens": 1501,
+    "completion_tokens": 128
+  },
+  "reranked::q26": {
+    "answer": "I do not have enough information from the provided documents to answer what diagnostic imaging equipment is available in the base medical bay.",
+    "prompt_tokens": 1518,
+    "completion_tokens": 24
+  },
+  "reranked::q27": {
+    "answer": "Based on the provided documents, Odyssey Base stores the following quantities and boiling temperatures for the Earth Return Vehicle (ERV):\n\n* **Liquid Methane (LCH4):** \n  * Storage quantity: 85 metric tons\n  * Temperature: Boiling point of -161.6\u00b0C at 1 atm\n\n* **Liquid Oxygen (LOX):** \n  * Storage quantity: 340 metric tons\n  * Temperature: Boiling point of -182.96\u00b0C",
+    "prompt_tokens": 1553,
+    "completion_tokens": 107
+  },
+  "reranked::q28": {
+    "answer": "Based on the provided documents, the Zero-Boil-Off (ZBO) system prevents cryogenic propellant loss through the following methods:\n\n1. **Multi-Layer Insulation (MLI) & Vacuum Annulus:** The tanks feature an outer stainless steel vacuum shell with an evacuated annulus pressure of < 10^-4 Torr. Inside this vacuum gap, 60 alternating layers of double-aluminized Mylar and Dacron scrim insulation reflect 99.2% of ambient radiant heat.\n2. **Active Cryocoolers (Pulse Tube):** The tanks are cooled by active closed-cycle Pulse Tube Cryocoolers (PTCs) that deliver 40W of heat lift at 90 K to achieve ZBO over 500-sol holding periods.",
+    "prompt_tokens": 1555,
+    "completion_tokens": 163
+  },
+  "reranked::q29": {
+    "answer": "Based on the provided documents, there is not enough information to determine the primary end products of the solid waste thermochemical pyrolysis reactor. The provided text only mentions that waste is shredded into 5 mm pellets and fed into an anaerobic rotary retort, but it does not detail the resulting end products.",
+    "prompt_tokens": 1496,
+    "completion_tokens": 58
+  },
+  "reranked::q30": {
+    "answer": "Based on the provided documents, there is no mention of the operating temperature of the waste pyrolysis reactor. I do not have enough information from the provided documents to answer this question.",
+    "prompt_tokens": 1545,
+    "completion_tokens": 35
+  },
+  "reranked::q31": {
+    "answer": "Based on the provided documents, the central storm shelter (The Citadel) is excavated 6 meters below the natural surface beneath a basalt volcanic ridge. \n\nThe shielding during a Solar Particle Event is provided by:\n* A 40 cm water jacket (incorporating the base's 45,000-liter potable water reserve) lining the ceiling and walls.\n* 15 cm of high-density polyethylene (HDPE).",
+    "prompt_tokens": 1447,
+    "completion_tokens": 92
+  },
+  "reranked::q32": {
+    "answer": "Based on the provided documents, the alarm stages and protocols leading up to crew relocation to the Citadel (the storm shelter) are:\n\n1. **Alert Yellow** (SPE Warning issued by NOAA Space Weather): All surface EVA operations are canceled, and rovers return to base.\n2. **Alert Orange** (Proton flux > 100 pfu at > 10 MeV): All crew members ingress the habitat, and airlocks are locked down.\n3. **Alert Red** (Shockfront arrival imminent): All 12 crew members must muster in the Citadel within 15 minutes.",
+    "prompt_tokens": 1407,
+    "completion_tokens": 125
+  },
+  "reranked::q33": {
+    "answer": "During the planet-wide dust storm on 2082-Sol-088, severe electrostatic discharge (arching across an 8 kV differential) damaged the digital control bus on Kilopower Reactor 1, which caused an automated safety scram. \n\nThe base ran on emergency batteries for 18 hours.",
+    "prompt_tokens": 1563,
+    "completion_tokens": 66
+  },
+  "reranked::q34": {
+    "answer": "I do not have enough information from the provided documents to answer the question about the \"Sol 412 airlock seal micro-tear incident.\"",
+    "prompt_tokens": 1520,
+    "completion_tokens": 30
+  },
+  "reranked::q35": {
+    "answer": "Based on the provided documents, Protocol Omega can be declared by unanimous concurrence of the Base Commander and the Mission Flight Surgeon (or by direct override command from Earth Mission Control) when any of the following triggers occur:\n\n1. Unrecoverable atmospheric hull breach exceeding 0.5 m2 equivalent orifice area across multiple modules.\n2. Total loss of reactor primary coolant combined with secondary battery depletion below 15%.\n3. Irreversible biological contamination of the habitat ecosystem by foreign toxicity or virulent pathogen.\n4. Severe seismic rupture of the underlying Arcadia Planitia lava tube structure.",
+    "prompt_tokens": 1399,
+    "completion_tokens": 118
+  },
+  "reranked::q36": {
+    "answer": "Based on the provided documents, the evacuation timeline for Protocol Omega (T-0 to Launch) begins at:\n- **T-00:00**: Siren sounds; automated telemetry locks habitat blast doors.\n\nThe provided context does not contain the remaining steps or timeline details beyond T-00:00.",
+    "prompt_tokens": 1512,
+    "completion_tokens": 65
+  },
+  "reranked::q37": {
+    "answer": "The Sabatier methanation reaction:\nCO2 + 4 H2 -> CH4 + 2 H2O",
+    "prompt_tokens": 1496,
+    "completion_tokens": 25
+  },
+  "reranked::q38": {
+    "answer": "Based on the provided documents, the water produced by the Sabatier reaction is condensed and routed to high-temperature solid polymer electrolyte (SPE) electrolyzers. Through water electrolysis ($2 \\text{ H}_2\\text{O} \\rightarrow 2 \\text{ H}_2 + \\text{O}_2$), the resulting oxygen is liquefied and stored in LOX tanks, while the hydrogen is recycled back into the Sabatier reactor input stream, which drastically reduces the net hydrogen feedstock needed from external sources.",
+    "prompt_tokens": 1433,
+    "completion_tokens": 105
+  },
+  "reranked::q39": {
+    "answer": "Based on the provided documents, there is no information regarding who assumes operational command if the Mission Commander is incapacitated or unavailable. Therefore, I do not have enough information from the provided documents to answer the question.",
+    "prompt_tokens": 1534,
+    "completion_tokens": 41
+  },
+  "reranked::q40": {
+    "answer": "I do not have enough information from the provided documents to answer the question about automated laser relay satellites orbiting the planet Neptune.",
+    "prompt_tokens": 1318,
+    "completion_tokens": 24
+  }
+}

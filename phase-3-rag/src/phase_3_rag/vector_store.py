@@ -9,6 +9,7 @@ Provides:
 
 import json
 import math
+import time
 from pathlib import Path
 
 import httpx
@@ -18,6 +19,7 @@ from phase_3_rag.chunking import Chunk
 from phase_3_rag.config import get_settings
 
 CACHE_FILE = Path(__file__).resolve().parents[2] / "data" / "embeddings_cache.json"
+_QUERY_EMBEDDING_CACHE: dict[str, list[float]] = {}
 
 
 class SearchResult(BaseModel):
@@ -78,16 +80,34 @@ def embed_single_text(
     }
     payload = {"content": {"parts": [{"text": text}]}}
 
+    if text in _QUERY_EMBEDDING_CACHE:
+        return _QUERY_EMBEDDING_CACHE[text]
+
     should_close = False
     if client is None:
         client = httpx.Client(timeout=settings.timeout_seconds)
         should_close = True
 
     try:
-        resp = client.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["embedding"]["values"]
+        for attempt in range(5):
+            resp = client.post(url, headers=headers, json=payload)
+            if resp.status_code in (429, 503) and attempt < 4:
+                retry_after = resp.headers.get("retry-after")
+                wait_time = (
+                    float(retry_after) if retry_after else min(30.0, 3.0 * (2**attempt))
+                )
+                print(
+                    f"  ⚠️  [Gemini Embedding Rate Limit] {resp.status_code} received. "
+                    f"Backing off for {wait_time:.1f}s (attempt {attempt + 1}/5)..."
+                )
+                time.sleep(wait_time)
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            values = data["embedding"]["values"]
+            _QUERY_EMBEDDING_CACHE[text] = values
+            return values
+        raise RuntimeError("Failed to obtain embedding after retries")
     finally:
         if should_close:
             client.close()
