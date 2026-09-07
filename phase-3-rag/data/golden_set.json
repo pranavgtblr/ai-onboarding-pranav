@@ -1,0 +1,488 @@
+[
+  {
+    "id": "q01",
+    "question": "What is the primary method used by MOXIE-II to generate breathable oxygen?",
+    "expected_answer": "MOXIE-II generates breathable oxygen through solid oxide electrolysis, extracting O2 directly from atmospheric carbon dioxide (CO2) at high operating temperatures.",
+    "expected_doc_ids": ["doc_01"],
+    "question_type": "factoid",
+    "key_facts": [
+      "solid oxide electrolysis",
+      "atmospheric carbon dioxide",
+      "high temperature"
+    ]
+  },
+  {
+    "id": "q02",
+    "question": "What is the daily oxygen production rate of the base electrolysis subsystem?",
+    "expected_answer": "The electrolysis subsystem produces approximately 4.8 kg of high-purity O2 per sol, sufficient for nominal six-person crew consumption.",
+    "expected_doc_ids": ["doc_01"],
+    "question_type": "numeric",
+    "key_facts": [
+      "4.8 kg",
+      "per sol",
+      "six-person crew"
+    ]
+  },
+  {
+    "id": "q03",
+    "question": "What technology does the water recovery subsystem use to purify wastewater?",
+    "expected_answer": "The water recovery system utilizes Vapor Compression Distillation (VCD) coupled with multi-stage catalytic oxidation and reverse osmosis filtration.",
+    "expected_doc_ids": ["doc_02"],
+    "question_type": "factoid",
+    "key_facts": [
+      "Vapor Compression Distillation",
+      "reverse osmosis",
+      "catalytic oxidation"
+    ]
+  },
+  {
+    "id": "q04",
+    "question": "What is the target recovery efficiency percentage of the Closed-Loop Water Recovery System?",
+    "expected_answer": "The system achieves a closed-loop water recovery efficiency of 98.2% across graywater, urine condensate, and cabin humidity reclaim.",
+    "expected_doc_ids": ["doc_02"],
+    "question_type": "numeric",
+    "key_facts": [
+      "98.2%",
+      "recovery efficiency",
+      "urine condensate"
+    ]
+  },
+  {
+    "id": "q05",
+    "question": "What coolant fluids are utilized in the internal and external loops of the Habitation Active Thermal Control System?",
+    "expected_answer": "The internal habitation loop utilizes food-grade non-toxic water-glycol solution, while the external radiator heat rejection loop uses low-temperature liquid ammonia.",
+    "expected_doc_ids": ["doc_03"],
+    "question_type": "factoid",
+    "key_facts": [
+      "water-glycol",
+      "liquid ammonia",
+      "internal loop",
+      "external radiator"
+    ]
+  },
+  {
+    "id": "q06",
+    "question": "What is the nominal temperature range maintained inside the habitation modules?",
+    "expected_answer": "The habitation module internal temperature is regulated strictly between 19°C and 23°C under nominal conditions.",
+    "expected_doc_ids": ["doc_03"],
+    "question_type": "numeric",
+    "key_facts": [
+      "19°C to 23°C",
+      "habitation modules",
+      "nominal temperature"
+    ]
+  },
+  {
+    "id": "q07",
+    "question": "What nuclear reactor powers Odyssey Base and what is its electrical output capacity?",
+    "expected_answer": "Odyssey Base is powered by the Kilopower KRUSTY-II surface fission reactor, providing a steady electrical output of 40 kWe.",
+    "expected_doc_ids": ["doc_04"],
+    "question_type": "numeric",
+    "key_facts": [
+      "Kilopower KRUSTY-II",
+      "40 kWe",
+      "fission reactor"
+    ]
+  },
+  {
+    "id": "q08",
+    "question": "What safety mechanism automatically scrams the Kilopower reactor during an over-temperature event?",
+    "expected_answer": "The reactor features passive reactivity feedback where thermal expansion of the core decreases reactivity, alongside spring-loaded B4C boron carbide control rods that insert automatically on emergency scram.",
+    "expected_doc_ids": ["doc_04"],
+    "question_type": "procedural",
+    "key_facts": [
+      "passive reactivity feedback",
+      "boron carbide control rods",
+      "automatic scram"
+    ]
+  },
+  {
+    "id": "q09",
+    "question": "How does the photovoltaic solar farm remove accumulated Martian dust from panels?",
+    "expected_answer": "The solar farm employs electrostatic dust repulsion shields (EDS) combined with automated mechanical wiper squeegees along panel tracks.",
+    "expected_doc_ids": ["doc_05"],
+    "question_type": "factoid",
+    "key_facts": [
+      "electrostatic dust repulsion",
+      "mechanical wipers",
+      "solar panels"
+    ]
+  },
+  {
+    "id": "q10",
+    "question": "What is the peak power output of the solar farm under clear atmospheric conditions?",
+    "expected_answer": "Under clear atmospheric conditions with solar irradiance at optical depth tau < 0.3, the farm delivers up to 65 kW peak power.",
+    "expected_doc_ids": ["doc_05"],
+    "question_type": "numeric",
+    "key_facts": [
+      "65 kW peak",
+      "optical depth",
+      "clear conditions"
+    ]
+  },
+  {
+    "id": "q11",
+    "question": "What battery chemistry is used in the base energy storage matrix?",
+    "expected_answer": "The energy storage matrix uses high-specific-energy Lithium-Sulfur (Li-S) cells with ceramic solid-state separators.",
+    "expected_doc_ids": ["doc_06"],
+    "question_type": "factoid",
+    "key_facts": [
+      "Lithium-Sulfur",
+      "Li-S",
+      "solid-state separators"
+    ]
+  },
+  {
+    "id": "q12",
+    "question": "What are the three load-shedding stages triggered during an emergency battery event?",
+    "expected_answer": "Stage 1 sheds non-essential research experiments and rover charging; Stage 2 sheds greenhouse grow lights and environmental cycling to minimum survival mode; Stage 3 preserves strictly critical life support and emergency radio.",
+    "expected_doc_ids": ["doc_06"],
+    "question_type": "procedural",
+    "key_facts": [
+      "Stage 1",
+      "Stage 2",
+      "Stage 3",
+      "life support preservation"
+    ]
+  },
+  {
+    "id": "q13",
+    "question": "What is the nominal operating pressure of the EMU-X extravehicular spacesuit?",
+    "expected_answer": "The EMU-X operates at a nominal pure oxygen pressure of 29.6 kPa (4.3 psi) to maximize mobility and eliminate decompression sickness risk.",
+    "expected_doc_ids": ["doc_07"],
+    "question_type": "numeric",
+    "key_facts": [
+      "29.6 kPa",
+      "4.3 psi",
+      "pure oxygen"
+    ]
+  },
+  {
+    "id": "q14",
+    "question": "What CO2 scrubbers are used in the EMU-X portable life support system?",
+    "expected_answer": "The EMU-X uses regenerative amine thermal desorbing canisters that can be regenerated inside the airlock recharge station.",
+    "expected_doc_ids": ["doc_07"],
+    "question_type": "factoid",
+    "key_facts": [
+      "regenerative amine",
+      "recharge station",
+      "CO2 removal"
+    ]
+  },
+  {
+    "id": "q15",
+    "question": "What is the standard pump-down duration when cycling the hyperbaric airlock?",
+    "expected_answer": "The airlock depressurization and pump-down cycle requires 18 minutes to recover 92% of cabin air back into internal reservoir tanks.",
+    "expected_doc_ids": ["doc_08"],
+    "question_type": "numeric",
+    "key_facts": [
+      "18 minutes",
+      "92% air recovery",
+      "pump-down"
+    ]
+  },
+  {
+    "id": "q16",
+    "question": "What dust mitigation steps must astronauts complete before entering the main habitat from an EVA?",
+    "expected_answer": "Astronauts must undergo high-pressure nitrogen blow-down showers in the outer chamber, magnetic wand boot swabbing, and pass through an electrostatic particulate trap floor.",
+    "expected_doc_ids": ["doc_08"],
+    "question_type": "procedural",
+    "key_facts": [
+      "nitrogen blow-down",
+      "magnetic wand",
+      "electrostatic particulate trap"
+    ]
+  },
+  {
+    "id": "q17",
+    "question": "What staple crops are cultivated in the Botanical Sustenance Facility aeroponic greenhouse?",
+    "expected_answer": "The facility grows dwarf wheat, genetically fortified sweet potatoes, nutrient-dense spirulina algae, and fast-cycling radishes.",
+    "expected_doc_ids": ["doc_09"],
+    "question_type": "factoid",
+    "key_facts": [
+      "dwarf wheat",
+      "sweet potatoes",
+      "spirulina algae",
+      "aeroponic"
+    ]
+  },
+  {
+    "id": "q18",
+    "question": "What percentage of the crew's daily caloric requirement is provided by the greenhouse facility?",
+    "expected_answer": "The botanical greenhouse facility supplies 35% of total crew caloric intake, serving as fresh nutritional supplementation to pre-packaged Earth rations.",
+    "expected_doc_ids": ["doc_09"],
+    "question_type": "numeric",
+    "key_facts": [
+      "35%",
+      "caloric requirement",
+      "fresh nutritional supplementation"
+    ]
+  },
+  {
+    "id": "q19",
+    "question": "What optical communication system connects Odyssey Base with Earth relays?",
+    "expected_answer": "The base uses a 1550 nm Deep Space Optical Communications (DSOC) laser terminal capable of gigabit-class downlinks through Mars Reconnaissance Relay orbiters.",
+    "expected_doc_ids": ["doc_10"],
+    "question_type": "factoid",
+    "key_facts": [
+      "1550 nm",
+      "Deep Space Optical Communications",
+      "laser terminal"
+    ]
+  },
+  {
+    "id": "q20",
+    "question": "What is the typical one-way radio latency range between Mars and Earth?",
+    "expected_answer": "Communication delay ranges from approximately 4.3 minutes at closest orbital approach (perigee) to 21.0 minutes at superior solar conjunction.",
+    "expected_doc_ids": ["doc_10"],
+    "question_type": "numeric",
+    "key_facts": [
+      "4.3 minutes",
+      "21.0 minutes",
+      "one-way delay"
+    ]
+  },
+  {
+    "id": "q21",
+    "question": "What is the maximum operating range of the Ares-IV pressurized rover from Odyssey Base?",
+    "expected_answer": "The Ares-IV rover has an operational sortie radius of 120 km from base, extendable to 200 km with auxiliary trailer battery packs.",
+    "expected_doc_ids": ["doc_11"],
+    "question_type": "numeric",
+    "key_facts": [
+      "120 km",
+      "200 km with auxiliary trailer",
+      "operational radius"
+    ]
+  },
+  {
+    "id": "q22",
+    "question": "What emergency life support reserve duration is onboard the Ares-IV rover?",
+    "expected_answer": "The Ares-IV rover maintains 96 hours (4 sols) of emergency life support consumable reserves for a standard two-person crew.",
+    "expected_doc_ids": ["doc_11"],
+    "question_type": "numeric",
+    "key_facts": [
+      "96 hours",
+      "4 sols",
+      "two-person crew"
+    ]
+  },
+  {
+    "id": "q23",
+    "question": "How does the outpost construct radiation shielding and structures from native Martian regolith?",
+    "expected_answer": "The base uses concentrated microwave sintering and robotic 3D extrusion to melt basaltic regolith into dense protective pavers and dome shells.",
+    "expected_doc_ids": ["doc_12"],
+    "question_type": "factoid",
+    "key_facts": [
+      "microwave sintering",
+      "3D extrusion",
+      "basaltic regolith"
+    ]
+  },
+  {
+    "id": "q24",
+    "question": "What thickness of sintered regolith is required over habitation modules for radiation protection?",
+    "expected_answer": "A minimum shielding thickness of 1.5 meters of compacted, microwave-sintered regolith is mandated over all habitable pressurized modules.",
+    "expected_doc_ids": ["doc_12"],
+    "question_type": "numeric",
+    "key_facts": [
+      "1.5 meters",
+      "sintered regolith",
+      "habitable modules"
+    ]
+  },
+  {
+    "id": "q25",
+    "question": "What emergency medical protocols exist for acute radiation exposure exceeding 500 mSv?",
+    "expected_answer": "Treatment requires immediate transfer to the shielded bunker, intravenous potassium iodide, granulocyte colony-stimulating factors (G-CSF), and anti-emetic therapy.",
+    "expected_doc_ids": ["doc_13"],
+    "question_type": "procedural",
+    "key_facts": [
+      "shielded bunker",
+      "potassium iodide",
+      "G-CSF",
+      "anti-emetic"
+    ]
+  },
+  {
+    "id": "q26",
+    "question": "What diagnostic imaging equipment is available in the base medical bay?",
+    "expected_answer": "The medical bay is equipped with a dual-probe ultrasound scanner and a compact low-dose portable cone-beam computed tomography (CBCT) scanner.",
+    "expected_doc_ids": ["doc_13"],
+    "question_type": "factoid",
+    "key_facts": [
+      "ultrasound scanner",
+      "cone-beam CT",
+      "CBCT"
+    ]
+  },
+  {
+    "id": "q27",
+    "question": "What are the storage quantities and temperatures for liquid methane and oxygen stored for the ERV?",
+    "expected_answer": "Odyssey Base stores 85 metric tons of liquid methane (LCH4 at -161.6°C) and 340 metric tons of liquid oxygen (LOX at -182.96°C) in Tank Farm Alpha.",
+    "expected_doc_ids": ["doc_14"],
+    "question_type": "numeric",
+    "key_facts": [
+      "85 metric tons LCH4",
+      "340 metric tons LOX",
+      "-161.6°C",
+      "-182.96°C"
+    ]
+  },
+  {
+    "id": "q28",
+    "question": "How does the Zero-Boil-Off (ZBO) system prevent cryogenic propellant loss over long storage periods?",
+    "expected_answer": "The ZBO system uses 60 layers of multi-layer insulation (MLI) in a vacuum jacket coupled with closed-cycle Pulse Tube Cryocoolers (PTCs) delivering 40W of heat lift at 90 K.",
+    "expected_doc_ids": ["doc_14"],
+    "question_type": "factoid",
+    "key_facts": [
+      "Multi-layer insulation",
+      "Pulse Tube Cryocoolers",
+      "Zero-Boil-Off"
+    ]
+  },
+  {
+    "id": "q29",
+    "question": "What are the primary end products of the solid waste thermochemical pyrolysis reactor?",
+    "expected_answer": "Pyrolysis converts solid organic waste into biochar carbon soil amendment, condensable syngas (H2 and CO), and non-potable water vapor.",
+    "expected_doc_ids": ["doc_15"],
+    "question_type": "factoid",
+    "key_facts": [
+      "biochar",
+      "syngas",
+      "carbon reclamation"
+    ]
+  },
+  {
+    "id": "q30",
+    "question": "At what operating temperature does the waste pyrolysis reactor operate?",
+    "expected_answer": "The waste pyrolysis reactor operates in an anaerobic chamber between 450°C and 600°C.",
+    "expected_doc_ids": ["doc_15"],
+    "question_type": "numeric",
+    "key_facts": [
+      "450°C to 600°C",
+      "anaerobic chamber"
+    ]
+  },
+  {
+    "id": "q31",
+    "question": "Where is the storm shelter located and what materials provide shielding during a Solar Particle Event?",
+    "expected_answer": "The storm shelter is located under Habitat Sub-Level 2, surrounded by 2.0 meters of sintered regolith and backed by surrounding graywater and fuel storage bladders.",
+    "expected_doc_ids": ["doc_16"],
+    "question_type": "factoid",
+    "key_facts": [
+      "Sub-Level 2",
+      "2.0 meters sintered regolith",
+      "water shielding"
+    ]
+  },
+  {
+    "id": "q32",
+    "question": "What alert sequence precedes crew relocation to the SPE radiation storm shelter?",
+    "expected_answer": "Alert Yellow is declared upon space weather satellite X-ray flare detection, followed by Alert Red upon proton flux exceeding 100 pfu at >10 MeV, mandating shelter lock within 45 minutes.",
+    "expected_doc_ids": ["doc_16"],
+    "question_type": "procedural",
+    "key_facts": [
+      "Alert Yellow",
+      "Alert Red",
+      "100 pfu",
+      "45 minutes"
+    ]
+  },
+  {
+    "id": "q33",
+    "question": "What occurred during the 2082 dust storm incident and how long did the base run on emergency batteries?",
+    "expected_answer": "A global dust storm occluded solar power, forcing the reactor to scram during a thermal valve fault; the base operated on emergency batteries for 18 hours until auxiliary diesel/fuel-cell power restored reactor coolant.",
+    "expected_doc_ids": ["doc_17"],
+    "question_type": "numeric",
+    "key_facts": [
+      "2082 dust storm",
+      "18 hours",
+      "emergency batteries"
+    ]
+  },
+  {
+    "id": "q34",
+    "question": "What lesson was learned from the Sol 412 airlock seal micro-tear incident?",
+    "expected_answer": "Silicone outer seals deteriorated under fine abrasive dust abrasion, leading to the installation of dual fluorosilicone gaskets and mandatory nitrogen seal washings.",
+    "expected_doc_ids": ["doc_17"],
+    "question_type": "factoid",
+    "key_facts": [
+      "Sol 412",
+      "silicone seals",
+      "fluorosilicone gaskets",
+      "abrasive dust"
+    ]
+  },
+  {
+    "id": "q35",
+    "question": "What catastrophic trigger conditions authorize the commander to declare Protocol Omega?",
+    "expected_answer": "Protocol Omega is triggered by irreversible loss of life support (>48h deficit), dual reactor core melt breach, or uncontained structural decompression affecting >60% of habitable volume.",
+    "expected_doc_ids": ["doc_18"],
+    "question_type": "procedural",
+    "key_facts": [
+      "Protocol Omega",
+      "irreversible life support loss",
+      "reactor core melt",
+      "uncontained decompression"
+    ]
+  },
+  {
+    "id": "q36",
+    "question": "What is the evacuation sequence and abort timeline once Protocol Omega is initiated?",
+    "expected_answer": "Crew must muster at the ERV within 90 minutes, initiate automated pre-flight cryogenic transfer, and launch within 4 hours on a direct abort trajectory to Mars orbital escape.",
+    "expected_doc_ids": ["doc_18"],
+    "question_type": "procedural",
+    "key_facts": [
+      "90 minutes muster",
+      "launch within 4 hours",
+      "direct abort trajectory"
+    ]
+  },
+  {
+    "id": "q37",
+    "question": "What chemical reaction produces methane and water from atmospheric carbon dioxide and hydrogen in the ISRU plant?",
+    "expected_answer": "The Sabatier catalytic methanation reaction combines CO2 and H2 at 350°C to 400°C over a ruthenium-alumina catalyst bed to produce CH4 (methane) and H2O (water).",
+    "expected_doc_ids": ["doc_19"],
+    "question_type": "factoid",
+    "key_facts": [
+      "Sabatier reaction",
+      "ruthenium-alumina catalyst",
+      "CO2 and H2"
+    ]
+  },
+  {
+    "id": "q38",
+    "question": "How does the water produced by the Sabatier reactor feed back into the outpost life support and fuel cycle?",
+    "expected_answer": "Water produced from the Sabatier methanation reaction is condensed and routed directly to the solid oxide/polymer electrolysis plant (doc_01) to regenerate hydrogen fuel and crew oxygen.",
+    "expected_doc_ids": ["doc_19", "doc_01"],
+    "question_type": "multi_hop",
+    "key_facts": [
+      "Sabatier water condensation",
+      "electrolysis recycling",
+      "hydrogen and oxygen generation"
+    ]
+  },
+  {
+    "id": "q39",
+    "question": "Who assumes operational command if the Mission Commander is incapacitated or unavailable?",
+    "expected_answer": "The operational succession order dictates that the Deputy Commander / Chief Medical Officer assumes command, followed by the Chief Operations Engineer.",
+    "expected_doc_ids": ["doc_20"],
+    "question_type": "factoid",
+    "key_facts": [
+      "succession order",
+      "Deputy Commander",
+      "Chief Operations Engineer"
+    ]
+  },
+  {
+    "id": "q40",
+    "question": "What protocols govern automated laser relay satellites orbiting the planet Neptune?",
+    "expected_answer": "Information not available. The provided documents strictly cover Odyssey Base surface operations on Mars and contain no documentation regarding Neptune orbiters.",
+    "expected_doc_ids": [],
+    "question_type": "negative",
+    "key_facts": [
+      "Information not available",
+      "out of scope"
+    ]
+  }
+]

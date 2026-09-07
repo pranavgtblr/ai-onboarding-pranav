@@ -25,6 +25,7 @@
   - [x] 3.2 Hybrid search: BM25 keyword search + vector search fused with Reciprocal Rank Fusion (RRF)
   - [x] 3.3 Cross-encoder reranker (retrieve 50 candidates, cross-encode/rerank, keep 8)
   - [x] 3.4 Add citations (every answer lists chunk IDs and source URLs used)
+  - [x] 3.5 Build a golden set (40 questions, expected answers, source documents in JSON)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
