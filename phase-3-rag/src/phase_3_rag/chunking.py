@@ -1,6 +1,7 @@
 """Fixed-size token chunker for RAG.
 
-Splits documents into exact fixed 500-token chunks using tiktoken (cl100k_base).
+Splits documents into exact token chunks using tiktoken (cl100k_base).
+Supports sliding-window chunking with token overlap.
 Preserves document metadata and chunk indexing.
 """
 
@@ -34,18 +35,25 @@ def chunk_document(
     doc: Document,
     *,
     chunk_size: int = 500,
+    overlap: int = 0,
     encoding_name: str = "cl100k_base",
 ) -> list[Chunk]:
-    """Split a Document into fixed-size token chunks.
+    """Split a Document into token chunks with optional sliding-window overlap.
 
     Args:
         doc: The Document instance to split.
         chunk_size: Target token size per chunk (default 500).
+        overlap: Overlapping tokens between consecutive chunks (default 0).
         encoding_name: Tiktoken encoding identifier.
 
     Returns:
         list[Chunk]: Ordered list of Chunk objects.
     """
+    if overlap >= chunk_size:
+        raise ValueError(
+            f"Overlap ({overlap}) must be strictly less than chunk_size ({chunk_size})"
+        )
+
     enc = get_tokenizer(encoding_name)
     tokens = enc.encode(doc.text)
 
@@ -54,9 +62,11 @@ def chunk_document(
 
     chunks: list[Chunk] = []
     total_tokens = len(tokens)
+    step = max(1, chunk_size - overlap)
 
     chunk_idx = 0
-    for start_idx in range(0, total_tokens, chunk_size):
+    start_idx = 0
+    while start_idx < total_tokens:
         end_idx = min(start_idx + chunk_size, total_tokens)
         slice_tokens = tokens[start_idx:end_idx]
         chunk_text = enc.decode(slice_tokens)
@@ -79,6 +89,9 @@ def chunk_document(
             )
         )
         chunk_idx += 1
+        if end_idx >= total_tokens:
+            break
+        start_idx += step
 
     return chunks
 
@@ -87,12 +100,34 @@ def chunk_corpus(
     documents: list[Document],
     *,
     chunk_size: int = 500,
+    overlap: int = 0,
     encoding_name: str = "cl100k_base",
 ) -> list[Chunk]:
     """Chunk all documents in a corpus into fixed-size chunks."""
     all_chunks: list[Chunk] = []
     for doc in documents:
         all_chunks.extend(
-            chunk_document(doc, chunk_size=chunk_size, encoding_name=encoding_name)
+            chunk_document(
+                doc,
+                chunk_size=chunk_size,
+                overlap=overlap,
+                encoding_name=encoding_name,
+            )
         )
     return all_chunks
+
+
+def chunk_corpus_fine(
+    documents: list[Document],
+    *,
+    chunk_size: int = 120,
+    overlap: int = 20,
+    encoding_name: str = "cl100k_base",
+) -> list[Chunk]:
+    """Generate fine-grained overlapping chunks (65+ chunks) for reranking."""
+    return chunk_corpus(
+        documents,
+        chunk_size=chunk_size,
+        overlap=overlap,
+        encoding_name=encoding_name,
+    )

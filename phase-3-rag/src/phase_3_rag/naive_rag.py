@@ -88,9 +88,16 @@ def generate_llm_response(
     }
     payload = {"contents": [{"parts": [{"text": augmented_prompt}]}]}
 
-    resp = client.post(url, headers=headers, json=payload)
-    resp.raise_for_status()
-    data = resp.json()
+    for attempt in range(3):
+        resp = client.post(url, headers=headers, json=payload)
+        if resp.status_code in (429, 503) and attempt < 2:
+            time.sleep(1.5 * (2**attempt))
+            continue
+        resp.raise_for_status()
+        data = resp.json()
+        break
+    else:
+        raise RuntimeError("Failed to obtain response after retries")
 
     candidates = data.get("candidates", [])
     if not candidates:
