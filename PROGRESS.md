@@ -22,6 +22,7 @@
   - [x] 2.7 Resilient error handling (429 backoff, timeouts, context limits, provider failover)
 - [ ] Phase 3 - RAG                (3.1  - 3.22)
   - [x] 3.1 Naive RAG baseline (20 documents, fixed 500-token chunks, vector search, top 5, prompt stuffing)
+  - [x] 3.2 Hybrid search: BM25 keyword search + vector search fused with Reciprocal Rank Fusion (RRF)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
