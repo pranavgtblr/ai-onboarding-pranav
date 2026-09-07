@@ -20,6 +20,9 @@ class Chunk(BaseModel):
     doc_id: str = Field(description="Parent document identifier, e.g. doc_01")
     source_title: str = Field(description="Human-readable title of parent document")
     category: str = Field(description="Document category / subsystem")
+    source_url: str = Field(
+        default="", description="Canonical source document URL for citations"
+    )
     chunk_index: int = Field(description="Zero-indexed position within the document")
     text: str = Field(description="Decoded text content of the chunk")
     token_count: int = Field(description="Exact token count of the chunk")
@@ -78,6 +81,7 @@ def chunk_document(
                 doc_id=doc.id,
                 source_title=doc.title,
                 category=doc.category,
+                source_url=doc.source_url,
                 chunk_index=chunk_idx,
                 text=chunk_text,
                 token_count=len(slice_tokens),

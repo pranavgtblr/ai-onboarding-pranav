@@ -20,6 +20,10 @@ class Document(BaseModel):
         description="Filename on disk, e.g. doc_01_oxygen_generation.md"
     )
     category: str = Field(description="Subsystem category, e.g. Life Support, Power")
+    source_url: str = Field(
+        default="",
+        description="Canonical URL for referencing this document in citations",
+    )
     text: str = Field(description="Full text content of the document")
 
 
@@ -70,6 +74,7 @@ def load_corpus(data_dir: Path = DATA_DIR) -> list[Document]:
                 title=title,
                 filename=path.name,
                 category=category,
+                source_url=f"https://odyssey.base.internal/docs/{path.name}",
                 text=text,
             )
         )

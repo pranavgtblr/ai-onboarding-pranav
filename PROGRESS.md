@@ -24,6 +24,7 @@
   - [x] 3.1 Naive RAG baseline (20 documents, fixed 500-token chunks, vector search, top 5, prompt stuffing)
   - [x] 3.2 Hybrid search: BM25 keyword search + vector search fused with Reciprocal Rank Fusion (RRF)
   - [x] 3.3 Cross-encoder reranker (retrieve 50 candidates, cross-encode/rerank, keep 8)
+  - [x] 3.4 Add citations (every answer lists chunk IDs and source URLs used)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
