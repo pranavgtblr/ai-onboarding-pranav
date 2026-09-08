@@ -27,6 +27,7 @@
   - [x] 3.4 Add citations (every answer lists chunk IDs and source URLs used)
   - [x] 3.5 Build a golden set (40 questions, expected answers, source documents in JSON)
   - [x] 3.6 Decoupled eval script (retrieval vs generation, score reports committed for 3.1 & 3.3)
+  - [x] 3.7 Ingest 20+ real PDFs (including scanned documents via OCR and table-heavy documents)
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)

@@ -1,0 +1,162 @@
+[
+  {
+    "id": "pdf_01_atmospheric_entry",
+    "filename": "pdf_01_atmospheric_entry.pdf",
+    "title": "Mars Atmospheric Entry, Descent and Landing (EDL) Manual",
+    "category": "Aerospace Engineering",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_02_nuclear_reactor_specs",
+    "filename": "pdf_02_nuclear_reactor_specs.pdf",
+    "title": "Kilopower 10 kWe Stirling Nuclear Reactor Operating Limits",
+    "category": "Power Systems",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_03_moxie_electrolysis",
+    "filename": "pdf_03_moxie_electrolysis.pdf",
+    "title": "Solid Oxide Electrolysis Oxygen Extraction Manual",
+    "category": "Life Support & ISRU",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_04_archival_log_scanned",
+    "filename": "pdf_04_archival_log_scanned.pdf",
+    "title": "Restricted Archival Record: Declassified Technical Field Log (Sol 01-10)",
+    "category": "Historical Records",
+    "is_scanned": true,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_05_water_recycling_closed_loop",
+    "filename": "pdf_05_water_recycling_closed_loop.pdf",
+    "title": "ECLSS Closed-Loop Water Recycling & Condensate Distillation",
+    "category": "Life Support",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_06_eva_spacesuit_maintenance",
+    "filename": "pdf_06_eva_spacesuit_maintenance.pdf",
+    "title": "Mark IV Planetary Exploration Spacesuit Pressure Garment Maintenance",
+    "category": "Crew Equipment",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_07_telemetry_matrix_tables",
+    "filename": "pdf_07_telemetry_matrix_tables.pdf",
+    "title": "Master Telemetry Matrix & Engineering Tolerances",
+    "category": "Telemetry & Systems",
+    "is_scanned": false,
+    "mostly_tables": true
+  },
+  {
+    "id": "pdf_08_cryogenic_methane_propulsion",
+    "filename": "pdf_08_cryogenic_methane_propulsion.pdf",
+    "title": "Liquid Methane (CH4) & Liquid Oxygen (LOX) Densification Protocol",
+    "category": "ISRU & Propulsion",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_09_rover_autonomous_navigation",
+    "filename": "pdf_09_rover_autonomous_navigation.pdf",
+    "title": "Autonomous Rover Navigation & Stereo Visual Odometry",
+    "category": "Mobility",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_10_deep_space_optical_comm",
+    "filename": "pdf_10_deep_space_optical_comm.pdf",
+    "title": "Deep Space Optical Communications (DSOC) 1550 nm Laser Uplink",
+    "category": "Communications",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_11_solar_flare_shelter_protocol",
+    "filename": "pdf_11_solar_flare_shelter_protocol.pdf",
+    "title": "SPE Class X-Ray Solar Proton Storm Shelter Protocol",
+    "category": "Safety & Survival",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_12_hydroponic_crop_production",
+    "filename": "pdf_12_hydroponic_crop_production.pdf",
+    "title": "Hydroponic & Aeroponic Biomass Production Guidelines",
+    "category": "Life Support",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_13_regolith_brick_construction",
+    "filename": "pdf_13_regolith_brick_construction.pdf",
+    "title": "Sintered Martian Basalt Regolith Structural Construction",
+    "category": "Infrastructure",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_14_dust_storm_abrasion_mitigation",
+    "filename": "pdf_14_dust_storm_abrasion_mitigation.pdf",
+    "title": "Martian Atmospheric Dust Abrasion & Electrostatic Repulsion",
+    "category": "Habitat Operations",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_15_medical_trauma_guidelines",
+    "filename": "pdf_15_medical_trauma_guidelines.pdf",
+    "title": "Extraterrestrial Medical Emergency & Hypobaric Decompression Guidelines",
+    "category": "Medical & Health",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_16_sabatier_reactor_kinetics",
+    "filename": "pdf_16_sabatier_reactor_kinetics.pdf",
+    "title": "Sabatier Carbon Dioxide Methanation Catalytic Kinetics",
+    "category": "ISRU & Propulsion",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_17_waste_heat_radiator_loops",
+    "filename": "pdf_17_waste_heat_radiator_loops.pdf",
+    "title": "Active Thermal Control & Ammonia Waste Heat Radiator Loops",
+    "category": "Environmental Control",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_18_sample_return_containment",
+    "filename": "pdf_18_sample_return_containment.pdf",
+    "title": "Planetary Protection Biosafety Level 4 Geological Sample Isolation",
+    "category": "Science & Planetary Protection",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_19_geological_drilling_telemetry",
+    "filename": "pdf_19_geological_drilling_telemetry.pdf",
+    "title": "Deep Subsurface Core Drilling Telemetry & Borehole Stratigraphy",
+    "category": "Science & Geology",
+    "is_scanned": false,
+    "mostly_tables": false
+  },
+  {
+    "id": "pdf_20_outpost_charter_governance",
+    "filename": "pdf_20_outpost_charter_governance.pdf",
+    "title": "Odyssey Expedition Inter-Agency Command Authority Protocol",
+    "category": "Governance & Administration",
+    "is_scanned": false,
+    "mostly_tables": false
+  }
+]

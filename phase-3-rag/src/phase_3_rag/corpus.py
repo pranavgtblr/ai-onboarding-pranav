@@ -80,3 +80,34 @@ def load_corpus(data_dir: Path = DATA_DIR) -> list[Document]:
         )
 
     return documents
+
+
+PDF_CORPUS_DIR = Path(__file__).resolve().parents[2] / "data" / "pdf_corpus"
+
+
+def load_pdf_corpus(data_dir: Path = PDF_CORPUS_DIR) -> list[Document]:
+    """Load all extracted PDF markdown documents from data/pdf_corpus."""
+    if not data_dir.exists():
+        raise FileNotFoundError(f"PDF corpus directory not found: {data_dir}")
+
+    files = sorted(data_dir.glob("pdf_*.md"))
+    documents: list[Document] = []
+
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        first_line = text.splitlines()[0] if text else path.stem
+        title = re.sub(r"^#\s*", "", first_line).strip()
+        doc_id = path.stem
+
+        documents.append(
+            Document(
+                id=doc_id,
+                title=title,
+                filename=path.name,
+                category="PDF Technical Ingestion",
+                source_url=f"https://odyssey.base.internal/pdfs/{path.name}",
+                text=text,
+            )
+        )
+
+    return documents
