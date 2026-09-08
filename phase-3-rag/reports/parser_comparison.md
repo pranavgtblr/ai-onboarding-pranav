@@ -18,9 +18,9 @@ This report provides an empirical, side-by-side engineering evaluation comparing
 
 | Document | pypdf Latency | PyMuPDF Latency | Latency Delta | pypdf Words | PyMuPDF Words | Tables |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `multi_column_sample.pdf` | 10.7ms | 35.6ms (+25.0ms) | 0.3x | 102 | 96 | 0 |
-| `polluted_header_footer_sample.pdf` | 12.7ms | 57.9ms (+45.2ms) | 0.2x | 225 | 153 | 0 |
-| `table_sample.pdf` | 12.3ms | 35.8ms (+23.5ms) | 0.3x | 78 | 197 | 1 |
+| `multi_column_sample.pdf` | 7.1ms | 25.8ms (+18.7ms) | 0.3x | 102 | 96 | 0 |
+| `polluted_header_footer_sample.pdf` | 11.1ms | 42.1ms (+31.0ms) | 0.3x | 225 | 153 | 0 |
+| `table_sample.pdf` | 9.7ms | 25.0ms (+15.3ms) | 0.4x | 78 | 197 | 1 |
 
 ---
 

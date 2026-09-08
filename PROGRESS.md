@@ -29,6 +29,7 @@
   - [x] 3.6 Decoupled eval script (retrieval vs generation, score reports committed for 3.1 & 3.3)
   - [x] 3.7 Ingest 20+ real PDFs (including scanned documents via OCR and table-heavy documents)
   - [x] 3.8 Compare two parsers on same files (document multi-column, headers/footers, tables)
+  - [x] 3.9 Handle tables deliberately (extract to markdown/structured rows) and add OCR for scanned file
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
