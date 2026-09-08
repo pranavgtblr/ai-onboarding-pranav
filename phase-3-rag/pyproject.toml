@@ -13,6 +13,7 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.0.0",
     "pymupdf>=1.28.2",
+    "pypdf>=6.18.0",
     "tiktoken>=0.7.0",
 ]
 
@@ -23,6 +24,7 @@ reranked-rag = "phase_3_rag.reranked_rag:main"
 cited-rag = "phase_3_rag.cited_rag:main"
 evaluate-rag = "phase_3_rag.evaluator:main"
 ingest-pdfs = "phase_3_rag.pdf_ingest:main"
+compare-parsers = "phase_3_rag.parser_compare:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]
