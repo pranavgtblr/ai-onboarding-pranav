@@ -127,3 +127,13 @@ def test_load_pdf_corpus_reads_markdown(tmp_path: Path) -> None:
     assert docs[0].id == "pdf_01_sample"
     assert docs[0].title == "Sample Technical Manual"
     assert "Sample text content" in docs[0].text
+
+
+def test_a_pdf_directory_exists_and_contains_20_pdfs() -> None:
+    """Verify the a-pdf directory contains 20 real PDF documents and manifest."""
+    a_pdf_dir = Path(__file__).resolve().parents[1] / "a-pdf"
+    assert a_pdf_dir.exists(), "a-pdf directory must exist"
+    pdfs = list(a_pdf_dir.glob("*.pdf"))
+    assert len(pdfs) >= 20, f"Expected >= 20 PDFs in a-pdf, found {len(pdfs)}"
+    manifest_path = a_pdf_dir / "manifest.json"
+    assert manifest_path.exists(), "manifest.json must exist in a-pdf"

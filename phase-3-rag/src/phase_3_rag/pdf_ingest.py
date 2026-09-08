@@ -20,7 +20,13 @@ from pydantic import BaseModel, Field
 
 from phase_3_rag.config import get_settings
 
-DEFAULT_PDF_DIR = Path(__file__).resolve().parents[2] / "data" / "pdfs"
+_A_PDF_DIR = Path(__file__).resolve().parents[2] / "a-pdf"
+_DATA_PDF_DIR = Path(__file__).resolve().parents[2] / "data" / "pdfs"
+DEFAULT_PDF_DIR = (
+    _A_PDF_DIR
+    if _A_PDF_DIR.exists() and any(_A_PDF_DIR.glob("*.pdf"))
+    else _DATA_PDF_DIR
+)
 DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data" / "pdf_corpus"
 
 
