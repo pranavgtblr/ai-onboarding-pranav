@@ -43,13 +43,15 @@ def test_get_customer_lookup(test_db: Path):
     assert res_id["count"] == 1
     assert res_id["customers"][0]["email"] == "alice@example.com"
 
-    # Lookup by email
-    res_email = get_customer(email="bob@example.com", db_path=test_db)
+    # Lookup by email for Bob (session_customer_id=2)
+    res_email = get_customer(
+        session_customer_id=2, email="bob@example.com", db_path=test_db
+    )
     assert res_email["count"] == 1
     assert res_email["customers"][0]["name"] == "Bob Smith"
 
-    # Lookup without parameters returns helpful error
-    res_empty = get_customer(db_path=test_db)
+    # Lookup with non-existent customer ID returns error
+    res_empty = get_customer(session_customer_id=9999, db_path=test_db)
     assert "error" in res_empty
 
 
@@ -120,7 +122,9 @@ def test_parameterization_prevents_sql_injection(test_db: Path):
 
     # Attack on get_customer name parameter
     res = get_customer(name=injection_payload, db_path=test_db)
-    assert res["count"] == 0  # Should NOT return all customers!
+    # Blocked by tenant profile mismatch
+    assert "error" in res
+    assert "Access denied" in res["error"]
 
     # Attack on get_appointments status parameter
     bad_status = "confirmed' OR 1=1 --"
@@ -130,10 +134,12 @@ def test_parameterization_prevents_sql_injection(test_db: Path):
 
 def test_execute_database_tool_dispatch(test_db: Path):
     """Verify dispatcher safely runs known tools and catches unknown/bad calls."""
-    # Valid dispatch
-    res = execute_database_tool("get_customer", {"name": "Bob"}, db_path=test_db)
+    # Valid dispatch for Alice (session_customer_id=1)
+    res = execute_database_tool(
+        "get_customer", {"name": "Alice"}, session_customer_id=1, db_path=test_db
+    )
     assert res["count"] == 1
-    assert res["customers"][0]["name"] == "Bob Smith"
+    assert res["customers"][0]["name"] == "Alice Johnson"
 
     # Unknown tool
     unknown_res = execute_database_tool("drop_tables", {}, db_path=test_db)

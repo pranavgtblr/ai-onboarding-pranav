@@ -21,7 +21,12 @@ import sqlglot.expressions as exp
 from pydantic import BaseModel, Field
 
 from phase_3_rag.config import get_settings
-from phase_3_rag.database import DEFAULT_DB_PATH, get_readonly_connection, init_database
+from phase_3_rag.database import (
+    DEFAULT_DB_PATH,
+    get_readonly_connection,
+    get_tenant_readonly_connection,
+    init_database,
+)
 
 ALLOWLISTED_TABLES: set[str] = {
     "customers",
@@ -121,6 +126,7 @@ def extract_sql_from_text(raw_text: str) -> str:
 def validate_and_sanitize_sql(
     raw_sql: str,
     *,
+    session_customer_id: int | None = None,
     allowlisted_tables: set[str] = ALLOWLISTED_TABLES,
     max_limit: int = DEFAULT_MAX_LIMIT,
 ) -> str:
@@ -130,14 +136,15 @@ def validate_and_sanitize_sql(
     1. Multi-statement injection rejection (semicolon chaining).
     2. Pure SELECT statement AST check (blocks INSERT, UPDATE, DELETE, DROP, etc.).
     3. Allowlisted tables verification (blocks sqlite_master, admin logs, etc.).
-    4. Mandatory LIMIT enforcement (injects or clamps to max_limit).
+    4. Prohibits schema qualification (e.g. main.orders).
+    5. Row-level security: rejects queries targeting unauthorized customer_ids.
+    6. Mandatory LIMIT enforcement (injects or clamps to max_limit).
     """
     clean_sql = extract_sql_from_text(raw_sql)
     if not clean_sql:
         raise SecurityValidationError("Empty SQL query provided.")
 
     # 1. Multi-statement injection check
-    # Check if there are multiple non-comment statements separated by semicolons
     statements = [s.strip() for s in clean_sql.split(";") if s.strip()]
     if len(statements) > 1:
         raise SecurityValidationError(
@@ -173,11 +180,14 @@ def validate_and_sanitize_sql(
                 f"Prohibited SQL expression detected: {type(node).__name__}."
             )
 
-    # 4. Table allowlist check
+    # 4. Table allowlist check and schema qualification rejection
     referenced_tables: set[str] = set()
     for table_exp in parsed.find_all(exp.Table):
+        if table_exp.db:
+            raise SecurityValidationError(
+                f"Schema-qualified table '{table_exp.sql()}' is prohibited."
+            )
         tbl_name = table_exp.name.lower()
-        # Exclude subquery aliases or CTE aliases
         referenced_tables.add(tbl_name)
 
     disallowed_tables = referenced_tables - {t.lower() for t in allowlisted_tables}
@@ -186,20 +196,51 @@ def validate_and_sanitize_sql(
             f"Access to non-allowlisted table(s) rejected: {sorted(disallowed_tables)}."
         )
 
-    # 5. Mandatory LIMIT enforcement
+    # 5. Row-Level Security checks when session_customer_id is provided
+    if session_customer_id is not None:
+        # Check equality comparisons on customer_id
+        for eq_node in parsed.find_all(exp.EQ):
+            left, right = eq_node.this, eq_node.expression
+            if isinstance(left, exp.Column) and left.name.lower() == "customer_id":
+                if isinstance(right, exp.Literal) and right.is_int:
+                    if int(right.this) != session_customer_id:
+                        raise SecurityValidationError(
+                            f"Row-level security violation: query targets "
+                            f"customer_id {right.this} while authenticated as "
+                            f"{session_customer_id}."
+                        )
+            elif isinstance(right, exp.Column) and right.name.lower() == "customer_id":
+                if isinstance(left, exp.Literal) and left.is_int:
+                    if int(left.this) != session_customer_id:
+                        raise SecurityValidationError(
+                            f"Row-level security violation: query targets "
+                            f"customer_id {left.this} while authenticated as "
+                            f"{session_customer_id}."
+                        )
+
+        # Check IN expressions on customer_id
+        for in_node in parsed.find_all(exp.In):
+            this = in_node.this
+            if isinstance(this, exp.Column) and this.name.lower() == "customer_id":
+                for expr in in_node.expressions:
+                    if isinstance(expr, exp.Literal) and expr.is_int:
+                        if int(expr.this) != session_customer_id:
+                            raise SecurityValidationError(
+                                "Row-level security violation: query targets "
+                                "unauthorized customer_id."
+                            )
+
+    # 6. Mandatory LIMIT enforcement
     limit_exp = parsed.args.get("limit")
     if limit_exp is None:
-        # Inject mandatory limit
         parsed = parsed.limit(max_limit)
     else:
-        # Inspect existing limit expression
         try:
             limit_val_str = limit_exp.expression.name
             limit_val = int(limit_val_str)
             if limit_val > max_limit or limit_val <= 0:
                 parsed.set("limit", exp.Limit(expression=exp.Literal.number(max_limit)))
         except Exception:
-            # If complex limit expression, clamp to max_limit
             parsed.set("limit", exp.Limit(expression=exp.Literal.number(max_limit)))
 
     # Return clean, transpiled SQLite SQL
@@ -209,6 +250,7 @@ def validate_and_sanitize_sql(
 def execute_readonly_sql(
     sql_query: str,
     *,
+    session_customer_id: int | None = None,
     db_path: Path = DEFAULT_DB_PATH,
     allowlisted_tables: set[str] = ALLOWLISTED_TABLES,
     max_limit: int = DEFAULT_MAX_LIMIT,
@@ -216,11 +258,16 @@ def execute_readonly_sql(
     """Validate, sanitize, and execute query using a strictly read-only connection."""
     sanitized_sql = validate_and_sanitize_sql(
         sql_query,
+        session_customer_id=session_customer_id,
         allowlisted_tables=allowlisted_tables,
         max_limit=max_limit,
     )
 
-    conn = get_readonly_connection(db_path)
+    if session_customer_id is not None:
+        conn = get_tenant_readonly_connection(session_customer_id, db_path=db_path)
+    else:
+        conn = get_readonly_connection(db_path)
+
     try:
         cursor = conn.cursor()
         cursor.execute(sanitized_sql)
@@ -234,6 +281,7 @@ def generate_sql_for_question(
     question: str,
     *,
     client: httpx.Client,
+    session_customer_id: int | None = None,
     model: str | None = None,
 ) -> str:
     """Use Gemini LLM to generate a precision SQL query from natural language."""
@@ -247,8 +295,19 @@ def generate_sql_for_question(
         f"{active_model}:generateContent?key={settings.gemini_api_key}"
     )
 
+    session_context = ""
+    if session_customer_id is not None:
+        session_context = (
+            f"\n### Authenticated Session Multi-Tenancy:\n"
+            f"- The user is authenticated as customer_id = {session_customer_id}.\n"
+            f"- You MUST strictly restrict your query to customer_id = "
+            f"{session_customer_id}.\n"
+            f"- Never attempt to query, filter by, or return records of other "
+            f"customers.\n"
+        )
+
     prompt = (
-        f"{SCHEMA_PROMPT}\n\n"
+        f"{SCHEMA_PROMPT}\n{session_context}\n"
         f"User Question: {question}\n\n"
         f"Generate the exact SQLite SQL query:"
     )
@@ -318,19 +377,36 @@ def run_text_to_sql_pipeline(
     question: str,
     *,
     client: httpx.Client,
+    session_customer_id: int | None = None,
+    model: str | None = None,
     db_path: Path = DEFAULT_DB_PATH,
 ) -> TextToSqlResult:
     """End-to-end Text-to-SQL pipeline: Generate, Validate, Execute, Synthesize."""
     start_time = time.perf_counter()
 
     # 1. Generate SQL from question
-    raw_sql = generate_sql_for_question(question, client=client)
+    raw_sql = generate_sql_for_question(
+        question,
+        client=client,
+        session_customer_id=session_customer_id,
+        model=model,
+    )
 
     # 2. Validate, enforce LIMIT, and execute against read-only DB
-    sanitized_sql, rows = execute_readonly_sql(raw_sql, db_path=db_path)
+    sanitized_sql, rows = execute_readonly_sql(
+        raw_sql,
+        session_customer_id=session_customer_id,
+        db_path=db_path,
+    )
 
     # 3. Synthesize natural language answer
-    answer = synthesize_natural_answer(question, sanitized_sql, rows, client=client)
+    answer = synthesize_natural_answer(
+        question,
+        sanitized_sql,
+        rows,
+        client=client,
+        model=model,
+    )
     elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
     return TextToSqlResult(
@@ -357,6 +433,12 @@ def parse_args() -> argparse.Namespace:
         help="Natural language question to query against the database",
     )
     parser.add_argument(
+        "--session-customer-id",
+        type=int,
+        default=None,
+        help="Optional authenticated customer ID to enforce row-level security",
+    )
+    parser.add_argument(
         "--db-path",
         type=Path,
         default=DEFAULT_DB_PATH,
@@ -374,8 +456,13 @@ def main() -> None:
 
     with httpx.Client(timeout=30.0) as client:
         print(f"❓ Question: {args.question}")
+        if args.session_customer_id is not None:
+            print(f"🔒 Authenticated Customer ID: {args.session_customer_id}")
         result = run_text_to_sql_pipeline(
-            args.question, client=client, db_path=args.db_path
+            args.question,
+            client=client,
+            session_customer_id=args.session_customer_id,
+            db_path=args.db_path,
         )
         print(f"🔍 Generated SQL: {result.generated_sql}")
         print(f"🛡️ Sanitized SQL: {result.sanitized_sql}")

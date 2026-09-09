@@ -49,6 +49,12 @@ def main() -> None:
         help="Gemini model override (e.g. gemini-2.5-flash).",
     )
     parser.add_argument(
+        "--session-customer-id",
+        type=int,
+        default=1,
+        help="Authenticated customer ID (default: 1 for Alice).",
+    )
+    parser.add_argument(
         "--db-path",
         type=Path,
         default=DEFAULT_DB_PATH,
@@ -67,8 +73,9 @@ def main() -> None:
         sys.exit(1)
 
     print("=" * 70)
-    print("Database RAG Approach 2: Structured Tool Calling (Task 3.15)")
+    print("Database RAG Approach 2: Structured Tool Calling (Task 3.15/3.16)")
     print("=" * 70)
+    print(f"Authenticated User: Customer ID {args.session_customer_id}")
     print(f"Question: {args.question}")
     print(f"Database: {args.db_path.resolve()}\n")
 
@@ -77,6 +84,7 @@ def main() -> None:
             result = run_database_tool_loop(
                 args.question,
                 client=client,
+                session_customer_id=args.session_customer_id,
                 model=args.model,
                 db_path=args.db_path,
             )

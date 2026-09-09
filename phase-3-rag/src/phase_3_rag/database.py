@@ -220,3 +220,49 @@ def get_readonly_connection(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connecti
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA query_only = ON;")
     return conn
+
+
+def get_tenant_readonly_connection(
+    customer_id: int,
+    db_path: Path = DEFAULT_DB_PATH,
+) -> sqlite3.Connection:
+    """Create a tenant-scoped read-only SQLite connection.
+
+    Creates SQLite temporary views that shadow tenant-partitioned tables
+    ('customers', 'orders', 'appointments', 'order_items') to physically
+    restrict the connection to rows belonging to customer_id, then enforces
+    PRAGMA query_only = ON.
+    """
+    if not db_path.exists():
+        init_database(db_path)
+
+    resolved_path = db_path.resolve().as_posix()
+    uri = f"file:{resolved_path}?mode=ro"
+
+    conn = sqlite3.connect(uri, uri=True)
+    conn.row_factory = sqlite3.Row
+
+    safe_cid = int(customer_id)
+
+    # Create temporary tenant isolation views
+    conn.execute(
+        f"CREATE TEMP VIEW customers AS "
+        f"SELECT * FROM main.customers WHERE customer_id = {safe_cid};"
+    )
+    conn.execute(
+        f"CREATE TEMP VIEW orders AS "
+        f"SELECT * FROM main.orders WHERE customer_id = {safe_cid};"
+    )
+    conn.execute(
+        f"CREATE TEMP VIEW appointments AS "
+        f"SELECT * FROM main.appointments WHERE customer_id = {safe_cid};"
+    )
+    conn.execute(
+        f"CREATE TEMP VIEW order_items AS "
+        f"SELECT oi.* FROM main.order_items oi "
+        f"JOIN main.orders o ON oi.order_id = o.order_id "
+        f"WHERE o.customer_id = {safe_cid};"
+    )
+
+    conn.execute("PRAGMA query_only = ON;")
+    return conn
