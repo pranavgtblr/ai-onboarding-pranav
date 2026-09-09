@@ -7,6 +7,7 @@ import pytest
 
 from phase_3_rag.bm25 import BM25Index
 from phase_3_rag.chunking import Chunk, chunk_corpus
+from phase_3_rag.config import get_settings
 from phase_3_rag.corpus import load_corpus
 from phase_3_rag.fusion import FusedResult, reciprocal_rank_fusion
 from phase_3_rag.hybrid_rag import (
@@ -108,6 +109,10 @@ def test_live_hybrid_retrieval_cached() -> None:
     """Test hybrid retrieval on actual corpus using cached vector embeddings."""
     docs = load_corpus()
     chunks = chunk_corpus(docs, chunk_size=500)
+
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        pytest.skip("GEMINI_API_KEY not configured; skipping live test")
 
     with httpx.Client(timeout=30.0) as client:
         v_index = VectorIndex.build(chunks, client=client, use_cache=True)
