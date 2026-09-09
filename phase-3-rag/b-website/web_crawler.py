@@ -567,7 +567,7 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="Maximum link crawl depth (default: 2)",
     )
-    default_output = Path(__file__).resolve().parents[2] / "b-website"
+    default_output = Path(__file__).resolve().parent
     parser.add_argument(
         "--output-dir",
         type=Path,
