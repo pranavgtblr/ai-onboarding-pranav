@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "httpx>=0.27.0",
     "pdfplumber>=0.11.10",
     "pydantic>=2.10.0",
@@ -25,6 +26,7 @@ cited-rag = "phase_3_rag.cited_rag:main"
 evaluate-rag = "phase_3_rag.evaluator:main"
 ingest-pdfs = "phase_3_rag.pdf_ingest:main"
 compare-parsers = "phase_3_rag.parser_compare:main"
+crawl-site = "phase_3_rag.web_crawler:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]

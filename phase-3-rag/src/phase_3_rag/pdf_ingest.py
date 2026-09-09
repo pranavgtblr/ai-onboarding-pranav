@@ -302,12 +302,23 @@ def perform_gemini_ocr(
 
     should_close = False
     if client is None:
-        client = httpx.Client(timeout=30.0)
+        client = httpx.Client(timeout=60.0)
         should_close = True
 
     try:
         for attempt in range(5):
-            resp = client.post(url, headers=headers, json=payload)
+            try:
+                resp = client.post(url, headers=headers, json=payload)
+            except (httpx.TimeoutException, httpx.ConnectError) as err:
+                if attempt < 4:
+                    wait_time = min(30.0, 3.0 * (2**attempt))
+                    print(
+                        f"  ⚠️  [OCR Timeout/Network: {err}] Retrying in {wait_time:.1f}s..."
+                    )
+                    time.sleep(wait_time)
+                    continue
+                raise
+
             if resp.status_code in (429, 503) and attempt < 4:
                 wait_time = min(30.0, 3.0 * (2**attempt))
                 print(f"  ⚠️  [OCR Rate Limit] Backing off {wait_time:.1f}s...")
