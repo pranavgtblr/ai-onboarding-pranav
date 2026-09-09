@@ -567,11 +567,12 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="Maximum link crawl depth (default: 2)",
     )
+    default_output = Path(__file__).resolve().parents[2] / "b-website"
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data/scraped_docs"),
-        help="Directory to save extracted markdown and chunks",
+        default=default_output,
+        help="Directory to save extracted markdown and chunks (default: b-website)",
     )
     return parser.parse_args()
 

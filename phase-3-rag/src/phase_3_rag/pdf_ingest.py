@@ -313,7 +313,8 @@ def perform_gemini_ocr(
                 if attempt < 4:
                     wait_time = min(30.0, 3.0 * (2**attempt))
                     print(
-                        f"  ⚠️  [OCR Timeout/Network: {err}] Retrying in {wait_time:.1f}s..."
+                        f"  ⚠️  [OCR Timeout/Network: {err}] "
+                        f"Retrying in {wait_time:.1f}s..."
                     )
                     time.sleep(wait_time)
                     continue
