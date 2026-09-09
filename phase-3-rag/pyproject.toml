@@ -28,6 +28,7 @@ evaluate-rag = "phase_3_rag.evaluator:main"
 ingest-pdfs = "phase_3_rag.pdf_ingest:main"
 compare-parsers = "phase_3_rag.parser_compare:main"
 crawl-site = "phase_3_rag.web_crawler:main"
+web-search-rag = "phase_3_rag.web_search:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]
