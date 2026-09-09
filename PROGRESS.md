@@ -38,6 +38,7 @@
   - [x] 3.15 Structured tool calls: expose typed functions such as get_appointments(user_id, from, to) with argument filling and parameterized queries
   - [x] 3.16 Row-level access control test: penetration testing across 5 attack vectors, documented in SECURITY.md, and RLS engine defenses implemented
   - [x] 3.17 Wire a search API in as a retrieval source with LLM query rewriting, DuckDuckGo search provider, and cited answer synthesis
+  - [x] 3.18 Fetch and extract page content from results, handling dead links, paywalls, and junk pages without crashing
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)

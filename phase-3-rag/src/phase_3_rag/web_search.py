@@ -5,7 +5,9 @@ Provides:
    search engine queries using Gemini or rule-based heuristic fallbacks.
 2. Search provider abstraction: DuckDuckGoSearchProvider (zero-key web scraper)
    and MockSearchProvider (deterministic offline/test provider).
-3. Grounded answer synthesis: produces answers with explicit source URL citations.
+3. Resilient page content extraction: fetches full page text while handling
+   dead links, paywalls, and junk pages without crashing.
+4. Grounded answer synthesis: produces answers with explicit source URL citations.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import logging
 import re
 import urllib.parse
 from abc import ABC, abstractmethod
+from enum import Enum
 
 import httpx
 from bs4 import BeautifulSoup
@@ -31,6 +34,18 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 
 
+class FetchStatus(str, Enum):
+    """Classification status for web page content extraction."""
+
+    SUCCESS = "SUCCESS"
+    DEAD_LINK = "DEAD_LINK"
+    PAYWALL = "PAYWALL"
+    JUNK_PAGE = "JUNK_PAGE"
+    TIMEOUT = "TIMEOUT"
+    FETCH_ERROR = "FETCH_ERROR"
+    SNIPPET_ONLY = "SNIPPET_ONLY"
+
+
 class SearchResult(BaseModel):
     """A single retrieved web search result."""
 
@@ -38,6 +53,25 @@ class SearchResult(BaseModel):
     url: str = Field(..., description="Full canonical destination URL.")
     snippet: str = Field(..., description="Search engine snippet/excerpt.")
     rank: int = Field(..., description="1-based rank in search results.")
+    page_content: str | None = Field(
+        default=None,
+        description="Full extracted readable body text if fetched.",
+    )
+    fetch_status: FetchStatus = Field(
+        default=FetchStatus.SNIPPET_ONLY,
+        description="Status of full page extraction.",
+    )
+    fetch_error: str | None = Field(
+        default=None,
+        description="Failure reason if page extraction failed.",
+    )
+
+    @property
+    def effective_content(self) -> str:
+        """Return full page content if successfully extracted, else snippet."""
+        if self.fetch_status == FetchStatus.SUCCESS and self.page_content:
+            return self.page_content
+        return self.snippet
 
 
 class QueryRewriteResult(BaseModel):
@@ -377,11 +411,248 @@ class MockSearchProvider(WebSearchProvider):
 
 
 # -----------------------------------------------------------------------------
+# Resilient Page Content Extraction (Task 3.18)
+# -----------------------------------------------------------------------------
+
+
+class PageContentExtractor:
+    """Resilient fetcher and text extractor for search results.
+
+    Handles:
+    - Dead links (HTTP 404/410/500/502/503, DNS failures, connection drops).
+    - Paywalls (HTTP 401/403, and in-body subscription / paywall banners).
+    - Junk pages (Cloudflare/bot challenges, cookie walls, micro-content).
+    - Oversized binaries and hanging connections.
+    """
+
+    DEFAULT_USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+
+    PAYWALL_INDICATORS = [
+        "subscribe to continue reading",
+        "subscriber-exclusive content",
+        "you've reached your free article limit",
+        "you have reached your limit of free articles",
+        "create a free account to continue",
+        "sign in to read the full story",
+        "join now to read",
+        "exclusive to subscribers",
+        "this article is for subscribers only",
+        "membership required to read",
+        "unlock this story with a subscription",
+    ]
+
+    BOT_CHALLENGE_INDICATORS = [
+        "cloudflare ray id",
+        "verify you are human",
+        "attention required! | cloudflare",
+        "please complete the security check",
+        "enable javascript and cookies to continue",
+        "checking your browser before accessing",
+        "ddos protection by cloudflare",
+        "just a moment...",
+        "access denied | www.",
+        "shieldsquare captcha",
+        "distil networks",
+    ]
+
+    def __init__(
+        self,
+        *,
+        timeout: float = 6.0,
+        max_bytes: int = 1_048_576,  # 1 MB
+        max_chars: int = 12_000,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self.timeout = timeout
+        self.max_bytes = max_bytes
+        self.max_chars = max_chars
+        self._external_client = client
+
+    def extract_html_text(
+        self, html: str, url: str = ""
+    ) -> tuple[str | None, FetchStatus, str | None]:
+        """Extract clean body text from HTML, detecting paywalls and bot walls."""
+        lower_html = html.lower()
+
+        # 1. Check for bot / CAPTCHA challenge pages
+        for indicator in self.BOT_CHALLENGE_INDICATORS:
+            if indicator in lower_html:
+                return (
+                    None,
+                    FetchStatus.JUNK_PAGE,
+                    f"Bot challenge or CAPTCHA detected ('{indicator}').",
+                )
+
+        # 2. Check for paywall indicators
+        for indicator in self.PAYWALL_INDICATORS:
+            if indicator in lower_html:
+                return (
+                    None,
+                    FetchStatus.PAYWALL,
+                    f"Paywall or subscription barrier detected ('{indicator}').",
+                )
+
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception as exc:
+            return None, FetchStatus.JUNK_PAGE, f"HTML parse error: {exc}"
+
+        # 3. Strip boilerplate tags
+        for tag in soup(
+            [
+                "script",
+                "style",
+                "noscript",
+                "svg",
+                "iframe",
+                "header",
+                "footer",
+                "nav",
+                "aside",
+                "form",
+            ]
+        ):
+            tag.decompose()
+
+        # Remove elements with typical boilerplate class names
+        boilerplate_pattern = re.compile(
+            r"(cookie|banner|modal|popup|sidebar|advertisement|newsletter)",
+            re.IGNORECASE,
+        )
+        for tag in soup.find_all(class_=boilerplate_pattern):
+            tag.decompose()
+
+        # Prioritize main article container if available
+        container = (
+            soup.find("article")
+            or soup.find("main")
+            or soup.select_one('[role="main"]')
+            or soup.body
+            or soup
+        )
+
+        text = container.get_text(separator=" ", strip=True)
+        # Collapse whitespace
+        clean_text = re.sub(r"\s+", " ", text).strip()
+
+        # 4. Reject junk or nearly empty pages (< 120 characters)
+        if len(clean_text) < 120:
+            return (
+                clean_text or None,
+                FetchStatus.JUNK_PAGE,
+                (
+                    f"Extracted content too short ({len(clean_text)} chars); "
+                    "page likely empty or JS-only."
+                ),
+            )
+
+        # 5. Truncate to maximum character budget at word boundary
+        if len(clean_text) > self.max_chars:
+            clean_text = clean_text[: self.max_chars].rsplit(" ", 1)[0] + "..."
+
+        return clean_text, FetchStatus.SUCCESS, None
+
+    def fetch_and_extract(self, url: str) -> tuple[str | None, FetchStatus, str | None]:
+        """Fetch URL with timeout/size guards and extract readable body text."""
+        close_client = False
+        client = self._external_client
+        if client is None:
+            client = httpx.Client(
+                timeout=self.timeout,
+                follow_redirects=True,
+                headers={"User-Agent": self.DEFAULT_USER_AGENT},
+            )
+            close_client = True
+
+        try:
+            with client.stream("GET", url) as resp:
+                status = resp.status_code
+
+                # Status code classification
+                if status in (401, 403):
+                    return (
+                        None,
+                        FetchStatus.PAYWALL,
+                        f"HTTP {status} Forbidden/Unauthorized (Access Gated)",
+                    )
+                if status in (404, 410):
+                    return None, FetchStatus.DEAD_LINK, f"HTTP {status} Not Found"
+                if status >= 500:
+                    return (
+                        None,
+                        FetchStatus.DEAD_LINK,
+                        f"HTTP {status} Server Error",
+                    )
+                if status >= 400:
+                    return (
+                        None,
+                        FetchStatus.FETCH_ERROR,
+                        f"HTTP {status} Client Error",
+                    )
+
+                # Content-Type check (ignore binaries/images/PDFs)
+                content_type = resp.headers.get("Content-Type", "").lower()
+                allowed_types = ("text/html", "text/plain", "application/xhtml")
+                if not any(t in content_type for t in allowed_types):
+                    return (
+                        None,
+                        FetchStatus.JUNK_PAGE,
+                        (
+                            f"Unsupported Content-Type: '{content_type}' "
+                            "(non-text/binary payload)"
+                        ),
+                    )
+
+                # Read body up to max_bytes
+                content_bytes = bytearray()
+                for chunk in resp.iter_bytes(chunk_size=8192):
+                    content_bytes.extend(chunk)
+                    if len(content_bytes) > self.max_bytes:
+                        break
+
+            # Decode text safely
+            encoding = resp.encoding or "utf-8"
+            html_text = content_bytes.decode(encoding, errors="replace")
+            return self.extract_html_text(html_text, url=url)
+
+        except (httpx.TimeoutException, TimeoutError):
+            return None, FetchStatus.TIMEOUT, f"Timed out after {self.timeout}s"
+        except (httpx.ConnectError, httpx.NetworkError) as exc:
+            return None, FetchStatus.DEAD_LINK, f"Connection/DNS failure: {exc}"
+        except Exception as exc:
+            return None, FetchStatus.FETCH_ERROR, f"Fetch error: {exc}"
+        finally:
+            if close_client:
+                client.close()
+
+    def enrich_results(
+        self,
+        results: list[SearchResult],
+        *,
+        fetch_pages: bool = True,
+    ) -> list[SearchResult]:
+        """Enrich search results with full page content or fallback status."""
+        if not fetch_pages:
+            return results
+
+        for res in results:
+            content, status, err = self.fetch_and_extract(res.url)
+            res.page_content = content
+            res.fetch_status = status
+            res.fetch_error = err
+        return results
+
+
+# -----------------------------------------------------------------------------
 # Answer Synthesis with Citations
 # -----------------------------------------------------------------------------
 
 SYNTHESIS_PROMPT_TEMPLATE = """You are an accurate web search assistant.
-Answer the user's question using ONLY the retrieved web search snippets below.
+Answer the user's question using ONLY the retrieved web search results and
+extracted page contents below.
 
 Retrieved Web Search Results:
 {context}
@@ -389,11 +660,12 @@ Retrieved Web Search Results:
 User Question: {question}
 
 Instructions:
-1. Answer the question thoroughly, factually, and concisely.
+1. Answer the question thoroughly, factually, and concisely using the provided
+   page contents and snippets.
 2. Every major claim or fact MUST cite its source using inline Markdown links
    in the format: [Source Name](URL) or [Number](URL).
-3. Do NOT make up information or URLs that are not in the retrieved snippets.
-4. If the retrieved snippets do not contain enough information to fully answer,
+3. Do NOT make up information or URLs that are not in the retrieved context.
+4. If the retrieved sources do not contain enough information to fully answer,
    clearly state what is known and what cannot be answered from the sources.
 """
 
@@ -423,8 +695,16 @@ def synthesize_web_answer(
     available_urls: list[str] = []
     for r in search_results:
         available_urls.append(r.url)
+        content_body = r.effective_content
+        if r.fetch_status == FetchStatus.SUCCESS and r.page_content:
+            status_tag = "Full Page Content"
+        else:
+            status_tag = f"Snippet Fallback ({r.fetch_status.value})"
+
         context_lines.append(
-            f"[{r.rank}] Title: {r.title}\n    URL: {r.url}\n    Snippet: {r.snippet}"
+            f"[{r.rank}] Title: {r.title} [{status_tag}]\n"
+            f"    URL: {r.url}\n"
+            f"    Content: {content_body}"
         )
     context_str = "\n\n".join(context_lines)
 
@@ -434,7 +714,12 @@ def synthesize_web_answer(
         # Offline summary fallback
         summary_lines = [f"Based on retrieved web results for '{question}':\n"]
         for r in search_results:
-            summary_lines.append(f"- **[{r.title}]({r.url})**: {r.snippet}")
+            preview = r.effective_content[:250]
+            if len(r.effective_content) > 250:
+                preview += "..."
+            summary_lines.append(
+                f"- **[{r.title}]({r.url})** [{r.fetch_status.value}]: {preview}"
+            )
         return "\n".join(summary_lines), available_urls
 
     active_model = model or settings.gemini_model
@@ -505,20 +790,33 @@ class WebSearchRAG:
     def __init__(
         self,
         search_provider: WebSearchProvider | None = None,
+        content_extractor: PageContentExtractor | None = None,
         *,
         client: httpx.Client | None = None,
         model: str | None = None,
         api_key: str | None = None,
+        fetch_pages: bool = True,
     ) -> None:
         self.search_provider = search_provider or DuckDuckGoSearchProvider(
+            client=client
+        )
+        self.content_extractor = content_extractor or PageContentExtractor(
             client=client
         )
         self.client = client
         self.model = model
         self.api_key = api_key
+        self.fetch_pages = fetch_pages
 
-    def query(self, question: str, num_results: int = 5) -> WebSearchRAGResponse:
-        """Run complete pipeline: rewrite -> retrieve -> synthesize."""
+    def query(
+        self,
+        question: str,
+        num_results: int = 5,
+        fetch_pages: bool | None = None,
+    ) -> WebSearchRAGResponse:
+        """Run complete pipeline: rewrite -> retrieve -> extract -> synthesize."""
+        should_fetch = self.fetch_pages if fetch_pages is None else fetch_pages
+
         # 1. Rewrite user's conversational query
         rewritten = rewrite_search_query(
             question,
@@ -537,6 +835,10 @@ class WebSearchRAG:
             alt_q = rewritten.alternative_queries[0]
             logger.info("Primary search yielded 0 results; trying alt: %s", alt_q)
             results = self.search_provider.search(alt_q, num_results=num_results)
+
+        # 2.5. Fetch and extract page body content (Task 3.18)
+        if should_fetch and results:
+            results = self.content_extractor.enrich_results(results, fetch_pages=True)
 
         # 3. Synthesize cited response
         answer, citations = synthesize_web_answer(
@@ -564,7 +866,7 @@ class WebSearchRAG:
 def main() -> None:
     """CLI runner for Web Search RAG."""
     parser = argparse.ArgumentParser(
-        description="Web Search RAG with Query Rewriting (Task 3.17)"
+        description="Web Search RAG with Page Content Extraction (Task 3.18)"
     )
     parser.add_argument(
         "--query",
@@ -584,14 +886,22 @@ def main() -> None:
         default=5,
         help="Number of web search results to retrieve (default: 5).",
     )
+    parser.add_argument(
+        "--no-fetch",
+        action="store_true",
+        help="Disable full page fetching and use search snippets only.",
+    )
     args = parser.parse_args()
 
     provider = MockSearchProvider() if args.mock else DuckDuckGoSearchProvider()
-    rag = WebSearchRAG(search_provider=provider)
+    rag = WebSearchRAG(
+        search_provider=provider,
+        fetch_pages=not args.no_fetch,
+    )
 
     if args.query:
         print("\n" + "=" * 60)
-        print("WEB SEARCH RAG PIPELINE")
+        print("WEB SEARCH RAG PIPELINE (TASK 3.18)")
         print("=" * 60)
         response = rag.query(args.query, num_results=args.num_results)
 
@@ -605,9 +915,14 @@ def main() -> None:
 
         print(f"\n[3] Retrieved Web Results ({len(response.search_results)} found):")
         for r in response.search_results:
-            print(f"    [{r.rank}] {r.title}")
+            status_lbl = f"[{r.fetch_status.value}]"
+            content_len = len(r.page_content) if r.page_content else len(r.snippet)
+            print(f"    [{r.rank}] {status_lbl} {r.title} ({content_len} chars)")
             print(f"        URL: {r.url}")
-            print(f"        Snippet: {r.snippet[:120]}...")
+            if r.fetch_error:
+                print(f"        Fetch Note: {r.fetch_error}")
+            preview = r.effective_content[:120].replace("\n", " ")
+            print(f"        Preview: {preview}...")
 
         print("\n[4] Synthesized Answer with Citations:")
         print("-" * 60)

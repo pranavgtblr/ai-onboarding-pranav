@@ -1,4 +1,4 @@
-"""Unit and integration tests for Web Search RAG (Task 3.17)."""
+"""Unit and integration tests for Web Search RAG (Task 3.17 & 3.18)."""
 
 import json
 from unittest.mock import MagicMock
@@ -7,7 +7,9 @@ import httpx
 
 from phase_3_rag.web_search import (
     DuckDuckGoSearchProvider,
+    FetchStatus,
     MockSearchProvider,
+    PageContentExtractor,
     QueryRewriteResult,
     SearchResult,
     WebSearchRAG,
@@ -181,9 +183,7 @@ def test_mock_search_provider_canned() -> None:
     assert "kubernetes cluster autoscaler" in fallback_hits[0].title.lower()
 
 
-def test_synthesize_web_answer_offline(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "")
-
+def test_synthesize_web_answer_offline() -> None:
     results = [
         SearchResult(
             title="FastAPI Docs",
@@ -199,9 +199,7 @@ def test_synthesize_web_answer_offline(monkeypatch) -> None:
     assert citations == ["https://fastapi.tiangolo.com"]
 
 
-def test_synthesize_web_answer_llm_mocked(monkeypatch) -> None:
-    monkeypatch.setenv("GEMINI_API_KEY", "test-fake-key")
-
+def test_synthesize_web_answer_llm_mocked() -> None:
     mock_client = MagicMock(spec=httpx.Client)
     mock_resp = MagicMock()
     mock_resp.status_code = 200
@@ -240,6 +238,210 @@ def test_synthesize_web_answer_llm_mocked(monkeypatch) -> None:
     assert citations == ["https://fastapi.tiangolo.com"]
 
 
+# -----------------------------------------------------------------------------
+# Task 3.18 Resilient Page Content Extraction Tests
+# -----------------------------------------------------------------------------
+
+
+def test_extract_html_text_clean_article() -> None:
+    html = """
+    <html>
+      <head><title>Python Multiprocessing</title></head>
+      <body>
+        <header><nav><a href="/">Home</a></nav></header>
+        <div class="cookie-banner">Accept all cookies</div>
+        <main>
+          <article>
+            <h1>Python Multiprocessing Architecture and Process Isolation</h1>
+            <p>The multiprocessing package offers concurrency, effectively
+            side-stepping the GIL by using sub-processes. This allows developers
+            to fully leverage multiple CPU processors on modern computers.</p>
+          </article>
+        </main>
+        <footer>Copyright 2026. All rights reserved.</footer>
+      </body>
+    </html>
+    """
+    extractor = PageContentExtractor()
+    text, status, err = extractor.extract_html_text(html)
+
+    assert status == FetchStatus.SUCCESS
+    assert err is None
+    assert text is not None
+    assert "side-stepping the GIL" in text
+    # Verify boilerplate was removed
+    assert "Accept all cookies" not in text
+    assert "Copyright 2026" not in text
+
+
+def test_extract_html_text_detects_paywall() -> None:
+    html = """
+    <html>
+      <body>
+        <h1>Breaking News: Chip Manufacturing Shift</h1>
+        <p>Semiconductor fabrication plants have reported significant changes...</p>
+        <div class="paywall-overlay">
+          <h3>Subscribe to continue reading</h3>
+          <p>This article is for subscribers only. Join now to read.</p>
+        </div>
+      </body>
+    </html>
+    """
+    extractor = PageContentExtractor()
+    text, status, err = extractor.extract_html_text(html)
+
+    assert status == FetchStatus.PAYWALL
+    assert text is None
+    assert "Paywall" in str(err)
+
+
+def test_extract_html_text_detects_cloudflare_challenge() -> None:
+    html = """
+    <html>
+      <head><title>Just a moment...</title></head>
+      <body>
+        <h1>Attention Required! | Cloudflare</h1>
+        <p>Please complete the security check to access the website.</p>
+        <div id="ray-id">Cloudflare Ray ID: 89f2a0134b</div>
+      </body>
+    </html>
+    """
+    extractor = PageContentExtractor()
+    text, status, err = extractor.extract_html_text(html)
+
+    assert status == FetchStatus.JUNK_PAGE
+    assert text is None
+    assert "Bot challenge" in str(err)
+
+
+def test_extract_html_text_rejects_micro_content() -> None:
+    html = "<html><body><p>Hello world.</p></body></html>"
+    extractor = PageContentExtractor()
+    text, status, err = extractor.extract_html_text(html)
+
+    # Content length < 120 chars is marked JUNK_PAGE
+    assert status == FetchStatus.JUNK_PAGE
+    assert "too short" in str(err)
+
+
+def test_fetch_and_extract_handles_http_404() -> None:
+    mock_client = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock()
+    mock_resp.status_code = 404
+    mock_client.stream.return_value.__enter__.return_value = mock_resp
+
+    extractor = PageContentExtractor(client=mock_client)
+    text, status, err = extractor.fetch_and_extract("https://example.com/dead-page")
+
+    assert status == FetchStatus.DEAD_LINK
+    assert "404" in str(err)
+    assert text is None
+
+
+def test_fetch_and_extract_handles_http_403_paywall() -> None:
+    mock_client = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock()
+    mock_resp.status_code = 403
+    mock_client.stream.return_value.__enter__.return_value = mock_resp
+
+    extractor = PageContentExtractor(client=mock_client)
+    text, status, err = extractor.fetch_and_extract("https://example.com/forbidden")
+
+    assert status == FetchStatus.PAYWALL
+    assert "403" in str(err)
+    assert text is None
+
+
+def test_fetch_and_extract_handles_timeout() -> None:
+    mock_client = MagicMock(spec=httpx.Client)
+    mock_client.stream.side_effect = httpx.TimeoutException("Read timeout")
+
+    extractor = PageContentExtractor(client=mock_client)
+    text, status, err = extractor.fetch_and_extract("https://example.com/slow-hanging")
+
+    assert status == FetchStatus.TIMEOUT
+    assert "Timed out" in str(err)
+    assert text is None
+
+
+def test_fetch_and_extract_handles_connect_error() -> None:
+    mock_client = MagicMock(spec=httpx.Client)
+    mock_client.stream.side_effect = httpx.ConnectError("DNS failed")
+
+    extractor = PageContentExtractor(client=mock_client)
+    text, status, err = extractor.fetch_and_extract("https://nonexistent-domain.xyz")
+
+    assert status == FetchStatus.DEAD_LINK
+    assert "DNS failure" in str(err)
+    assert text is None
+
+
+def test_fetch_and_extract_blocks_binary_content_type() -> None:
+    mock_client = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {"Content-Type": "application/pdf"}
+    mock_client.stream.return_value.__enter__.return_value = mock_resp
+
+    extractor = PageContentExtractor(client=mock_client)
+    text, status, err = extractor.fetch_and_extract("https://example.com/document.pdf")
+
+    assert status == FetchStatus.JUNK_PAGE
+    assert "Unsupported Content-Type" in str(err)
+    assert text is None
+
+
+def test_enrich_results_mixed_resilience() -> None:
+    class DummyExtractor(PageContentExtractor):
+        def fetch_and_extract(
+            self, url: str
+        ) -> tuple[str | None, FetchStatus, str | None]:
+            if "valid" in url:
+                return (
+                    "Extracted article text with substantial technical details.",
+                    FetchStatus.SUCCESS,
+                    None,
+                )
+            if "dead" in url:
+                return None, FetchStatus.DEAD_LINK, "HTTP 404 Not Found"
+            if "paywall" in url:
+                return None, FetchStatus.PAYWALL, "Subscription barrier"
+            return None, FetchStatus.JUNK_PAGE, "Bot challenge"
+
+    extractor = DummyExtractor()
+    items = [
+        SearchResult(
+            title="Valid Tech Doc",
+            url="https://site.org/valid",
+            snippet="Short snippet 1.",
+            rank=1,
+        ),
+        SearchResult(
+            title="Dead Link",
+            url="https://site.org/dead",
+            snippet="Short snippet 2.",
+            rank=2,
+        ),
+        SearchResult(
+            title="Paywalled Paper",
+            url="https://site.org/paywall",
+            snippet="Short snippet 3.",
+            rank=3,
+        ),
+    ]
+
+    enriched = extractor.enrich_results(items, fetch_pages=True)
+
+    assert enriched[0].fetch_status == FetchStatus.SUCCESS
+    assert enriched[0].effective_content.startswith("Extracted article text")
+
+    assert enriched[1].fetch_status == FetchStatus.DEAD_LINK
+    assert enriched[1].effective_content == "Short snippet 2."
+
+    assert enriched[2].fetch_status == FetchStatus.PAYWALL
+    assert enriched[2].effective_content == "Short snippet 3."
+
+
 def test_web_search_rag_pipeline_end_to_end() -> None:
     provider = MockSearchProvider()
     provider.add_canned_results(
@@ -254,7 +456,7 @@ def test_web_search_rag_pipeline_end_to_end() -> None:
         ],
     )
 
-    rag = WebSearchRAG(search_provider=provider)
+    rag = WebSearchRAG(search_provider=provider, fetch_pages=False)
     response = rag.query("redis pubsub scaling", num_results=3)
 
     assert response.original_question == "redis pubsub scaling"
