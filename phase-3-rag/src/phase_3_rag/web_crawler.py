@@ -5,6 +5,7 @@ and preserve heading hierarchy (e.g. h1 > h2 > h3) as chunk metadata.
 """
 
 import argparse
+import hashlib
 import json
 import re
 import time
@@ -61,6 +62,12 @@ EXCLUDED_EXTENSIONS = {
 }
 
 
+def compute_content_hash(text: str) -> str:
+    """Compute SHA-256 hash of normalized text content for change detection."""
+    normalized = re.sub(r"\s+", " ", text.strip())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 class HierarchicalChunk(BaseModel):
     """A semantic text chunk with preserved heading hierarchy metadata."""
 
@@ -81,6 +88,55 @@ class HierarchicalChunk(BaseModel):
     token_count: int = Field(description="Number of tokens in the chunk")
 
 
+class PageManifestEntry(BaseModel):
+    """Metadata entry for a single crawled page stored in the manifest."""
+
+    url: str = Field(description="Canonical URL of the page")
+    title: str = Field(description="Page title")
+    content_hash: str = Field(description="SHA-256 hash of extracted clean text")
+    chunk_ids: list[str] = Field(
+        default_factory=list, description="IDs of chunks belonging to this page"
+    )
+    chunk_count: int = Field(default=0, description="Total active chunks for this page")
+    last_crawled_at: str = Field(
+        default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        description="ISO 8601 UTC timestamp of last crawl",
+    )
+    markdown_filename: str = Field(
+        default="", description="Relative filename of the saved markdown page"
+    )
+
+
+class CrawlManifest(BaseModel):
+    """Manifest tracking all indexed pages and their chunk mappings."""
+
+    version: int = 1
+    last_crawl_timestamp: str = Field(
+        default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    )
+    pages: dict[str, PageManifestEntry] = Field(default_factory=dict)
+
+
+class CrawlDiff(BaseModel):
+    """Detailed diff statistics from an incremental crawl sync."""
+
+    pages_added: list[str] = Field(default_factory=list)
+    pages_updated: list[str] = Field(default_factory=list)
+    pages_unchanged: list[str] = Field(default_factory=list)
+    pages_deleted: list[str] = Field(default_factory=list)
+
+    chunks_added: int = 0
+    chunks_updated: int = 0
+    chunks_deleted: int = 0
+    chunks_retained: int = 0
+    total_active_chunks: int = 0
+
+    @property
+    def has_changes(self) -> bool:
+        """Return True if any pages were added, updated, or deleted."""
+        return bool(self.pages_added or self.pages_updated or self.pages_deleted)
+
+
 class CrawlPage(BaseModel):
     """Scraped and cleaned page representation."""
 
@@ -97,63 +153,241 @@ class CrawlReport(BaseModel):
     pages_crawled: int
     total_chunks: int
     pages: list[CrawlPage]
+    last_diff: CrawlDiff | None = None
 
-    def save_to_disk(self, output_dir: Path) -> tuple[Path, Path]:
-        """Save extracted pages as markdown and structured JSON chunks."""
+    def save_to_disk(
+        self,
+        output_dir: Path,
+        incremental: bool = True,
+        purge_deleted: bool = True,
+    ) -> tuple[Path, Path]:
+        """Save extracted pages as markdown and structured JSON chunks.
+
+        When incremental=True, detects added, updated, unchanged, and deleted pages,
+        guaranteeing zero duplicate chunks.
+        """
+        chunks_json_path, summary_path, _ = self.save_incremental(
+            output_dir=output_dir,
+            incremental=incremental,
+            purge_deleted=purge_deleted,
+        )
+        return chunks_json_path, summary_path
+
+    def save_incremental(
+        self,
+        output_dir: Path,
+        incremental: bool = True,
+        purge_deleted: bool = True,
+    ) -> tuple[Path, Path, CrawlDiff]:
+        """Save pages and incrementally sync chunks, returning the CrawlDiff."""
         output_dir.mkdir(parents=True, exist_ok=True)
         pages_dir = output_dir / "pages"
         pages_dir.mkdir(exist_ok=True)
 
-        # Save individual clean markdown files
-        for idx, p in enumerate(self.pages, start=1):
-            safe_name = re.sub(r"[^\w\-]", "_", p.title.lower())[:50] or f"page_{idx}"
-            md_path = pages_dir / f"{idx:02d}_{safe_name}.md"
-            lines = [
-                f"# {p.title}",
-                f"Source: {p.url}",
-                "",
-                p.clean_text,
-                "",
-                "## Hierarchical Chunks",
-                "",
-            ]
-            for c in p.chunks:
-                lines.append(f"### Chunk: {c.heading_path}")
-                lines.append(f"Tokens: {c.token_count} | Anchor: {c.section_anchor}")
-                lines.append("")
-                lines.append(c.text)
-                lines.append("")
-            md_path.write_text("\n".join(lines), encoding="utf-8")
-
-        # Save structured JSON of all chunks
-        all_chunks = [c.model_dump() for p in self.pages for c in p.chunks]
+        manifest_path = output_dir / "crawl_manifest.json"
         chunks_json_path = output_dir / "chunks.json"
+        summary_path = output_dir / "crawl_summary.md"
+
+        # Load existing state if incremental and present
+        manifest = CrawlManifest()
+        existing_chunks: list[dict[str, Any]] = []
+
+        if incremental and manifest_path.exists() and chunks_json_path.exists():
+            try:
+                manifest = CrawlManifest.model_validate_json(
+                    manifest_path.read_text(encoding="utf-8")
+                )
+                existing_chunks = json.loads(
+                    chunks_json_path.read_text(encoding="utf-8")
+                )
+            except Exception as exc:
+                print(f"⚠️ Warning loading existing manifest: {exc}; re-indexing.")
+                manifest = CrawlManifest()
+                existing_chunks = []
+
+        diff = CrawlDiff()
+
+        # Group existing chunks by page URL
+        chunks_by_url: dict[str, list[dict[str, Any]]] = {}
+        for c_dict in existing_chunks:
+            c_url = c_dict.get("url", "")
+            chunks_by_url.setdefault(c_url, []).append(c_dict)
+
+        discovered_urls = {p.url for p in self.pages}
+
+        # 1. Process crawled pages (Added, Updated, Unchanged)
+        for idx, page in enumerate(self.pages, start=1):
+            content_hash = compute_content_hash(page.clean_text)
+            safe_name = (
+                re.sub(r"[^\w\-]", "_", page.title.lower())[:50] or f"page_{idx}"
+            )
+            md_filename = f"{idx:02d}_{safe_name}.md"
+            md_path = pages_dir / md_filename
+
+            if page.url not in manifest.pages:
+                # ADDED
+                diff.pages_added.append(page.url)
+                page_chunks_dicts = [c.model_dump() for c in page.chunks]
+                chunks_by_url[page.url] = page_chunks_dicts
+                diff.chunks_added += len(page_chunks_dicts)
+
+                manifest.pages[page.url] = PageManifestEntry(
+                    url=page.url,
+                    title=page.title,
+                    content_hash=content_hash,
+                    chunk_ids=[c.chunk_id for c in page.chunks],
+                    chunk_count=len(page.chunks),
+                    markdown_filename=md_filename,
+                )
+                self._write_page_markdown(md_path, page)
+
+            else:
+                existing_entry = manifest.pages[page.url]
+                if incremental and existing_entry.content_hash == content_hash:
+                    # UNCHANGED
+                    diff.pages_unchanged.append(page.url)
+                    retained_count = len(chunks_by_url.get(page.url, []))
+                    diff.chunks_retained += retained_count
+                    existing_entry.last_crawled_at = time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                    )
+                    if not (pages_dir / existing_entry.markdown_filename).exists():
+                        self._write_page_markdown(md_path, page)
+                        existing_entry.markdown_filename = md_filename
+                else:
+                    # UPDATED (changed content)
+                    diff.pages_updated.append(page.url)
+                    new_chunks_dicts = [c.model_dump() for c in page.chunks]
+                    # Overwrite chunks for this URL completely - ZERO DUPLICATES
+                    chunks_by_url[page.url] = new_chunks_dicts
+                    diff.chunks_updated += len(new_chunks_dicts)
+
+                    # Remove old markdown if name changed
+                    if (
+                        existing_entry.markdown_filename
+                        and existing_entry.markdown_filename != md_filename
+                    ):
+                        old_path = pages_dir / existing_entry.markdown_filename
+                        if old_path.exists():
+                            old_path.unlink()
+
+                    existing_entry.title = page.title
+                    existing_entry.content_hash = content_hash
+                    existing_entry.chunk_ids = [c.chunk_id for c in page.chunks]
+                    existing_entry.chunk_count = len(new_chunks_dicts)
+                    existing_entry.last_crawled_at = time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+                    )
+                    existing_entry.markdown_filename = md_filename
+                    self._write_page_markdown(md_path, page)
+
+        # 2. Process deletions (previously indexed pages no longer in discovered_urls)
+        if purge_deleted:
+            for prev_url in list(manifest.pages.keys()):
+                if prev_url not in discovered_urls:
+                    diff.pages_deleted.append(prev_url)
+                    del_entry = manifest.pages.pop(prev_url)
+                    removed_chunks = chunks_by_url.pop(prev_url, [])
+                    diff.chunks_deleted += len(removed_chunks)
+                    if del_entry.markdown_filename:
+                        del_path = pages_dir / del_entry.markdown_filename
+                        if del_path.exists():
+                            del_path.unlink()
+
+        # 3. Assemble all active chunks with strict deduplication check
+        all_active_chunks: list[dict[str, Any]] = []
+        seen_chunk_ids: set[str] = set()
+
+        for page_url, chunk_list in chunks_by_url.items():
+            for c in chunk_list:
+                cid = c["chunk_id"]
+                if cid not in seen_chunk_ids:
+                    seen_chunk_ids.add(cid)
+                    all_active_chunks.append(c)
+
+        diff.total_active_chunks = len(all_active_chunks)
+        self.last_diff = diff
+
+        # Save manifest
+        manifest.last_crawl_timestamp = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+        )
+        manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+
+        # Save chunks.json
         chunks_json_path.write_text(
-            json.dumps(all_chunks, indent=2, ensure_ascii=False), encoding="utf-8"
+            json.dumps(all_active_chunks, indent=2, ensure_ascii=False),
+            encoding="utf-8",
         )
 
-        # Save crawl summary report
-        summary_path = output_dir / "crawl_summary.md"
-        summary_lines = [
+        # Save crawl summary markdown
+        self._write_summary_markdown(summary_path, manifest, diff)
+
+        return chunks_json_path, summary_path, diff
+
+    def _write_page_markdown(self, path: Path, page: CrawlPage) -> None:
+        """Write single extracted page to markdown."""
+        lines = [
+            f"# {page.title}",
+            f"Source: {page.url}",
+            "",
+            page.clean_text,
+            "",
+            "## Hierarchical Chunks",
+            "",
+        ]
+        for c in page.chunks:
+            lines.append(f"### Chunk: {c.heading_path}")
+            lines.append(f"Tokens: {c.token_count} | Anchor: {c.section_anchor}")
+            lines.append("")
+            lines.append(c.text)
+            lines.append("")
+        path.write_text("\n".join(lines), encoding="utf-8")
+
+    def _write_summary_markdown(
+        self, path: Path, manifest: CrawlManifest, diff: CrawlDiff
+    ) -> None:
+        """Write crawl summary with incremental sync breakdown."""
+        lines = [
             "# Website Crawl & Extraction Report",
             "",
             f"- **Start URL**: {self.start_url}",
-            f"- **Pages Crawled**: {self.pages_crawled}",
-            f"- **Total Chunks Extracted**: {self.total_chunks}",
+            f"- **Pages Crawled (This Run)**: {self.pages_crawled}",
+            f"- **Total Active Pages in Index**: {len(manifest.pages)}",
+            f"- **Total Active Chunks**: {diff.total_active_chunks}",
             "",
-            "## Crawled Pages",
+            "## Incremental Synchronization Audit",
             "",
-            "| # | Page Title | Chunks | URL |",
-            "| :--- | :--- | :--- | :--- |",
+            f"- **Pages Added**: {len(diff.pages_added)}",
+            f"- **Pages Updated**: {len(diff.pages_updated)}",
+            f"- **Pages Unchanged**: {len(diff.pages_unchanged)}",
+            f"- **Pages Deleted**: {len(diff.pages_deleted)}",
+            f"- **Chunks Added**: {diff.chunks_added}",
+            f"- **Chunks Updated**: {diff.chunks_updated}",
+            f"- **Chunks Deleted**: {diff.chunks_deleted}",
+            f"- **Chunks Retained (Unchanged)**: {diff.chunks_retained}",
+            "- **Duplicates Guarantee**: 0 duplicate chunk IDs (verified)",
+            "",
+            "## Active Indexed Pages",
+            "",
+            "| # | Page Title | Chunks | Status (This Run) | URL |",
+            "| :--- | :--- | :--- | :--- | :--- |",
         ]
-        for idx, p in enumerate(self.pages, start=1):
-            summary_lines.append(
-                f"| {idx} | {p.title} | {len(p.chunks)} | [{p.url}]({p.url}) |"
+        for idx, (url, entry) in enumerate(manifest.pages.items(), start=1):
+            if url in diff.pages_added:
+                status = "🟢 Added"
+            elif url in diff.pages_updated:
+                status = "🟡 Updated"
+            elif url in diff.pages_unchanged:
+                status = "⚪ Unchanged"
+            else:
+                status = "Active"
+            lines.append(
+                f"| {idx} | {entry.title} | {entry.chunk_count} | {status} | "
+                f"[{url}]({url}) |"
             )
-        summary_lines.append("")
-        summary_path.write_text("\n".join(summary_lines), encoding="utf-8")
-
-        return chunks_json_path, summary_path
+        lines.append("")
+        path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def count_tokens(text: str) -> int:
@@ -302,9 +536,10 @@ def extract_hierarchical_chunks(
         path = " > ".join(hierarchy)
         active_anchor = heading_stack[-1][2] if heading_stack else ""
 
-        safe_prefix = re.sub(r"[^a-zA-Z0-9]", "_", page_title)[:20]
+        url_slug = hashlib.sha256(url.encode()).hexdigest()[:6]
+        safe_prefix = re.sub(r"[^a-zA-Z0-9]", "_", page_title).strip("_")[:16] or "doc"
         chunk = HierarchicalChunk(
-            chunk_id=f"{safe_prefix}_{chunk_counter:03d}",
+            chunk_id=f"{safe_prefix}_{url_slug}_{chunk_counter:03d}",
             url=url,
             page_title=page_title,
             heading_hierarchy=hierarchy,
@@ -574,6 +809,18 @@ def parse_args() -> argparse.Namespace:
         default=default_output,
         help="Directory to save extracted markdown and chunks (default: b-website)",
     )
+    parser.add_argument(
+        "--incremental",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable incremental re-crawl and change detection (default: True)",
+    )
+    parser.add_argument(
+        "--purge-deleted",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Purge chunks of pages no longer discovered during crawl (default: True)",
+    )
     return parser.parse_args()
 
 
@@ -584,9 +831,20 @@ def main() -> None:
         args.url, max_pages=args.max_pages, max_depth=args.max_depth
     ) as crawler:
         report = crawler.crawl()
-        chunks_json, summary = report.save_to_disk(args.output_dir)
+        chunks_json, summary, diff = report.save_incremental(
+            args.output_dir,
+            incremental=args.incremental,
+            purge_deleted=args.purge_deleted,
+        )
         print(f"📁 Chunks saved to: {chunks_json}")
         print(f"📋 Summary saved to: {summary}")
+        print(
+            f"🔄 Incremental Sync: {len(diff.pages_added)} added, "
+            f"{len(diff.pages_updated)} updated, "
+            f"{len(diff.pages_unchanged)} unchanged, "
+            f"{len(diff.pages_deleted)} deleted."
+        )
+        print(f"✨ Total active chunks: {diff.total_active_chunks} (0 duplicates)")
 
 
 if __name__ == "__main__":

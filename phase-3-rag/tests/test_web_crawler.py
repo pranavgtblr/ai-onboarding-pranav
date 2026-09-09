@@ -275,3 +275,172 @@ def test_mock_documentation_crawler_traversal(tmp_path: Path):
     assert len(chunks_data) == report.total_chunks
     assert "heading_hierarchy" in chunks_data[0]
     assert "heading_path" in chunks_data[0]
+
+
+def test_compute_content_hash_normalization():
+    """Verify SHA-256 content hashing normalizes whitespace and detects edits."""
+    from phase_3_rag.web_crawler import compute_content_hash
+
+    text1 = "Heading\n\nParagraph text with spaces."
+    text2 = "Heading   Paragraph  text  with  spaces.   "
+    text3 = "Heading\n\nParagraph text with EDITED words."
+
+    assert compute_content_hash(text1) == compute_content_hash(text2)
+    assert compute_content_hash(text1) != compute_content_hash(text3)
+
+
+def test_incremental_recrawl_detects_changes_and_purges_without_duplicates(
+    tmp_path: Path,
+):
+    """Prove that running the crawl twice detects unchanged, updated,
+    and deleted pages without duplicate chunks.
+    """
+    site_db = {
+        "https://site.test": """
+            <html><head><title>Home</title></head><body>
+            <main>
+                <h1>Home Page</h1>
+                <p>Welcome to the platform.</p>
+                <a href="/guide">Guide</a>
+                <a href="/legacy">Legacy</a>
+            </main></body></html>
+        """,
+        "https://site.test/guide": """
+            <html><head><title>Guide</title></head><body>
+            <main>
+                <h1>User Guide</h1>
+                <h2>Installation</h2>
+                <p>Run pip install sample-app</p>
+            </main></body></html>
+        """,
+        "https://site.test/legacy": """
+            <html><head><title>Legacy</title></head><body>
+            <main>
+                <h1>Legacy Section</h1>
+                <p>Old deprecated endpoints.</p>
+            </main></body></html>
+        """,
+    }
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        url = str(request.url).rstrip("/")
+        if url in site_db:
+            return httpx.Response(
+                200,
+                headers={"Content-Type": "text/html; charset=utf-8"},
+                text=site_db[url],
+            )
+        return httpx.Response(404, text="Not Found")
+
+    # ==========================================
+    # CRAWL 1: Initial Crawl (3 pages added)
+    # ==========================================
+    client_1 = httpx.Client(
+        transport=httpx.MockTransport(transport),
+        base_url="https://site.test",
+    )
+    crawler_1 = DocumentationCrawler(
+        "https://site.test", max_pages=5, client=client_1, delay_seconds=0.0
+    )
+    report_1 = crawler_1.crawl()
+    chunks_path, summary_path, diff_1 = report_1.save_incremental(
+        tmp_path, incremental=True, purge_deleted=True
+    )
+
+    assert len(diff_1.pages_added) == 3
+    assert len(diff_1.pages_updated) == 0
+    assert len(diff_1.pages_deleted) == 0
+    assert diff_1.total_active_chunks > 0
+
+    with open(chunks_path, encoding="utf-8") as f:
+        chunks_v1 = json.load(f)
+    v1_chunk_ids = [c["chunk_id"] for c in chunks_v1]
+    assert len(v1_chunk_ids) == len(set(v1_chunk_ids)), "Duplicates found in Crawl 1!"
+
+    manifest_file = tmp_path / "crawl_manifest.json"
+    assert manifest_file.exists()
+
+    # ==========================================
+    # EVOLUTION:
+    # 1. / (Home) is UNCHANGED
+    # 2. /guide is UPDATED with new section
+    # 3. /legacy is DELETED (removed from site)
+    # 4. /faq is ADDED
+    # ==========================================
+    site_db["https://site.test"] = """
+        <html><head><title>Home</title></head><body>
+        <main>
+            <h1>Home Page</h1>
+            <p>Welcome to the platform.</p>
+            <a href="/guide">Guide</a>
+            <a href="/faq">FAQ</a>
+        </main></body></html>
+    """
+    site_db["https://site.test/guide"] = """
+        <html><head><title>Guide</title></head><body>
+        <main>
+            <h1>User Guide</h1>
+            <h2>Installation</h2>
+            <p>Run pip install sample-app</p>
+            <h2>Configuration</h2>
+            <p>Export APP_ENV=production to configure settings.</p>
+        </main></body></html>
+    """
+    del site_db["https://site.test/legacy"]
+    site_db["https://site.test/faq"] = """
+        <html><head><title>FAQ</title></head><body>
+        <main>
+            <h1>FAQ</h1>
+            <h2>Questions</h2>
+            <p>Frequently asked questions about billing and support.</p>
+        </main></body></html>
+    """
+
+    # ==========================================
+    # CRAWL 2: Incremental Re-Crawl
+    # ==========================================
+    client_2 = httpx.Client(
+        transport=httpx.MockTransport(transport),
+        base_url="https://site.test",
+    )
+    crawler_2 = DocumentationCrawler(
+        "https://site.test", max_pages=5, client=client_2, delay_seconds=0.0
+    )
+    report_2 = crawler_2.crawl()
+    chunks_path_2, summary_path_2, diff_2 = report_2.save_incremental(
+        tmp_path, incremental=True, purge_deleted=True
+    )
+
+    # Verify classification of changes
+    assert "https://site.test" in diff_2.pages_unchanged
+    assert "https://site.test/guide" in diff_2.pages_updated
+    assert "https://site.test/legacy" in diff_2.pages_deleted
+    assert "https://site.test/faq" in diff_2.pages_added
+
+    assert len(diff_2.pages_added) == 1
+    assert len(diff_2.pages_updated) == 1
+    assert len(diff_2.pages_unchanged) == 1
+    assert len(diff_2.pages_deleted) == 1
+
+    with open(chunks_path_2, encoding="utf-8") as f:
+        chunks_v2 = json.load(f)
+
+    # STRICT ASSERTIONS: Zero Duplicates & Clean Deletions
+    v2_chunk_ids = [c["chunk_id"] for c in chunks_v2]
+    assert len(v2_chunk_ids) == len(set(v2_chunk_ids)), (
+        f"Duplicates found: {len(v2_chunk_ids)} vs {len(set(v2_chunk_ids))}"
+    )
+
+    # 1. Verify deleted page chunks were removed
+    legacy_chunks = [c for c in chunks_v2 if "https://site.test/legacy" in c["url"]]
+    assert len(legacy_chunks) == 0, (
+        "Stale chunks from deleted page exist in chunks.json!"
+    )
+
+    # 2. Verify updated page has replaced chunks with new 'Configuration' section
+    guide_chunks = [c for c in chunks_v2 if "https://site.test/guide" in c["url"]]
+    assert any("Configuration" in c["heading_path"] for c in guide_chunks)
+
+    # 3. Verify new FAQ page chunks exist
+    faq_chunks = [c for c in chunks_v2 if "https://site.test/faq" in c["url"]]
+    assert len(faq_chunks) > 0
