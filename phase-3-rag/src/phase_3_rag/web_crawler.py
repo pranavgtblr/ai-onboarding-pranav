@@ -625,7 +625,7 @@ def extract_hierarchical_chunks(
 
 
 class DocumentationCrawler:
-    """Polite, breadth-first documentation crawler with domain scoping."""
+    """Polite, breadth-first documentation crawler with domain scoping and auth."""
 
     def __init__(
         self,
@@ -635,20 +635,60 @@ class DocumentationCrawler:
         max_depth: int = 2,
         client: httpx.Client | None = None,
         delay_seconds: float = 0.5,
+        cookies: dict[str, str] | None = None,
+        auth_headers: dict[str, str] | None = None,
+        login_url: str | None = None,
+        login_data: dict[str, str] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.parsed_base = urlparse(self.base_url)
         self.max_pages = max_pages
         self.max_depth = max_depth
         self.delay_seconds = delay_seconds
+        self.cookies = cookies or {}
+        self.auth_headers = auth_headers or {}
+        self.login_url = login_url
+        self.login_data = login_data
+        self.is_authenticated = False
         self._external_client = client is not None
+
+        headers = {
+            "User-Agent": "Toobler-Bot/1.0 (+https://toobler.com/ai-onboarding)",
+            **self.auth_headers,
+        }
         self.client = client or httpx.Client(
-            headers={
-                "User-Agent": "Toobler-Bot/1.0 (+https://toobler.com/ai-onboarding)"
-            },
+            headers=headers,
+            cookies=self.cookies,
             timeout=15.0,
             follow_redirects=True,
         )
+        if self._external_client:
+            for k, v in self.cookies.items():
+                self.client.cookies.set(k, v)
+            for k, v in self.auth_headers.items():
+                self.client.headers[k] = v
+
+    def authenticate(self) -> bool:
+        """Perform automated login flow if login_url and login_data are provided."""
+        if not self.login_url or not self.login_data:
+            if self.cookies or self.auth_headers:
+                self.is_authenticated = True
+                return True
+            return False
+
+        print(f"🔐 [Crawler] Authenticating at {self.login_url}...")
+        try:
+            resp = self.client.post(self.login_url, data=self.login_data)
+            if resp.status_code in (200, 302, 303, 307):
+                self.is_authenticated = True
+                print("  ✅ Authentication successful. Session cookies captured.")
+                return True
+            else:
+                print(f"  ❌ Authentication failed with status {resp.status_code}")
+                return False
+        except Exception as exc:
+            print(f"  ❌ Authentication error: {exc}")
+            return False
 
     def close(self) -> None:
         if not self._external_client:
@@ -698,6 +738,9 @@ class DocumentationCrawler:
 
     def crawl(self) -> CrawlReport:
         """Execute BFS crawl over documentation pages starting from base_url."""
+        if (self.login_url and self.login_data) or self.cookies or self.auth_headers:
+            self.authenticate()
+
         visited: set[str] = set()
         queue: list[tuple[str, int]] = [(self.base_url, 0)]
         pages: list[CrawlPage] = []
@@ -722,6 +765,24 @@ class DocumentationCrawler:
 
             try:
                 resp = self.client.get(current_url)
+                if resp.status_code in (401, 403):
+                    print(
+                        f"    🔒 HTTP {resp.status_code} Access Denied for "
+                        f"{current_url} (Authentication required)."
+                    )
+                    continue
+
+                resp_url = str(resp.url).rstrip("/")
+                if resp_url != current_url and any(
+                    auth_kw in resp_url.lower()
+                    for auth_kw in ("/login", "/sign-in", "/auth")
+                ):
+                    print(
+                        f"    🔒 Redirected to login page ({resp_url}) from "
+                        f"{current_url}."
+                    )
+                    continue
+
                 if resp.status_code != 200:
                     print(f"    ⚠️ HTTP {resp.status_code} for {current_url}")
                     continue
@@ -821,14 +882,69 @@ def parse_args() -> argparse.Namespace:
         default=True,
         help="Purge chunks of pages no longer discovered during crawl (default: True)",
     )
+    parser.add_argument(
+        "--cookie",
+        type=str,
+        action="append",
+        default=[],
+        help="Cookie in KEY=VALUE format (can be specified multiple times)",
+    )
+    parser.add_argument(
+        "--auth-header",
+        type=str,
+        action="append",
+        default=[],
+        help="Auth header in KEY:VALUE format (e.g. 'Authorization: Bearer token')",
+    )
+    parser.add_argument(
+        "--login-url",
+        type=str,
+        default=None,
+        help="Login form endpoint URL for session authentication",
+    )
+    parser.add_argument(
+        "--login-user",
+        type=str,
+        default=None,
+        help="Username for login authentication",
+    )
+    parser.add_argument(
+        "--login-pass",
+        type=str,
+        default=None,
+        help="Password for login authentication",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     """CLI entrypoint for crawling and indexing website content."""
     args = parse_args()
+
+    cookies: dict[str, str] = {}
+    for c_str in args.cookie:
+        if "=" in c_str:
+            k, v = c_str.split("=", 1)
+            cookies[k.strip()] = v.strip()
+
+    auth_headers: dict[str, str] = {}
+    for h_str in args.auth_header:
+        if ":" in h_str:
+            k, v = h_str.split(":", 1)
+            auth_headers[k.strip()] = v.strip()
+
+    login_data: dict[str, str] | None = None
+    if args.login_user and args.login_pass:
+        login_data = {"username": args.login_user, "password": args.login_pass}
+
     with DocumentationCrawler(
-        args.url, max_pages=args.max_pages, max_depth=args.max_depth
+        args.url,
+        max_pages=args.max_pages,
+        max_depth=args.max_depth,
+        cookies=cookies,
+        auth_headers=auth_headers,
+        login_url=args.login_url,
+        login_data=login_data,
     ) as crawler:
         report = crawler.crawl()
         chunks_json, summary, diff = report.save_incremental(

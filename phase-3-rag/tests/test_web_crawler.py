@@ -444,3 +444,142 @@ def test_incremental_recrawl_detects_changes_and_purges_without_duplicates(
     # 3. Verify new FAQ page chunks exist
     faq_chunks = [c for c in chunks_v2 if "https://site.test/faq" in c["url"]]
     assert len(faq_chunks) > 0
+
+
+def test_unauthenticated_crawl_blocks_protected_page():
+    """Verify that unauthenticated crawl receives 401 and skips protected content."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url).rstrip("/")
+        if url == "https://secure.test":
+            return httpx.Response(
+                200,
+                headers={"Content-Type": "text/html"},
+                text=(
+                    "<html><body><main><h1>Public</h1>"
+                    "<a href='/private'>Private</a></main></body></html>"
+                ),
+            )
+        if url == "https://secure.test/private":
+            return httpx.Response(401, text="Unauthorized")
+        return httpx.Response(404, text="Not Found")
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://secure.test",
+    )
+    crawler = DocumentationCrawler(
+        "https://secure.test", max_pages=5, client=client, delay_seconds=0.0
+    )
+    report = crawler.crawl()
+
+    crawled_urls = [p.url for p in report.pages]
+    assert "https://secure.test" in crawled_urls
+    assert "https://secure.test/private" not in crawled_urls
+    assert all("Private" not in c.text for p in report.pages for c in p.chunks)
+
+
+def test_authenticated_crawl_via_login_session_cookie():
+    """Verify crawler logs in via POST, captures cookie, and crawls pages."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url).rstrip("/")
+        cookie = request.headers.get("cookie", "")
+
+        if url == "https://secure.test/login" and request.method == "POST":
+            body = request.content.decode("utf-8")
+            if "username=admin" in body and "password=secret" in body:
+                return httpx.Response(
+                    302,
+                    headers={
+                        "Location": "https://secure.test/vault",
+                        "Set-Cookie": "session_id=vault_auth_token_99; Path=/",
+                    },
+                    text="Redirecting",
+                )
+            return httpx.Response(401, text="Bad credentials")
+
+        if url == "https://secure.test":
+            return httpx.Response(
+                200,
+                headers={"Content-Type": "text/html"},
+                text=(
+                    "<html><body><main><h1>Home</h1>"
+                    "<a href='/vault'>Vault</a></main></body></html>"
+                ),
+            )
+
+        if url == "https://secure.test/vault":
+            if "session_id=vault_auth_token_99" in cookie:
+                return httpx.Response(
+                    200,
+                    headers={"Content-Type": "text/html"},
+                    text=(
+                        "<html><body><main><h1>Vault Secrets</h1>"
+                        "<p>Top secret architecture.</p></main></body></html>"
+                    ),
+                )
+            return httpx.Response(401, text="Unauthorized")
+
+        return httpx.Response(404, text="Not Found")
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://secure.test",
+        follow_redirects=True,
+    )
+    crawler = DocumentationCrawler(
+        "https://secure.test",
+        max_pages=5,
+        client=client,
+        delay_seconds=0.0,
+        login_url="https://secure.test/login",
+        login_data={"username": "admin", "password": "secret"},
+    )
+    report = crawler.crawl()
+
+    crawled_urls = [p.url for p in report.pages]
+    assert "https://secure.test/vault" in crawled_urls
+    assert any(
+        "Top secret architecture" in c.text for p in report.pages for c in p.chunks
+    )
+
+
+def test_authenticated_crawl_via_cookie_and_header_injection():
+    """Verify direct injection of cookies and auth headers for protected access."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url).rstrip("/")
+        cookie = request.headers.get("cookie", "")
+        auth_hdr = request.headers.get("authorization", "")
+
+        if url == "https://api.test/docs":
+            if "auth_token=jwt_valid_123" in cookie or auth_hdr == "Bearer secret_jwt":
+                return httpx.Response(
+                    200,
+                    headers={"Content-Type": "text/html"},
+                    text=(
+                        "<html><body><main><h1>VIP Docs</h1>"
+                        "<p>Subscriber only content.</p></main></body></html>"
+                    ),
+                )
+            return httpx.Response(403, text="Forbidden")
+
+        return httpx.Response(404, text="Not Found")
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://api.test",
+    )
+    crawler = DocumentationCrawler(
+        "https://api.test/docs",
+        max_pages=2,
+        client=client,
+        delay_seconds=0.0,
+        cookies={"auth_token": "jwt_valid_123"},
+        auth_headers={"Authorization": "Bearer secret_jwt"},
+    )
+    report = crawler.crawl()
+
+    assert len(report.pages) == 1
+    assert "Subscriber only content" in report.pages[0].clean_text
