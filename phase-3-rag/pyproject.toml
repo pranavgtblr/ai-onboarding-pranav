@@ -15,6 +15,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "pymupdf>=1.28.2",
     "pypdf>=6.18.0",
+    "sqlglot>=30.18.0",
     "tiktoken>=0.7.0",
 ]
 

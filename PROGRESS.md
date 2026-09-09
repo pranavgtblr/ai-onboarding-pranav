@@ -34,6 +34,7 @@
   - [x] 3.11 Crawl documentation/content site, strip chrome, and preserve heading hierarchy as chunk metadata
   - [x] 3.12 Incremental re-crawl: detect changed pages and update or delete their chunks without creating duplicates
   - [x] 3.13 Extend the crawler to a page behind a login, using session or cookie authentication
+  - [x] 3.14 Text-to-SQL: the model writes queries against a schema you describe with AST validation, read-only credentials, table allowlist, and mandatory LIMIT
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
