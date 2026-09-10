@@ -117,3 +117,74 @@ In Task 2.6, hand-rolling the loop was essential for understanding the HTTP anat
 3. **Streamed Events**: LangGraph streams token-by-token reasoning and tool start/end events out of the box.
 
 `create_agent` gives you the speed of a single function call, while retaining the full power of the underlying LangGraph `CompiledStateGraph`.
+
+---
+
+## Task 4.2: Provider-Agnostic Setup with `init_chat_model`
+
+In production, hardcoding a specific AI SDK (like Google GenAI or OpenAI) creates vendor lock-in. If Google has an outage or OpenAI slashes prices 50%, you shouldn't have to rewrite your agent logic, tool signatures, or loop execution.
+
+Task 4.2 implements a **provider-agnostic architecture** where you can hot-swap between LLM providers with a **configuration change only — zero code modifications**.
+
+### 1. The Frontend / Fullstack Analogy
+Think of `init_chat_model` like **Prisma** or **Drizzle ORM** database adapters, or **NextAuth.js** storage adapters:
+- Your application code writes high-level queries (`findMany`, `create`).
+- You can switch the backing engine from PostgreSQL to SQLite or MySQL by simply altering `DATABASE_URL` in `.env`.
+- In LangChain, `create_agent` and `@tool` are your application logic; `ChatGoogleGenerativeAI`, `ChatOpenAI`, or `MockToolChatModel` are the pluggable driver adapters underneath.
+
+### 2. Supported Providers
+1. **`google_genai`** (Google Gemini via `langchain-google-genai`): Default model `gemini-2.5-flash` or `gemini-1.5-flash`.
+2. **`openai`** (OpenAI via `langchain-openai`): Default model `gpt-4o-mini` or `gpt-4o`.
+3. **`mock`** (`MockToolChatModel`): Built-in deterministic mock model supporting offline tool binding (`bind_tools`), simulated multi-turn tool calling, and fast CI execution without external API keys.
+
+### 3. Switching Providers
+
+#### Option A: Via `.env` (Zero Code Change)
+Edit `phase-4-agents/.env`:
+```env
+# Switch to OpenAI:
+MODEL_PROVIDER=openai
+MODEL_NAME=gpt-4o-mini
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Or switch back to Google:
+# MODEL_PROVIDER=google_genai
+# MODEL_NAME=gemini-2.5-flash
+# GEMINI_API_KEY=your_gemini_api_key_here
+
+# Or offline mock for fast local development / testing:
+# MODEL_PROVIDER=mock
+# MODEL_NAME=mock-agent
+```
+Then run without arguments:
+```bash
+uv run python src/phase_4_agents/agent_cli.py --query "What is 15 multiplied by 4?"
+```
+
+#### Option B: Via Environment Variable Overrides
+```bash
+# Run with OpenAI
+MODEL_PROVIDER=openai MODEL_NAME=gpt-4o-mini OPENAI_API_KEY=sk-... uv run python src/phase_4_agents/agent_cli.py --query "Calculate 25 * 4"
+
+# Run with Mock Provider (offline, zero API keys required)
+MODEL_PROVIDER=mock uv run python src/phase_4_agents/agent_cli.py --query "What is 10 plus 20?"
+```
+
+#### Option C: Via CLI Runtime Flags
+```bash
+# Explicitly select provider and model at runtime
+uv run python src/phase_4_agents/agent_cli.py --provider mock --model mock-agent --query "What is the weather in Tokyo?"
+```
+
+### 4. Automated Verification
+The provider-agnostic engine is backed by tests in `tests/test_provider_agnostic.py`:
+- `test_provider_switch_via_settings_object`: Verifies instantiating Google, OpenAI, and Mock models from `Settings`.
+- `test_provider_switch_via_env_variables`: Verifies dynamic switching purely via OS environment variables.
+- `test_tool_binding_identical_across_providers`: Proves that tool declarations bind identically across both Google and OpenAI.
+- `test_agent_execution_with_mock_provider`: Runs the entire multi-step LangGraph agent loop offline.
+
+Run the test suite:
+```bash
+uv run pytest tests/
+```
+

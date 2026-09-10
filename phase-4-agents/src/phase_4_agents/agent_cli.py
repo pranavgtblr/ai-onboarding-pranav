@@ -14,9 +14,8 @@ from typing import Any
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 
-from phase_4_agents.config import get_settings
+from phase_4_agents.config import get_chat_model, get_settings
 from phase_4_agents.tools import ALL_TOOLS
 
 
@@ -40,27 +39,22 @@ class AgentExecutionResult:
     steps: list[AgentStepTrace]
     final_answer: str
     total_steps: int
+    provider: str = "google_genai"
+    model: str = "gemini-3.5-flash-lite"
 
 
 def build_tool_agent(
     *,
+    provider: str | None = None,
     model_name: str | None = None,
     api_key: str | None = None,
-    temperature: float = 0.0,
+    temperature: float | None = None,
 ):
-    """Construct a tool-calling agent using create_agent on LangGraph runtime."""
-    settings = get_settings()
-    effective_key = api_key or settings.effective_api_key
-    if not effective_key:
-        raise ValueError(
-            "GEMINI_API_KEY or GOOGLE_API_KEY is required to build the tool agent."
-        )
-
-    effective_model = model_name or settings.gemini_model
-
-    llm = ChatGoogleGenerativeAI(
-        model=effective_model,
-        api_key=effective_key,
+    """Construct a tool-calling agent using provider-agnostic get_chat_model."""
+    llm = get_chat_model(
+        provider=provider,
+        model=model_name,
+        api_key=api_key,
         temperature=temperature,
     )
 
@@ -163,21 +157,26 @@ def run_agent_query(agent: Any, query: str) -> AgentExecutionResult:
             step_traces.append(trace)
             step_counter += 1
 
+    settings = get_settings()
     return AgentExecutionResult(
         query=query,
         steps=step_traces,
         final_answer=final_answer,
         total_steps=len(step_traces),
+        provider=settings.model_provider,
+        model=settings.model_name,
     )
 
 
 def print_trace_report(result: AgentExecutionResult) -> None:
     """Print an execution trace report mapped to Task 2.6."""
     print("\n" + "=" * 78)
-    print(" 🤖 LANGCHAIN / LANGGRAPH CREATE_AGENT EXECUTION TRACE (TASK 4.1)")
+    print(" 🤖 LANGCHAIN / LANGGRAPH CREATE_AGENT EXECUTION TRACE (TASK 4.2)")
     print("=" * 78)
-    print(f"QUESTION: {result.query}")
-    print(f"TOTAL STEPS CAPTURED: {result.total_steps}")
+    print(f"QUESTION        : {result.query}")
+    print(f"ACTIVE PROVIDER : {result.provider}")
+    print(f"ACTIVE MODEL    : {result.model}")
+    print(f"TOTAL STEPS     : {result.total_steps}")
     print("-" * 78)
 
     for step in result.steps:
@@ -230,7 +229,7 @@ def run_interactive(agent: Any) -> None:
 def main() -> None:
     """CLI entrypoint for tool-calling agent."""
     parser = argparse.ArgumentParser(
-        description="LangChain create_agent tool-calling CLI (Task 4.1)"
+        description="Provider-Agnostic Tool-Calling Agent CLI (Task 4.2)"
     )
     parser.add_argument(
         "--query", "-q", type=str, help="Single question to answer with trace."
@@ -239,11 +238,18 @@ def main() -> None:
         "--interactive", "-i", action="store_true", help="Launch interactive CLI loop."
     )
     parser.add_argument(
-        "--model", type=str, default=None, help="Custom Gemini model identifier."
+        "--provider",
+        "-p",
+        type=str,
+        default=None,
+        help="Model provider (google_genai, openai, mock).",
+    )
+    parser.add_argument(
+        "--model", "-m", type=str, default=None, help="Model identifier."
     )
     args = parser.parse_args()
 
-    agent = build_tool_agent(model_name=args.model)
+    agent = build_tool_agent(provider=args.provider, model_name=args.model)
 
     if args.query:
         result = run_agent_query(agent, args.query)
