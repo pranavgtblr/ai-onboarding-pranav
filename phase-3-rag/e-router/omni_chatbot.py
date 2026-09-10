@@ -10,8 +10,23 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
-from phase_3_rag.router import (
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+try:
+    import httpx  # noqa: F401
+except ModuleNotFoundError:
+    print("\n" + "=" * 70)
+    print(" [!] Missing dependencies: please run with `uv run`:")
+    print("     uv run python e-router/omni_chatbot.py")
+    print("     (or run `source .venv/bin/activate` first)")
+    print("=" * 70 + "\n")
+    sys.exit(1)
+
+from phase_3_rag.router import (  # noqa: E402
     AdaptiveRAGRouter,
 )
 

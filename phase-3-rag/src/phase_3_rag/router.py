@@ -21,6 +21,7 @@ import re
 import time
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 import httpx
 from pydantic import BaseModel, Field
@@ -283,6 +284,58 @@ def classify_route_heuristic(question: str) -> RoutingDecision:
     )
 
 
+def call_gemini_with_retry(
+    client: httpx.Client,
+    url: str,
+    payload: dict[str, Any],
+    *,
+    max_retries: int = 2,
+    base_delay: float = 1.0,
+) -> httpx.Response:
+    """Post to Gemini API with exponential backoff on 429, 500, 503, or timeouts."""
+    last_exc: Exception | None = None
+    last_resp: httpx.Response | None = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            resp = client.post(url, json=payload)
+            if resp.status_code == 200:
+                return resp
+            if resp.status_code in (429, 500, 502, 503, 504) and attempt < max_retries:
+                delay = base_delay * (2**attempt)
+                logger.info(
+                    "Gemini API returned %s; retrying in %.1fs (attempt %d/%d)...",
+                    resp.status_code,
+                    delay,
+                    attempt + 1,
+                    max_retries,
+                )
+                time.sleep(delay)
+                continue
+            last_resp = resp
+            break
+        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                delay = base_delay * (2**attempt)
+                logger.info(
+                    "Gemini network issue (%s); retrying in %.1fs (attempt %d/%d)...",
+                    exc,
+                    delay,
+                    attempt + 1,
+                    max_retries,
+                )
+                time.sleep(delay)
+                continue
+            break
+
+    if last_resp is not None:
+        return last_resp
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Failed to call Gemini API")
+
+
 def classify_route_llm(
     question: str,
     *,
@@ -318,9 +371,9 @@ def classify_route_llm(
         close_client = True
 
     try:
-        resp = client.post(url, json=payload)
+        resp = call_gemini_with_retry(client, url, payload)
         if resp.status_code != 200:
-            logger.warning(
+            logger.info(
                 "Gemini router returned HTTP %s; falling back to heuristic",
                 resp.status_code,
             )
@@ -402,10 +455,18 @@ def handle_direct_llm(
         close_client = True
 
     try:
-        resp = client.post(url, json=payload)
+        resp = call_gemini_with_retry(client, url, payload)
         if resp.status_code == 200:
             data = resp.json()
             return str(data["candidates"][0]["content"]["parts"][0]["text"]).strip()
+        if resp.status_code in (429, 500, 502, 503, 504):
+            q_clean = question.strip().lower()
+            if q_clean in ("hi", "hello", "hey", "good morning", "good evening"):
+                return "Hello! How can I help you today?"
+            return (
+                "The cloud AI service is temporarily experiencing heavy load "
+                f"(HTTP {resp.status_code}). Please try your prompt again in a moment."
+            )
         return f"Error ({resp.status_code}): Direct LLM generation failed."
     except Exception as exc:
         return f"Direct LLM exception: {exc}"
@@ -493,12 +554,19 @@ def handle_local_corpus(
         close_client = True
 
     try:
-        resp = client.post(url, json=payload)
+        resp = call_gemini_with_retry(client, url, payload)
         if resp.status_code == 200:
             data = resp.json()
             answer = data["candidates"][0]["content"]["parts"][0]["text"].strip()
             return answer, sources
-        return f"Error ({resp.status_code}): Local corpus synthesis failed.", sources
+        fallback_answer = (
+            f"Service temporarily degraded (HTTP {resp.status_code}). "
+            "Relevant excerpts:\n\n"
+            + "\n\n".join(
+                f"[{doc_id}]: {text}" for doc_id, text in matched_snippets[:2]
+            )
+        )
+        return fallback_answer, sources
     except Exception as exc:
         return f"Local corpus error: {exc}", sources
     finally:
@@ -567,19 +635,54 @@ def handle_structured_db(
                 answer_lines.append(f"  ... ({len(rows) - 5} more records)")
             answer = "\n".join(answer_lines)
         else:
-            raw_sql = generate_sql_for_question(
-                question,
-                client=client,
-                model=model,
-            )
-            sanitized_sql, rows = execute_readonly_sql(raw_sql, db_path=target_db)
-            answer = synthesize_natural_answer(
-                question,
-                sanitized_sql,
-                rows,
-                client=client,
-                model=model,
-            )
+            try:
+                raw_sql = generate_sql_for_question(
+                    question,
+                    client=client,
+                    model=model,
+                )
+                sanitized_sql, rows = execute_readonly_sql(raw_sql, db_path=target_db)
+                answer = synthesize_natural_answer(
+                    question,
+                    sanitized_sql,
+                    rows,
+                    client=client,
+                    model=model,
+                )
+            except Exception as sql_err:
+                logger.info(
+                    "LLM Text-to-SQL generation issue (%s); using heuristic SQL",
+                    sql_err,
+                )
+                q = question.lower()
+                if "appointment" in q:
+                    raw_sql = (
+                        "SELECT appointment_id, customer_id, doctor_name, "
+                        "appointment_date, status FROM appointments LIMIT 10;"
+                    )
+                elif "order" in q or "revenue" in q or "sales" in q:
+                    raw_sql = (
+                        "SELECT order_id, customer_id, order_date, status, "
+                        "total_amount FROM orders LIMIT 10;"
+                    )
+                elif "product" in q or "stock" in q or "price" in q:
+                    raw_sql = (
+                        "SELECT product_id, name, category, price, stock_quantity "
+                        "FROM products LIMIT 10;"
+                    )
+                else:
+                    raw_sql = (
+                        "SELECT customer_id, name, email, city FROM customers LIMIT 10;"
+                    )
+                sanitized_sql, rows = execute_readonly_sql(raw_sql, db_path=target_db)
+                answer_lines = [
+                    f"Queried database for '{question}':\n"
+                    f"- SQL: `{sanitized_sql}`\n"
+                    f"- Records Found: {len(rows)}\n"
+                ]
+                for r in rows[:5]:
+                    answer_lines.append(f"  • {json.dumps(r)}")
+                answer = "\n".join(answer_lines)
 
         sources: list[str] = []
         known_tables = [
