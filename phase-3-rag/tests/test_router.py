@@ -151,6 +151,73 @@ def test_adaptive_router_dispatch_local_corpus() -> None:
     assert "101.3 kPa" in resp.answer or "doc_eclss_limits" in resp.sources
 
 
+def test_heuristic_routing_structured_db() -> None:
+    db_queries = [
+        "Show me all customers with orders over $100.",
+        "What is the total revenue by product category?",
+        "How many appointments are scheduled for Dr. Smith?",
+        "List the top 5 highest priced products in stock.",
+    ]
+    for q in db_queries:
+        decision = classify_route_heuristic(q)
+        assert decision.route == RouteTarget.STRUCTURED_DB
+        assert decision.needs_retrieval is True
+        assert len(decision.keywords) > 0
+
+
+def test_classify_route_llm_structured_db() -> None:
+    mock_client = MagicMock(spec=httpx.Client)
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": json.dumps(
+                                {
+                                    "route": "STRUCTURED_DB",
+                                    "confidence": 0.99,
+                                    "reasoning": (
+                                        "Query requires aggregating orders from SQL DB."
+                                    ),
+                                    "needs_retrieval": True,
+                                    "keywords": ["orders", "revenue"],
+                                }
+                            )
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    mock_client.post.return_value = mock_resp
+
+    decision = classify_route_llm(
+        "What is the total revenue from customer orders?",
+        client=mock_client,
+        api_key="test-fake-key",
+    )
+
+    assert isinstance(decision, RoutingDecision)
+    assert decision.route == RouteTarget.STRUCTURED_DB
+    assert decision.confidence == 0.99
+    assert decision.needs_retrieval is True
+
+
+def test_adaptive_router_dispatch_structured_db() -> None:
+    router = AdaptiveRAGRouter(api_key="")
+    resp = router.route_and_execute("How many customers are in the database?")
+
+    assert resp.decision.route == RouteTarget.STRUCTURED_DB
+    assert resp.source_used == RouteTarget.STRUCTURED_DB
+    assert resp.source_label == "Structured Relational Database (SQL)"
+    assert resp.decision.needs_retrieval is True
+    assert len(resp.citations) > 0
+    assert any("SQL:" in c or "Table" in c for c in resp.citations)
+
+
 def test_adaptive_router_dispatch_web_search() -> None:
     mock_provider = MockSearchProvider()
     mock_provider.add_canned_results(

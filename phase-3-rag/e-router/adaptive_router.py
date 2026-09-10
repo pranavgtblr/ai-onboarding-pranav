@@ -1,9 +1,10 @@
-"""Adaptive Query Router Interactive CLI (Project E - Task 3.19).
+"""Adaptive Query Router Interactive CLI (Project E - Task 3.19 & 3.21).
 
-Demonstrates intelligent multi-target query routing:
+Demonstrates intelligent multi-target query routing across 4 sources:
 1. DIRECT_LLM: Code generation, math, greetings, general knowledge.
 2. LOCAL_CORPUS: Project Odyssey Mars Base engineering, ECLSS, telemetry.
-3. WEB_SEARCH: Current events, breaking news, latest software releases.
+3. STRUCTURED_DB: Relational SQLite data (customers, orders, products, appointments).
+4. WEB_SEARCH: Current events, breaking news, latest software releases.
 """
 
 import argparse
@@ -50,7 +51,28 @@ BENCHMARK_SUITE = [
         RouteTarget.LOCAL_CORPUS,
         "Internal telemetry matrix and power bus limits",
     ),
-    # Category 3: Web Search
+    # Category 3: Structured Database (Text-to-SQL)
+    (
+        "How many customers are located in New York or Chicago?",
+        RouteTarget.STRUCTURED_DB,
+        "Relational customers table query via Text-to-SQL",
+    ),
+    (
+        "Show all pending orders and their total amounts.",
+        RouteTarget.STRUCTURED_DB,
+        "Transactional orders table query via Text-to-SQL",
+    ),
+    (
+        "List all appointments scheduled with doctor name and status.",
+        RouteTarget.STRUCTURED_DB,
+        "Appointments table query via Text-to-SQL",
+    ),
+    (
+        "What is the stock quantity of all products currently in inventory?",
+        RouteTarget.STRUCTURED_DB,
+        "Product catalog and inventory query via Text-to-SQL",
+    ),
+    # Category 4: Web Search
     (
         "What are the latest features introduced in the newest Python 3.13 release?",
         RouteTarget.WEB_SEARCH,
@@ -70,10 +92,10 @@ BENCHMARK_SUITE = [
 
 
 def run_benchmark_demo(router: AdaptiveRAGRouter) -> None:
-    """Run evaluation benchmark across 9 diverse questions."""
+    """Run evaluation benchmark across all 4 target routes."""
     print("\n" + "=" * 75)
-    print(" PROJECT E — ADAPTIVE RAG ROUTER BENCHMARK (TASK 3.19)")
-    print(" Evaluating Query Classification Across 3 Target Routes")
+    print(" PROJECT E — ADAPTIVE RAG ROUTER BENCHMARK (TASK 3.21)")
+    print(" Evaluating Query Classification Across 4 Target Routes")
     print("=" * 75)
 
     correct = 0
@@ -108,7 +130,7 @@ def run_single_query(
 ) -> None:
     """Execute routing and dispatch for a single query."""
     print("\n" + "=" * 75)
-    print(" ADAPTIVE RAG ROUTER (TASK 3.19)")
+    print(" OMNI-ROUTER CHATBOT (TASK 3.21)")
     print("=" * 75)
 
     # 1. Show heuristic vs active decision
@@ -119,38 +141,43 @@ def run_single_query(
     # 2. Run router dispatch
     resp = router.route_and_execute(question)
 
-    print(f"\n[>] Chosen Route   : [{resp.decision.route.value}]")
+    print(f"\n[>] Source Selected: [{resp.source_used.value}] - {resp.source_label}")
+    print(f"    Description    : {resp.source_description}")
     print(f"    Confidence     : {resp.decision.confidence:.2f}")
     print(f"    Needs Retrieval: {'YES' if resp.decision.needs_retrieval else 'NO'}")
     print(f"    Reasoning      : {resp.decision.reasoning}")
     print(f"    Retrieval Time : {resp.retrieval_time_ms} ms")
 
     print("\n" + "-" * 75)
-    print(f"[=] Synthesized Answer ({resp.decision.route.value}):")
+    print(f"[=] Grounded Answer ({resp.source_used.value}):")
     print("-" * 75)
     print(resp.answer)
     print("-" * 75)
 
-    if resp.sources:
-        print("\n[*] Sources / References:")
-        for s in resp.sources:
+    if resp.citations:
+        print("\n[*] Citations & Source Grounding:")
+        for s in resp.citations:
             print(f"    * {s}")
     else:
-        print("\n[*] Sources: None (Answered directly without retrieval)")
+        print("\n[*] Citations: None (Answered directly from parametric memory)")
     print("=" * 75 + "\n")
 
 
 def interactive_loop(router: AdaptiveRAGRouter) -> None:
-    """Interactive CLI loop."""
+    """Interactive Omni-Chatbot CLI loop routing across all 4 sources."""
     print("\n" + "=" * 75)
-    print(" Adaptive RAG Router - Interactive CLI (Project E)")
-    print(" Routes to: [DIRECT_LLM] | [LOCAL_CORPUS] | [WEB_SEARCH]")
-    print(" Type your question, or 'exit' / 'quit' to quit.")
+    print(" Omni-Router Chatbot - Interactive CLI (Project E - Task 3.21)")
+    print(" Routes Across 4 Sources:")
+    print("  1. DIRECT_LLM    - General knowledge, code generation, mathematics")
+    print("  2. LOCAL_CORPUS  - Project Odyssey Mars Base engineering & ECLSS")
+    print("  3. STRUCTURED_DB - Customers, orders, products, appointments (SQL)")
+    print("  4. WEB_SEARCH    - Real-time weather, breaking news, latest versions")
+    print(" Type your question below, or 'exit' / 'quit' to end.")
     print("=" * 75 + "\n")
 
     while True:
         try:
-            user_q = input("Router Question> ").strip()
+            user_q = input("Omni-Bot> ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting.")
             break
@@ -161,22 +188,23 @@ def interactive_loop(router: AdaptiveRAGRouter) -> None:
 
         try:
             resp = router.route_and_execute(user_q)
-            badge = f"[{resp.decision.route.value}]"
-            print(f"\n-> Route: {badge} | Latency: {resp.retrieval_time_ms}ms")
-            print(f"-> Why  : {resp.decision.reasoning}")
+            badge = f"[{resp.source_used.value}]"
+            print(f"\n-> Source Used: {badge} ({resp.source_label})")
+            print(f"-> Latency    : {resp.retrieval_time_ms}ms")
+            print(f"-> Why Chosen : {resp.decision.reasoning}")
             print("\nAnswer:\n" + resp.answer + "\n")
-            if resp.sources:
-                print("Sources:")
-                for s in resp.sources:
-                    print(f"  - {s}")
-            print("-" * 50)
+            if resp.citations:
+                print("Citations:")
+                for s in resp.citations:
+                    print(f"  * {s}")
+            print("-" * 65)
         except Exception as exc:
             print(f"\n[!] Error: {exc}\n")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Adaptive Query Router CLI (Project E - Task 3.19)"
+        description="Omni-Router Chatbot CLI (Project E - Task 3.19 & 3.21)"
     )
     parser.add_argument("--query", "-q", type=str, help="Question to route and answer.")
     parser.add_argument(

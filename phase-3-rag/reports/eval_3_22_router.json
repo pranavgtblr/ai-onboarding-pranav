@@ -1,0 +1,352 @@
+{
+  "pipeline_name": "Adaptive Omni-Router (Task 3.21 & 3.22)",
+  "timestamp": "2026-09-10T06:34:13Z",
+  "total_questions": 20,
+  "routing_accuracy": 100.0,
+  "execution_success_rate": 100.0,
+  "citation_compliance_rate": 100.0,
+  "per_route_accuracy": {
+    "DIRECT_LLM": 100.0,
+    "LOCAL_CORPUS": 100.0,
+    "STRUCTURED_DB": 100.0,
+    "WEB_SEARCH": 100.0
+  },
+  "per_route_avg_latency_ms": {
+    "DIRECT_LLM": 0.0,
+    "LOCAL_CORPUS": 3759.51,
+    "STRUCTURED_DB": 6382.3,
+    "WEB_SEARCH": 16225.64
+  },
+  "results": [
+    {
+      "question_id": "DIRECT-01",
+      "question": "Write a Python function to check if a word is a palindrome.",
+      "expected_route": "DIRECT_LLM",
+      "predicted_route": "DIRECT_LLM",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Direct Parametric LLM",
+      "retrieval_time_ms": 0.0,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [],
+      "answer_preview": "```python def is_palindrome(word: str) -> bool:     \"\"\"Check if a word is a palindrome, ignoring case and spaces.\"\"\"    ..."
+    },
+    {
+      "question_id": "DIRECT-02",
+      "question": "Calculate 128 * 4 + 56 - 12.",
+      "expected_route": "DIRECT_LLM",
+      "predicted_route": "DIRECT_LLM",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Direct Parametric LLM",
+      "retrieval_time_ms": 0.0,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [],
+      "answer_preview": "To calculate $128 \\times 4 + 56 - 12$:  1. Multiply: $128 \\times 4 = 512$ 2. Add: $512 + 56 = 568$ 3. Subtract: $568 - 1..."
+    },
+    {
+      "question_id": "DIRECT-03",
+      "question": "Hello! How are you doing today?",
+      "expected_route": "DIRECT_LLM",
+      "predicted_route": "DIRECT_LLM",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Direct Parametric LLM",
+      "retrieval_time_ms": 0.0,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [],
+      "answer_preview": "Hello! I'm doing well, thank you. How can I help you today?..."
+    },
+    {
+      "question_id": "DIRECT-04",
+      "question": "Explain the difference between mutable and immutable types in Python.",
+      "expected_route": "DIRECT_LLM",
+      "predicted_route": "DIRECT_LLM",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Direct Parametric LLM",
+      "retrieval_time_ms": 0.0,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [],
+      "answer_preview": "In Python, the main difference between mutable and immutable types is whether their values can be modified after they ar..."
+    },
+    {
+      "question_id": "DIRECT-05",
+      "question": "Translate 'Good morning, my friend' into Spanish.",
+      "expected_route": "DIRECT_LLM",
+      "predicted_route": "DIRECT_LLM",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Direct Parametric LLM",
+      "retrieval_time_ms": 0.0,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [],
+      "answer_preview": "Buenos d\u00edas, mi amigo..."
+    },
+    {
+      "question_id": "LOCAL-01",
+      "question": "What is the nominal cabin atmospheric pressure limit for the ECLSS?",
+      "expected_route": "LOCAL_CORPUS",
+      "predicted_route": "LOCAL_CORPUS",
+      "routing_match": true,
+      "confidence": 0.99,
+      "source_used": "Local Engineering Corpus (Documents)",
+      "retrieval_time_ms": 1128.29,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "doc_eclss_limits",
+        "doc_propulsion_specs",
+        "doc_habitat_thermal"
+      ],
+      "answer_preview": "The nominal cabin atmospheric pressure for the ECLSS is 101.3 kPa [doc_eclss_limits]...."
+    },
+    {
+      "question_id": "LOCAL-02",
+      "question": "What propellant mixture does the MDAS propulsion system use?",
+      "expected_route": "LOCAL_CORPUS",
+      "predicted_route": "LOCAL_CORPUS",
+      "routing_match": true,
+      "confidence": 0.99,
+      "source_used": "Local Engineering Corpus (Documents)",
+      "retrieval_time_ms": 1225.68,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "doc_propulsion_specs",
+        "doc_habitat_thermal"
+      ],
+      "answer_preview": "Based on the mission operations corpus, the Mars Descent & Ascent Propulsion System (MDAS) uses a hypergolic propellant ..."
+    },
+    {
+      "question_id": "LOCAL-03",
+      "question": "What is the maximum safe operating voltage of the primary power bus?",
+      "expected_route": "LOCAL_CORPUS",
+      "predicted_route": "LOCAL_CORPUS",
+      "routing_match": true,
+      "confidence": 0.95,
+      "source_used": "Local Engineering Corpus (Documents)",
+      "retrieval_time_ms": 8965.07,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "doc_eclss_limits",
+        "doc_propulsion_specs",
+        "doc_habitat_thermal"
+      ],
+      "answer_preview": "The maximum safe limit of the Primary Power Bus is 132V DC [doc_eclss_limits]...."
+    },
+    {
+      "question_id": "LOCAL-04",
+      "question": "What fluid mixture is used in the habitat thermal control subsystem?",
+      "expected_route": "LOCAL_CORPUS",
+      "predicted_route": "LOCAL_CORPUS",
+      "routing_match": true,
+      "confidence": 0.99,
+      "source_used": "Local Engineering Corpus (Documents)",
+      "retrieval_time_ms": 6347.7,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "doc_eclss_limits",
+        "doc_propulsion_specs",
+        "doc_habitat_thermal"
+      ],
+      "answer_preview": "Based on the mission operations corpus, the Habitat Thermal Control Subsystem (HTCS) uses a low-toxicity propylene glyco..."
+    },
+    {
+      "question_id": "LOCAL-05",
+      "question": "What is the emergency minimum cabin atmospheric pressure limit?",
+      "expected_route": "LOCAL_CORPUS",
+      "predicted_route": "LOCAL_CORPUS",
+      "routing_match": true,
+      "confidence": 0.98,
+      "source_used": "Local Engineering Corpus (Documents)",
+      "retrieval_time_ms": 1130.8,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "doc_eclss_limits",
+        "doc_propulsion_specs",
+        "doc_habitat_thermal"
+      ],
+      "answer_preview": "The emergency minimum cabin atmospheric pressure limit is 70.8 kPa [doc_eclss_limits]...."
+    },
+    {
+      "question_id": "DB-01",
+      "question": "How many total customers are in the database?",
+      "expected_route": "STRUCTURED_DB",
+      "predicted_route": "STRUCTURED_DB",
+      "routing_match": true,
+      "confidence": 0.99,
+      "source_used": "Structured Relational Database (SQL)",
+      "retrieval_time_ms": 7066.88,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Table: customers (matched 1 rows)",
+        "SQL Query: SELECT COUNT(*) FROM customers LIMIT 50"
+      ],
+      "answer_preview": "There are a total of 4 customers in the database...."
+    },
+    {
+      "question_id": "DB-02",
+      "question": "Show all pending orders and their total amounts.",
+      "expected_route": "STRUCTURED_DB",
+      "predicted_route": "STRUCTURED_DB",
+      "routing_match": true,
+      "confidence": 0.99,
+      "source_used": "Structured Relational Database (SQL)",
+      "retrieval_time_ms": 6916.18,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Table: orders (matched 1 rows)",
+        "SQL Query: SELECT order_id, total_amount FROM orders WHERE status = 'pending' LIMIT 50"
+      ],
+      "answer_preview": "Here is the pending order and its total amount:  * **Order ID:** 4 * **Total Amount:** $399.00..."
+    },
+    {
+      "question_id": "DB-03",
+      "question": "List all appointments scheduled with doctor name and status.",
+      "expected_route": "STRUCTURED_DB",
+      "predicted_route": "STRUCTURED_DB",
+      "routing_match": true,
+      "confidence": 0.99,
+      "source_used": "Structured Relational Database (SQL)",
+      "retrieval_time_ms": 7996.35,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Table: customers (matched 5 rows)",
+        "Table: appointments (matched 5 rows)",
+        "SQL Query: SELECT a.service_type, a.scheduled_time, a.status, c.name AS customer_name FROM appointments AS a JOIN customers AS c ON a.customer_id = c.customer_id LIMIT 50"
+      ],
+      "answer_preview": "Based on the database results, there are no doctor names available in the appointment records. However, here are the sch..."
+    },
+    {
+      "question_id": "DB-04",
+      "question": "What is the stock quantity of all products currently in inventory?",
+      "expected_route": "STRUCTURED_DB",
+      "predicted_route": "STRUCTURED_DB",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Structured Relational Database (SQL)",
+      "retrieval_time_ms": 2252.08,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Table: products (matched 6 rows)",
+        "SQL Query: SELECT name, stock_quantity FROM products LIMIT 50"
+      ],
+      "answer_preview": "Here is the stock quantity for all products currently in inventory:  * **MacBook Pro 16**: 15 * **Dell XPS 15**: 20 * **..."
+    },
+    {
+      "question_id": "DB-05",
+      "question": "How many customers are located in New York or Chicago?",
+      "expected_route": "STRUCTURED_DB",
+      "predicted_route": "STRUCTURED_DB",
+      "routing_match": true,
+      "confidence": 0.99,
+      "source_used": "Structured Relational Database (SQL)",
+      "retrieval_time_ms": 7680.02,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Table: customers (matched 1 rows)",
+        "SQL Query: SELECT COUNT(*) FROM customers WHERE city IN ('New York', 'Chicago') LIMIT 50"
+      ],
+      "answer_preview": "There are 2 customers located in New York or Chicago...."
+    },
+    {
+      "question_id": "WEB-01",
+      "question": "What are the latest features released in Python 3.13?",
+      "expected_route": "WEB_SEARCH",
+      "predicted_route": "WEB_SEARCH",
+      "routing_match": true,
+      "confidence": 0.88,
+      "source_used": "Live Web Search Engine",
+      "retrieval_time_ms": 12951.76,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Documentation & Reference for Python 3.13 Latest Features New Releases (2024-10-07) -> https://example.org/docs/python%203.13%20latest%20features%20new%20releases",
+        "Latest Updates & Community News: Python 3.13 Latest Features New Releases (2026-01-15) -> https://example.org/news/python%203.13%20latest%20features%20new%20releases"
+      ],
+      "answer_preview": "Based on the provided sources, the official reference guides and performance analysis discuss the architecture, specific..."
+    },
+    {
+      "question_id": "WEB-02",
+      "question": "What is the current weather forecast for Tokyo today?",
+      "expected_route": "WEB_SEARCH",
+      "predicted_route": "WEB_SEARCH",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Live Web Search Engine",
+      "retrieval_time_ms": 3497.15,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Documentation & Reference for Tokyo Weather Forecast Today (2024-10-07) -> https://example.org/docs/tokyo%20weather%20forecast%20today",
+        "Latest Updates & Community News: Tokyo Weather Forecast Today (2026-01-15) -> https://example.org/news/tokyo%20weather%20forecast%20today"
+      ],
+      "answer_preview": "Based on the provided sources, the available documentation and official references regarding the Tokyo weather forecast ..."
+    },
+    {
+      "question_id": "WEB-03",
+      "question": "Who won the latest Arsenal football match yesterday?",
+      "expected_route": "WEB_SEARCH",
+      "predicted_route": "WEB_SEARCH",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Live Web Search Engine",
+      "retrieval_time_ms": 8196.43,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Documentation & Reference for Arsenal Match Result Score Yesterday (2024-10-07) -> https://example.org/docs/arsenal%20match%20result%20score%20yesterday",
+        "Latest Updates & Community News: Arsenal Match Result Score Yesterday (2026-01-15) -> https://example.org/news/arsenal%20match%20result%20score%20yesterday"
+      ],
+      "answer_preview": "Based on the provided sources, there is documentation [Documentation & Reference for Arsenal Match Result Score Yesterda..."
+    },
+    {
+      "question_id": "WEB-04",
+      "question": "What is the latest stock price of NVIDIA today?",
+      "expected_route": "WEB_SEARCH",
+      "predicted_route": "WEB_SEARCH",
+      "routing_match": true,
+      "confidence": 1.0,
+      "source_used": "Live Web Search Engine",
+      "retrieval_time_ms": 8499.19,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Documentation & Reference for Nvidia Stock Price Today (2024-10-07) -> https://example.org/docs/nvidia%20stock%20price%20today",
+        "Latest Updates & Community News: Nvidia Stock Price Today (2026-01-15) -> https://example.org/news/nvidia%20stock%20price%20today"
+      ],
+      "answer_preview": "Based on the provided sources, the exact numerical stock price of NVIDIA today is not mentioned. The available documenta..."
+    },
+    {
+      "question_id": "WEB-05",
+      "question": "What are the breaking technology news headlines this week?",
+      "expected_route": "WEB_SEARCH",
+      "predicted_route": "WEB_SEARCH",
+      "routing_match": true,
+      "confidence": 0.88,
+      "source_used": "Live Web Search Engine",
+      "retrieval_time_ms": 47983.65,
+      "execution_success": true,
+      "has_valid_citations": true,
+      "citations": [
+        "Documentation & Reference for The Breaking Technology News Headlines This Week (2024-10-07) -> https://example.org/docs/the%20breaking%20technology%20news%20headlines%20this%20week",
+        "Latest Updates & Community News: The Breaking Technology News Headlines This Week (2026-01-15) -> https://example.org/news/the%20breaking%20technology%20news%20headlines%20this%20week"
+      ],
+      "answer_preview": "Based on the provided sources, the official documentation, guides, architecture, and specifications regarding the breaki..."
+    }
+  ]
+}

@@ -1,11 +1,13 @@
-"""Adaptive Query Routing for RAG systems (Project E - Task 3.19).
+"""Adaptive Query Routing for RAG systems (Project E - Task 3.19 & 3.21).
 
 Determines whether a user query:
 1. DIRECT_LLM: Can be answered directly by the LLM without retrieval
    (e.g., coding, math, greetings, translations, creative writing).
 2. LOCAL_CORPUS: Should be retrieved from internal proprietary domain
    documents (e.g., Mars ECLSS engineering, telemetry, PDF specs).
-3. WEB_SEARCH: Requires live, external, or real-time web retrieval
+3. STRUCTURED_DB: Should be answered via Text-to-SQL from transactional relational
+   tables (e.g., customers, orders, products, appointments).
+4. WEB_SEARCH: Requires live, external, or real-time web retrieval
    (e.g., breaking news, recent releases, live weather/sports).
 """
 
@@ -17,6 +19,7 @@ import logging
 import re
 import time
 from enum import Enum
+from pathlib import Path
 
 import httpx
 from pydantic import BaseModel, Field
@@ -37,6 +40,7 @@ class RouteTarget(str, Enum):
 
     DIRECT_LLM = "DIRECT_LLM"
     LOCAL_CORPUS = "LOCAL_CORPUS"
+    STRUCTURED_DB = "STRUCTURED_DB"
     WEB_SEARCH = "WEB_SEARCH"
 
 
@@ -59,13 +63,28 @@ class RoutedRAGResponse(BaseModel):
 
     question: str
     decision: RoutingDecision
+    source_used: RouteTarget = Field(
+        ..., description="The knowledge source selected for this response."
+    )
+    source_label: str = Field(
+        ..., description="Human-friendly label of the source used."
+    )
+    source_description: str = Field(
+        ..., description="Description of the source capability and data."
+    )
     answer: str
     sources: list[str] = Field(
-        default_factory=list, description="Referenced URLs or Chunk IDs."
+        default_factory=list,
+        description="Referenced URLs, Document IDs, or Table/SQL Citations.",
     )
     retrieval_time_ms: float = Field(
         default=0.0, description="Latency spent on retrieval in milliseconds."
     )
+
+    @property
+    def citations(self) -> list[str]:
+        """Convenience alias for sources list."""
+        return self.sources
 
 
 # -----------------------------------------------------------------------------
@@ -73,14 +92,14 @@ class RoutedRAGResponse(BaseModel):
 # -----------------------------------------------------------------------------
 
 ROUTER_PROMPT_TEMPLATE = """You are an expert query router for an AI assistant.
-Classify the user's question into EXACTLY ONE of these three routes:
+Classify the user's question into EXACTLY ONE of these four routes:
 
 1. DIRECT_LLM:
    - General programming tasks, code snippets, algorithm implementations.
    - Mathematics, logic puzzles, translations, creative writing, roleplay.
    - Conversational pleasantries (greetings, 'who are you', 'how are you').
    - General concepts established long ago that do not change.
-   - Does NOT require any document retrieval.
+   - Does NOT require any document or database retrieval.
 
 2. LOCAL_CORPUS:
    - Questions specifically about Project Odyssey Mars Base engineering.
@@ -88,7 +107,14 @@ Classify the user's question into EXACTLY ONE of these three routes:
    - Mars rover subsystems, habitat environmental limits, propulsion metrics.
    - Proprietary engineering specs, internal operating procedures, PDF manuals.
 
-3. WEB_SEARCH:
+3. STRUCTURED_DB:
+   - Queries about business data, customers, user accounts, and CRM records.
+   - E-commerce orders, order statuses, line items, and purchasing history.
+   - Appointments, doctor schedules, booking times, and visit statuses.
+   - Product catalog, prices, categories, and inventory stock quantities.
+   - Tabular aggregations (counts, sums, averages, min/max, database filters).
+
+4. WEB_SEARCH:
    - Breaking news, recent real-world events, live weather, sports scores.
    - Questions mentioning 'latest', 'recent', 'today', 'current', 'newest release'.
    - External software versions, modern libraries (e.g. React 19, Python 3.13).
@@ -98,7 +124,7 @@ User Question: {question}
 
 Return ONLY valid JSON matching this structure:
 {{
-  "route": "DIRECT_LLM" | "LOCAL_CORPUS" | "WEB_SEARCH",
+  "route": "DIRECT_LLM" | "LOCAL_CORPUS" | "STRUCTURED_DB" | "WEB_SEARCH",
   "confidence": 0.95,
   "reasoning": "brief explanation",
   "needs_retrieval": true | false,
@@ -149,7 +175,36 @@ def classify_route_heuristic(question: str) -> RoutingDecision:
                 keywords=["code/math/logic"],
             )
 
-    # 3. Check for Local Corpus (Project Odyssey / Mars Mission Engineering)
+    # 3. Check for Structured Database (Customers, Orders, Products, Appointments)
+    db_patterns = [
+        r"\b(customer|customers|client|clients)\b",
+        r"\b(orders?\s+(placed|delivered|pending|status|id|total|history|list))\b",
+        r"\b(how\s+many\s+orders?)\b",
+        r"\b(pending\s+orders?|shipped\s+orders?|cancelled\s+orders?)\b",
+        r"\b(who\s+(ordered|bought|purchased))\b",
+        r"\b(appointment|appointments|doctor\s+name|doctor\s+appointment)\b",
+        r"\b(schedule\s+an?\s+appointment|booked\s+appointments?)\b",
+        r"\b(product|products)\s+(catalog|list|price|stock|category|in\s+stock)\b",
+        r"\b(cheapest|most\s+expensive)\s+product\b",
+        r"\b(total\s+(revenue|sales|orders|spent))\b",
+        r"\b(inventory|stock\s+quantity)\b",
+        r"\b(list\s+(all\s+)?(customers|orders|appointments|products))\b",
+        r"\b(database|sql\s+table|records?\s+in\s+the\s+database)\b",
+    ]
+    for pat in db_patterns:
+        if re.search(pat, q_lower):
+            return RoutingDecision(
+                route=RouteTarget.STRUCTURED_DB,
+                confidence=0.94,
+                reasoning=(
+                    "References relational database entities (customers, orders, "
+                    "products, appointments); routed to Text-to-SQL."
+                ),
+                needs_retrieval=True,
+                keywords=["database/sql"],
+            )
+
+    # 4. Check for Local Corpus (Project Odyssey / Mars Mission Engineering)
     local_keywords = [
         "eclss",
         "mars",
@@ -163,6 +218,8 @@ def classify_route_heuristic(question: str) -> RoutingDecision:
         "co2 scrubber",
         "subsystem",
         "odyssey",
+        "mdas",
+        "htcs",
         "internal doc",
         "pdf_0",
         "table_sample",
@@ -180,7 +237,7 @@ def classify_route_heuristic(question: str) -> RoutingDecision:
             keywords=matched_local,
         )
 
-    # 4. Check for Web Search (Temporal, breaking news, external current events)
+    # 5. Check for Web Search (Temporal, breaking news, external current events)
     web_keywords = [
         "latest",
         "recent",
@@ -275,6 +332,7 @@ def classify_route_llm(
         route_map = {
             "DIRECT_LLM": RouteTarget.DIRECT_LLM,
             "LOCAL_CORPUS": RouteTarget.LOCAL_CORPUS,
+            "STRUCTURED_DB": RouteTarget.STRUCTURED_DB,
             "WEB_SEARCH": RouteTarget.WEB_SEARCH,
         }
         target_route = route_map.get(route_str, RouteTarget.DIRECT_LLM)
@@ -443,13 +501,115 @@ def handle_local_corpus(
             client.close()
 
 
+def handle_structured_db(
+    question: str,
+    *,
+    db_path: Path | None = None,
+    client: httpx.Client | None = None,
+    model: str | None = None,
+    api_key: str | None = None,
+) -> tuple[str, list[str]]:
+    """Execute Text-to-SQL pipeline and return answer with table/SQL citations."""
+    from phase_3_rag.database import DEFAULT_DB_PATH
+    from phase_3_rag.text_to_sql import (
+        execute_readonly_sql,
+        generate_sql_for_question,
+        synthesize_natural_answer,
+    )
+
+    settings = get_settings()
+    active_key = api_key if api_key is not None else settings.gemini_api_key
+    target_db = db_path or DEFAULT_DB_PATH
+
+    close_client = False
+    if client is None:
+        client = httpx.Client(timeout=25.0)
+        close_client = True
+
+    try:
+        if not active_key:
+            # Offline heuristic SQL generator
+            q = question.lower()
+            if "appointment" in q:
+                raw_sql = (
+                    "SELECT appointment_id, customer_id, doctor_name, "
+                    "appointment_date, status FROM appointments LIMIT 10;"
+                )
+            elif "order" in q:
+                raw_sql = (
+                    "SELECT order_id, customer_id, order_date, status, "
+                    "total_amount FROM orders LIMIT 10;"
+                )
+            elif "product" in q or "stock" in q or "price" in q:
+                raw_sql = (
+                    "SELECT product_id, name, category, price, stock_quantity "
+                    "FROM products LIMIT 10;"
+                )
+            else:
+                raw_sql = (
+                    "SELECT customer_id, name, email, city FROM customers LIMIT 10;"
+                )
+
+            sanitized_sql, rows = execute_readonly_sql(raw_sql, db_path=target_db)
+            answer_lines = [
+                f"Executed database query for '{question}':\n"
+                f"- SQL: `{sanitized_sql}`\n"
+                f"- Records Retrieved: {len(rows)}\n"
+            ]
+            for r in rows[:5]:
+                answer_lines.append(f"  • {json.dumps(r)}")
+            if len(rows) > 5:
+                answer_lines.append(f"  ... ({len(rows) - 5} more records)")
+            answer = "\n".join(answer_lines)
+        else:
+            raw_sql = generate_sql_for_question(
+                question,
+                client=client,
+                model=model,
+            )
+            sanitized_sql, rows = execute_readonly_sql(raw_sql, db_path=target_db)
+            answer = synthesize_natural_answer(
+                question,
+                sanitized_sql,
+                rows,
+                client=client,
+                model=model,
+            )
+
+        sources: list[str] = []
+        known_tables = [
+            "customers",
+            "orders",
+            "order_items",
+            "products",
+            "appointments",
+        ]
+        matched_tables = [t for t in known_tables if t in sanitized_sql.lower()]
+        for tbl in matched_tables:
+            sources.append(f"Table: {tbl} (matched {len(rows)} rows)")
+        if not sources:
+            sources.append("Database: SQLite Business Data")
+        sources.append(f"SQL Query: {sanitized_sql}")
+
+        return answer, sources
+    except Exception as exc:
+        logger.error("Structured DB query failed: %s", exc)
+        return (
+            f"Database query encountered an issue: {exc}",
+            ["Database Error"],
+        )
+    finally:
+        if close_client:
+            client.close()
+
+
 # -----------------------------------------------------------------------------
 # Adaptive RAG Router Orchestrator
 # -----------------------------------------------------------------------------
 
 
 class AdaptiveRAGRouter:
-    """Unified router directing queries to Direct LLM, Local Corpus, or Web Search."""
+    """Unified router directing queries to Direct LLM, Local Corpus, DB, or Web."""
 
     def __init__(
         self,
@@ -459,10 +619,12 @@ class AdaptiveRAGRouter:
         model: str | None = None,
         api_key: str | None = None,
         use_mock_search: bool = False,
+        db_path: Path | None = None,
     ) -> None:
         self.client = client
         self.model = model
         self.api_key = api_key
+        self.db_path = db_path
         if web_search_rag is not None:
             self.web_search_rag = web_search_rag
         else:
@@ -494,7 +656,6 @@ class AdaptiveRAGRouter:
         retrieval_ms = 0.0
 
         if decision.route == RouteTarget.DIRECT_LLM:
-            # Direct generation without retrieval overhead
             answer = handle_direct_llm(
                 question,
                 client=self.client,
@@ -502,9 +663,13 @@ class AdaptiveRAGRouter:
                 api_key=self.api_key,
             )
             sources: list[str] = []
+            source_used = RouteTarget.DIRECT_LLM
+            source_label = "Direct Parametric LLM"
+            source_description = (
+                "Zero-latency parametric model memory; no external retrieval"
+            )
 
         elif decision.route == RouteTarget.LOCAL_CORPUS:
-            # Route to local proprietary engineering corpus
             answer, sources = handle_local_corpus(
                 question,
                 client=self.client,
@@ -512,17 +677,51 @@ class AdaptiveRAGRouter:
                 api_key=self.api_key,
             )
             retrieval_ms = (time.perf_counter() - t_start) * 1000
+            source_used = RouteTarget.LOCAL_CORPUS
+            source_label = "Local Engineering Corpus (Documents)"
+            source_description = (
+                "Project Odyssey Mars Base engineering specifications and manuals"
+            )
+
+        elif decision.route == RouteTarget.STRUCTURED_DB:
+            answer, sources = handle_structured_db(
+                question,
+                db_path=self.db_path,
+                client=self.client,
+                model=self.model,
+                api_key=self.api_key,
+            )
+            retrieval_ms = (time.perf_counter() - t_start) * 1000
+            source_used = RouteTarget.STRUCTURED_DB
+            source_label = "Structured Relational Database (SQL)"
+            source_description = (
+                "Internal SQLite database (customers, orders, products, appointments)"
+            )
 
         else:
-            # Route to live Web Search RAG pipeline
             web_resp = self.web_search_rag.query(question, num_results=num_results)
             answer = web_resp.answer
-            sources = web_resp.citations
+            sources = (
+                [
+                    f"{c.title} ({c.published_date or 'Date: Unknown'}) -> {c.url}"
+                    for c in web_resp.source_citations
+                ]
+                if web_resp.source_citations
+                else web_resp.citations
+            )
             retrieval_ms = (time.perf_counter() - t_start) * 1000
+            source_used = RouteTarget.WEB_SEARCH
+            source_label = "Live Web Search Engine"
+            source_description = (
+                "DuckDuckGo search with page extraction and publication dates"
+            )
 
         return RoutedRAGResponse(
             question=question,
             decision=decision,
+            source_used=source_used,
+            source_label=source_label,
+            source_description=source_description,
             answer=answer,
             sources=sources,
             retrieval_time_ms=round(retrieval_ms, 2),
@@ -537,7 +736,7 @@ class AdaptiveRAGRouter:
 def main() -> None:
     """CLI runner for Adaptive RAG Router."""
     parser = argparse.ArgumentParser(
-        description="Adaptive Query Router for RAG (Task 3.19)"
+        description="Adaptive Query Router for RAG (Task 3.19 & 3.21)"
     )
     parser.add_argument("--query", "-q", type=str, help="Query to route and execute.")
     parser.add_argument(
@@ -551,12 +750,13 @@ def main() -> None:
 
     if args.query:
         print("\n" + "=" * 70)
-        print("ADAPTIVE RAG ROUTER (TASK 3.19)")
+        print("ADAPTIVE RAG ROUTER (TASK 3.21)")
         print("=" * 70)
         resp = router.route_and_execute(args.query)
 
         print(f'\n[?] Question   : "{resp.question}"')
-        print(f"[>] Route Target: {resp.decision.route.value}")
+        print(f"[>] Source Used: {resp.source_used.value} ({resp.source_label})")
+        print(f"    Description: {resp.source_description}")
         print(f"    Confidence : {resp.decision.confidence:.2f}")
         print(f"    Retrieval  : {'YES' if resp.decision.needs_retrieval else 'NO'}")
         print(f"    Reasoning  : {resp.decision.reasoning}")
@@ -567,9 +767,9 @@ def main() -> None:
         print("-" * 70)
         print(resp.answer)
         print("-" * 70)
-        if resp.sources:
-            print("Sources:")
-            for s in resp.sources:
+        if resp.citations:
+            print("Citations:")
+            for s in resp.citations:
                 print(f" - {s}")
         print()
     else:

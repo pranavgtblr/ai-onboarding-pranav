@@ -20,7 +20,7 @@
   - [x] 2.5 Structured output: return validated Pydantic object with retry on failure
   - [x] 2.6 Hand-write tool-calling loop (calculator & weather, max-iteration guard)
   - [x] 2.7 Resilient error handling (429 backoff, timeouts, context limits, provider failover)
-- [ ] Phase 3 - RAG                (3.1  - 3.22)
+- [x] Phase 3 - RAG                (3.1  - 3.22)
   - [x] 3.1 Naive RAG baseline (20 documents, fixed 500-token chunks, vector search, top 5, prompt stuffing)
   - [x] 3.2 Hybrid search: BM25 keyword search + vector search fused with Reciprocal Rank Fusion (RRF)
   - [x] 3.3 Cross-encoder reranker (retrieve 50 candidates, cross-encode/rerank, keep 8)
@@ -41,6 +41,9 @@
   - [x] 3.18 Fetch and extract page content from results, handling dead links, paywalls, and junk pages without crashing
   - [x] 3.19 Add a routing decision: should this question trigger a search at all, or is it answerable from the model or the local corpus?
   - [x] 3.20 Cite sources with URLs and publication dates (JSON-LD, meta tags, time elements, and inline/structured citation models)
+  - [x] 3.21 One chatbot that routes across all four sources, answers with citations, and tells the user which source it used
+  - [x] 3.22 Run the eval suite across all four routes. Commit the report
+
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
