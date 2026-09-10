@@ -188,3 +188,85 @@ Run the test suite:
 uv run pytest tests/
 ```
 
+---
+
+## Task 4.3: Converting Phase 3 Router into Autonomous Agent Tools
+
+In **Phase 3 (Task 3.19 & 3.21)**, we built an **Adaptive RAG Router** (`router.py`) that classified each incoming query into one of four static destinations (`DIRECT_LLM`, `LOCAL_CORPUS`, `STRUCTURED_DB`, `WEB_SEARCH`).
+
+In **Task 4.3**, we convert these four retrieval mechanisms into first-class LangChain/LangGraph `@tool` functions:
+1. **`pdf_search`**: Search local Mars Odyssey engineering PDF manuals & ECLSS operating limits.
+2. **`site_search`**: Search crawled website documentation & company capabilities.
+3. **`db_query`**: Query structured relational SQL database tables (customers, orders, products, appointments).
+4. **`web_search`**: Search live internet sources with citations for real-time news and 2026 releases.
+
+### 1. Static Router vs. Autonomous Tool-Calling Agent
+
+| Dimension | Phase 3 Router (`router.py`) | Phase 4 Agent Tools (`rag_tools.py`) |
+| :--- | :--- | :--- |
+| **Decision Architecture** | Single upfront classification prompt before any retrieval occurs. | Dynamic tool-calling loop: the LLM inspects tools and decides when to call them. |
+| **Multi-Source Queries** | Cannot handle: forced to pick exactly ONE route. | Can call multiple tools across different sources in sequence or parallel. |
+| **Iterative Refinement** | Fails if the selected route yields zero results. | Can inspect tool results and call another tool or adjust arguments. |
+| **Frontend Equivalent** | A static Express/Next.js URL routing table (`/pdf`, `/db`, `/web`). | A dynamic GraphQL / tRPC executor that orchestrates multiple microservices on demand. |
+
+### 2. The Four RAG Tools
+
+- **`pdf_search(query: str)`**:
+  Scans markdown-converted PDF engineering manuals in `data/pdf_corpus/` (Mars ECLSS cabin pressure limits, propulsion specs, thermal loops). Formats results with document citations (`[pdf_02_nuclear_reactor_specs.md]`) and relevance scores.
+- **`site_search(query: str)`**:
+  Scans crawled documentation chunks (`data/scraped_docs/chunks.json`) and company capability pages. Returns matched page titles, URLs, and section heading paths.
+- **`db_query(query: str)`**:
+  Executes read-only SQL queries or natural language lookups against `ecommerce.db` (customers, orders, products, appointments).
+  - *Security guard*: Strictly rejects destructive SQL (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ALTER`, `TRUNCATE`).
+  - *Returns*: Executed SQL statement, record count, and structured row data.
+- **`web_search(query: str)`**:
+  Connects to DuckDuckGo search (with automatic fallback to curated sources) for live 2026 events, breaking news, and external facts.
+
+### 3. Running the Autonomous Agent
+
+#### Querying Each Knowledge Domain:
+```bash
+# 1. Mars Engineering PDF specs
+uv run python src/phase_4_agents/agent_cli.py --query "What are the ECLSS pressure limits in our Mars PDF manuals?"
+
+# 2. Company website capabilities
+uv run python src/phase_4_agents/agent_cli.py --query "What digital innovation services does Toobler offer on the website?"
+
+# 3. Relational SQL database
+uv run python src/phase_4_agents/agent_cli.py --query "Find customers living in San Francisco"
+
+# 4. Live web search (2026 news)
+uv run python src/phase_4_agents/agent_cli.py --query "What are the latest 2026 Artemis updates?"
+
+# 5. Direct response (no tools needed for chit-chat)
+uv run python src/phase_4_agents/agent_cli.py --query "Hello! How are you today?"
+```
+
+#### Equipping Specific Toolsets:
+```bash
+# Equip with all 6 tools (4 RAG tools + calculator + weather)
+uv run python src/phase_4_agents/agent_cli.py --tools all
+
+# Equip only with RAG tools
+uv run python src/phase_4_agents/agent_cli.py --tools rag
+
+# Equip only with basic math & weather tools
+uv run python src/phase_4_agents/agent_cli.py --tools basic
+```
+
+### 4. Automated Tests
+Task 4.3 includes comprehensive unit and integration tests in `tests/test_rag_tools.py`:
+- `test_pdf_search_returns_citations_and_excerpts`: Verifies PDF search output formatting and document brackets.
+- `test_site_search_returns_chunks`: Verifies URL, title, and section matching.
+- `test_db_query_natural_language` & `test_db_query_raw_sql`: Verifies natural language and SQL execution.
+- `test_db_query_blocks_destructive_sql`: Verifies rejection of mutations (`DROP`, `DELETE`).
+- `test_web_search_returns_citations`: Verifies live/fallback web search formatting.
+- `test_agent_chooses_*`: Verifies the LangGraph agent autonomously selects the correct tool for each domain.
+- `test_agent_answers_greetings_directly_without_tools`: Verifies zero tool calls on greetings.
+
+Run all tests:
+```bash
+uv run pytest tests/test_rag_tools.py
+```
+
+

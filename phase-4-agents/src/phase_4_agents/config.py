@@ -63,10 +63,126 @@ class MockToolChatModel(BaseChatModel):
         last_message = messages[-1]
         content_str = str(last_message.content).lower()
 
-        # If user asks about weather, simulate calling get_weather
-        if any(w in content_str for w in ("weather", "temperature")) and not any(
-            msg.type == "tool" for msg in messages
-        ):
+        # If a tool has already been executed, generate the synthesized final answer
+        if any(msg.type == "tool" for msg in messages):
+            tool_outputs = [str(msg.content) for msg in messages if msg.type == "tool"]
+            combined = " ".join(tool_outputs)
+            ai_msg = AIMessage(
+                content=(
+                    "Mock Model synthesized answer based on retrieved tool "
+                    f"results: {combined[:150]}..."
+                )
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 1. Check for Greetings / Chit-Chat (direct parametric response, no tools)
+        greetings = ("hello", "hi", "hey", "good morning", "how are you", "who are you")
+        if any(w in content_str for w in greetings):
+            clean_input = str(last_message.content)[:40]
+            ai_msg = AIMessage(
+                content=f"Hello! I am ready to help. (Direct: {clean_input})"
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 2. Check for PDF / Engineering Specs Search
+        pdf_keywords = (
+            "pdf",
+            "eclss",
+            "mars",
+            "pressure",
+            "propulsion",
+            "manual",
+            "spec",
+        )
+        if any(w in content_str for w in pdf_keywords):
+            ai_msg = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "pdf_search",
+                        "args": {"query": str(last_message.content)},
+                        "id": "mock_call_pdf",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 3. Check for Website Documentation Search
+        site_keywords = (
+            "site",
+            "website",
+            "toobler",
+            "capability",
+            "capabilities",
+            "company",
+            "portal",
+        )
+        if any(w in content_str for w in site_keywords):
+            ai_msg = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "site_search",
+                        "args": {"query": str(last_message.content)},
+                        "id": "mock_call_site",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 4. Check for Database Queries (Customers, Orders, Appointments)
+        db_keywords = (
+            "customer",
+            "order",
+            "appointment",
+            "doctor",
+            "sql",
+            "database",
+            "stock",
+            "table",
+        )
+        if any(w in content_str for w in db_keywords):
+            ai_msg = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "db_query",
+                        "args": {"query": str(last_message.content)},
+                        "id": "mock_call_db",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 5. Check for Web Search (Live info, latest, breaking news, 2026)
+        web_keywords = (
+            "news",
+            "latest",
+            "recent",
+            "2026",
+            "web",
+            "internet",
+            "artemis",
+        )
+        if any(w in content_str for w in web_keywords):
+            ai_msg = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "web_search",
+                        "args": {"query": str(last_message.content)},
+                        "id": "mock_call_web",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 5. Check for Weather
+        if any(w in content_str for w in ("weather", "temperature")):
             ai_msg = AIMessage(
                 content="",
                 tool_calls=[
@@ -80,25 +196,25 @@ class MockToolChatModel(BaseChatModel):
             )
             return ChatResult(generations=[ChatGeneration(message=ai_msg)])
 
-        # If user asks math or after weather, simulate calling calculator
-        if any(w in content_str for w in ("+", "*", "multiply", "add", "calculate")):
-            if not any(msg.type == "tool" for msg in messages):
-                ai_msg = AIMessage(
-                    content="",
-                    tool_calls=[
-                        {
-                            "name": "calculator",
-                            "args": {"operation": "multiply", "a": 25, "b": 4},
-                            "id": "mock_call_calc",
-                            "type": "tool_call",
-                        }
-                    ],
-                )
-                return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+        # 6. Check for Math / Calculator
+        math_keywords = ("+", "*", "multiply", "add", "calculate", "math", "divide")
+        if any(w in content_str for w in math_keywords):
+            ai_msg = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "calculator",
+                        "args": {"operation": "multiply", "a": 25, "b": 4},
+                        "id": "mock_call_calc",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
 
-        # Final answer
+        # 7. Conversational / Direct Answer (no tools required)
         ai_msg = AIMessage(
-            content=f"Mock Model response processed for query: {last_message.content}"
+            content=f"Direct parametric response for: {last_message.content}"
         )
         return ChatResult(generations=[ChatGeneration(message=ai_msg)])
 

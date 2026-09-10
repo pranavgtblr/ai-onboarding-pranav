@@ -16,7 +16,23 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 from phase_4_agents.config import get_chat_model, get_settings
-from phase_4_agents.tools import ALL_TOOLS
+from phase_4_agents.rag_tools import get_all_tools, get_rag_tools
+from phase_4_agents.tools import ALL_TOOLS as BASIC_TOOLS
+
+DEFAULT_SYSTEM_PROMPT = (
+    "You are an intelligent multi-source reasoning assistant with access to "
+    "specialized tools:\n"
+    "1. pdf_search: Search Project Odyssey Mars engineering manuals & ECLSS specs.\n"
+    "2. site_search: Search crawled website documentation and company capabilities.\n"
+    "3. db_query: Query structured relational database tables (customers, orders).\n"
+    "4. web_search: Search live internet sources for real-time news & releases.\n"
+    "5. calculator: Perform arithmetic calculations.\n"
+    "6. get_weather: Look up live city weather conditions.\n\n"
+    "Analyze the user query carefully and autonomously decide which tool(s) to call, "
+    "or call multiple tools if the query spans multiple domains. If the question can "
+    "be answered from general knowledge (greetings, coding logic, basic chit-chat), "
+    "answer directly without invoking tools."
+)
 
 
 @dataclass
@@ -45,6 +61,8 @@ class AgentExecutionResult:
 
 def build_tool_agent(
     *,
+    tools: list[Any] | None = None,
+    system_prompt: str | None = None,
     provider: str | None = None,
     model_name: str | None = None,
     api_key: str | None = None,
@@ -58,15 +76,14 @@ def build_tool_agent(
         temperature=temperature,
     )
 
+    active_tools = tools if tools is not None else get_all_tools()
+    active_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+
     # create_agent creates a CompiledStateGraph with a tool calling loop
     return create_agent(
         model=llm,
-        tools=ALL_TOOLS,
-        system_prompt=(
-            "You are a helpful assistant with access to a calculator and weather tool. "
-            "Use the calculator for any arithmetic calculations. "
-            "Use the weather tool to look up city weather."
-        ),
+        tools=active_tools,
+        system_prompt=active_prompt,
     )
 
 
@@ -85,7 +102,13 @@ def extract_text_from_content(content: Any) -> str:
     return str(content)
 
 
-def run_agent_query(agent: Any, query: str) -> AgentExecutionResult:
+def run_agent_query(
+    agent: Any,
+    query: str,
+    *,
+    provider: str | None = None,
+    model_name: str | None = None,
+) -> AgentExecutionResult:
     """Run a query through the agent, capturing the step-by-step trace."""
     response = agent.invoke({"messages": [{"role": "user", "content": query}]})
     messages: list[BaseMessage] = response.get("messages", [])
@@ -158,13 +181,15 @@ def run_agent_query(agent: Any, query: str) -> AgentExecutionResult:
             step_counter += 1
 
     settings = get_settings()
+    active_provider = provider or settings.model_provider
+    active_model = model_name or settings.model_name
     return AgentExecutionResult(
         query=query,
         steps=step_traces,
         final_answer=final_answer,
         total_steps=len(step_traces),
-        provider=settings.model_provider,
-        model=settings.model_name,
+        provider=active_provider,
+        model=active_model,
     )
 
 
@@ -204,8 +229,13 @@ def run_interactive(agent: Any) -> None:
     print(" 🪐 Tool-Calling Agent CLI (LangChain create_agent + LangGraph runtime)")
     print("=" * 78)
     print("Available Tools:")
-    print(" • calculator(operation: add|subtract|multiply|divide, a, b)")
-    print(" • get_weather(city: Tokyo|London|New York|Paris|San Francisco)")
+    print(" • pdf_search(query): Internal Mars Odyssey PDF specs & ECLSS limits")
+    print(" • site_search(query): Crawled website documentation & capabilities")
+    print(" • db_query(query): Structured SQL database (customers, orders, products)")
+    print(" • web_search(query): Live internet search (breaking news, 2026 updates)")
+    print(" • calculator(operation, a, b): Arithmetic calculations")
+    print(" • get_weather(city): Live city weather conditions")
+    print("-" * 78)
     print("Type 'exit' or 'quit' to stop.\n")
 
     while True:
@@ -229,13 +259,21 @@ def run_interactive(agent: Any) -> None:
 def main() -> None:
     """CLI entrypoint for tool-calling agent."""
     parser = argparse.ArgumentParser(
-        description="Provider-Agnostic Tool-Calling Agent CLI (Task 4.2)"
+        description="Autonomous Multi-Tool RAG Agent CLI (Task 4.3)"
     )
     parser.add_argument(
         "--query", "-q", type=str, help="Single question to answer with trace."
     )
     parser.add_argument(
         "--interactive", "-i", action="store_true", help="Launch interactive CLI loop."
+    )
+    parser.add_argument(
+        "--tools",
+        "-t",
+        type=str,
+        choices=["all", "rag", "basic"],
+        default="all",
+        help="Toolset to equip the agent with (default: all).",
     )
     parser.add_argument(
         "--provider",
@@ -249,10 +287,26 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    agent = build_tool_agent(provider=args.provider, model_name=args.model)
+    toolset_map = {
+        "all": get_all_tools(),
+        "rag": get_rag_tools(),
+        "basic": BASIC_TOOLS,
+    }
+    selected_tools = toolset_map[args.tools]
+
+    agent = build_tool_agent(
+        tools=selected_tools,
+        provider=args.provider,
+        model_name=args.model,
+    )
 
     if args.query:
-        result = run_agent_query(agent, args.query)
+        result = run_agent_query(
+            agent,
+            args.query,
+            provider=args.provider,
+            model_name=args.model,
+        )
         print_trace_report(result)
     elif args.interactive or len(sys.argv) == 1:
         run_interactive(agent)
