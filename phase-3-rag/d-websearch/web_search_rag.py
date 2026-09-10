@@ -50,7 +50,10 @@ def run_resilience_demo() -> None:
     print("\n[Case 2: Paywall Barrier (Subscription Gated)]")
     paywall_html = """
     <html>
-      <head><meta property="article:published_time" content="2024-09-01T08:00:00Z" /></head>
+      <head>
+        <meta property="article:published_time"
+              content="2024-09-01T08:00:00Z" />
+      </head>
       <body>
         <h1>Breaking Research: Quantum Computing Breakthrough</h1>
         <p>Researchers today announced a novel superconducting qubit topology...</p>
