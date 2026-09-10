@@ -7,7 +7,10 @@ Provides:
    and MockSearchProvider (deterministic offline/test provider).
 3. Resilient page content extraction: fetches full page text while handling
    dead links, paywalls, and junk pages without crashing.
-4. Grounded answer synthesis: produces answers with explicit source URL citations.
+4. Publication date extraction: extracts dates from Schema.org, meta tags, and
+   time elements.
+5. Grounded answer synthesis: produces answers citing source URLs and
+   publication dates.
 """
 
 from __future__ import annotations
@@ -46,6 +49,17 @@ class FetchStatus(str, Enum):
     SNIPPET_ONLY = "SNIPPET_ONLY"
 
 
+class SourceCitation(BaseModel):
+    """Citation metadata pairing source URL with publication date and title."""
+
+    title: str = Field(..., description="Title of the cited source.")
+    url: str = Field(..., description="Canonical URL of the source.")
+    published_date: str | None = Field(
+        default=None, description="Extracted publication or modified date."
+    )
+    domain: str = Field(default="", description="Hostname/domain of the source.")
+
+
 class SearchResult(BaseModel):
     """A single retrieved web search result."""
 
@@ -53,6 +67,10 @@ class SearchResult(BaseModel):
     url: str = Field(..., description="Full canonical destination URL.")
     snippet: str = Field(..., description="Search engine snippet/excerpt.")
     rank: int = Field(..., description="1-based rank in search results.")
+    published_date: str | None = Field(
+        default=None,
+        description="Extracted publication or last modified date.",
+    )
     page_content: str | None = Field(
         default=None,
         description="Full extracted readable body text if fetched.",
@@ -99,6 +117,10 @@ class WebSearchRAGResponse(BaseModel):
     citations: list[str] = Field(
         default_factory=list, description="Unique source URLs referenced."
     )
+    source_citations: list[SourceCitation] = Field(
+        default_factory=list,
+        description="Structured citations with URLs and publication dates.",
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -135,7 +157,6 @@ def heuristic_rewrite_query(question: str) -> QueryRewriteResult:
     Used when no LLM API key is present or when running offline.
     """
     cleaned = question.strip()
-    # Remove leading conversational filler
     patterns = [
         r"^(?:could|can)\s+you\s+(?:please\s+)?(?:tell|explain|show)\s+me\s+",
         r"^(?:i\s+(?:want|need|would\s+like)\s+to\s+know\s+)",
@@ -146,16 +167,12 @@ def heuristic_rewrite_query(question: str) -> QueryRewriteResult:
     for pat in patterns:
         transformed = re.sub(pat, "", transformed, flags=re.IGNORECASE)
 
-    # Strip trailing punctuation
     transformed = transformed.rstrip("?.! ")
 
-    # Strip common conversational qualifiers
     for fluff in [" recently", " right now", " please", " exactly", " basically"]:
         transformed = re.sub(re.escape(fluff), "", transformed, flags=re.IGNORECASE)
 
     search_query = transformed.strip() or cleaned
-
-    # Generate an alternative query
     alt_query = f"{search_query} documentation overview"
 
     return QueryRewriteResult(
@@ -235,6 +252,107 @@ def rewrite_search_query(
     finally:
         if close_client:
             client.close()
+
+
+# -----------------------------------------------------------------------------
+# Publication Date Extraction (Task 3.20)
+# -----------------------------------------------------------------------------
+
+
+def extract_publication_date(html: str = "", snippet: str = "") -> str | None:
+    """Extract publication or last-modified date from HTML or search snippet.
+
+    Checks:
+    1. Schema.org JSON-LD scripts (datePublished, dateModified).
+    2. HTML meta tags (article:published_time, og:published_time, pubdate, date).
+    3. <time datetime="..."> elements.
+    4. Text date patterns in snippet (e.g., 'Oct 7, 2024' or '2024-10-07').
+    """
+    if html:
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+
+            # 1. Check Schema.org JSON-LD
+            for script in soup.find_all("script", type="application/ld+json"):
+                if script.string:
+                    try:
+                        data = json.loads(script.string)
+                        items = data if isinstance(data, list) else [data]
+                        for item in items:
+                            if isinstance(item, dict):
+                                date_val = (
+                                    item.get("datePublished")
+                                    or item.get("dateModified")
+                                    or item.get("uploadDate")
+                                )
+                                if date_val and isinstance(date_val, str):
+                                    return date_val.split("T")[0]
+                    except Exception:
+                        pass
+
+            # 2. Check Meta tags
+            # 2. Check HTML meta tags
+            target_attrs = {
+                ("property", "article:published_time"),
+                ("property", "og:published_time"),
+                ("name", "pubdate"),
+                ("name", "publishdate"),
+                ("name", "date"),
+                ("name", "dc.date"),
+                ("name", "dc.date.issued"),
+                ("name", "article.published"),
+                ("itemprop", "datePublished"),
+            }
+            for meta_tag in soup.find_all("meta"):
+                for key, expected_val in target_attrs:
+                    raw_val = meta_tag.get(key)
+                    if (
+                        isinstance(raw_val, str)
+                        and raw_val.strip().lower() == expected_val.lower()
+                    ):
+                        content_val = meta_tag.get("content")
+                        if isinstance(content_val, str) and content_val.strip():
+                            return content_val.strip().split("T")[0]
+
+            # 3. Check <time> tag
+            time_tag = soup.find("time")
+            if time_tag is not None:
+                dt_val = time_tag.get("datetime")
+                if isinstance(dt_val, str) and dt_val.strip():
+                    return dt_val.strip().split("T")[0]
+                text_val = time_tag.get_text(strip=True)
+                if text_val and len(text_val) <= 30:
+                    return text_val
+
+        except Exception:
+            pass
+
+    # 4. Fallback to snippet timestamp pattern
+    if snippet:
+        # Match 'Oct 7, 2024' or 'October 7, 2024'
+        match = re.search(
+            r"\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4})\b",
+            snippet,
+            re.IGNORECASE,
+        )
+        if match:
+            return match.group(1)
+
+        # Match '2024-10-07'
+        match_iso = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", snippet)
+        if match_iso:
+            return match_iso.group(1)
+
+        # Match relative '2 days ago', '3 weeks ago'
+        match_rel = re.search(
+            r"\b(\d{1,2}\s+(?:hours?|days?|weeks?|months?)\s+ago)\b",
+            snippet,
+            re.IGNORECASE,
+        )
+        if match_rel:
+            return match_rel.group(1)
+
+    return None
 
 
 # -----------------------------------------------------------------------------
@@ -351,12 +469,15 @@ class DuckDuckGoSearchProvider(WebSearchProvider):
             if "Viewing ads is privacy protected" in title_text:
                 continue
 
+            pub_date = extract_publication_date("", snippet=snippet_text)
+
             results.append(
                 SearchResult(
                     title=title_text,
                     url=clean_link,
                     snippet=snippet_text,
                     rank=rank,
+                    published_date=pub_date,
                 )
             )
             rank += 1
@@ -397,6 +518,7 @@ class MockSearchProvider(WebSearchProvider):
                     f"regarding {query}. Includes architecture, specs, and usage."
                 ),
                 rank=1,
+                published_date="2024-10-07",
             ),
             SearchResult(
                 title=f"Latest Updates & Community News: {query.title()}",
@@ -406,24 +528,18 @@ class MockSearchProvider(WebSearchProvider):
                     f"analysis discussing {query}."
                 ),
                 rank=2,
+                published_date="2026-01-15",
             ),
         ][:num_results]
 
 
 # -----------------------------------------------------------------------------
-# Resilient Page Content Extraction (Task 3.18)
+# Resilient Page Content Extraction (Task 3.18 & 3.20)
 # -----------------------------------------------------------------------------
 
 
 class PageContentExtractor:
-    """Resilient fetcher and text extractor for search results.
-
-    Handles:
-    - Dead links (HTTP 404/410/500/502/503, DNS failures, connection drops).
-    - Paywalls (HTTP 401/403, and in-body subscription / paywall banners).
-    - Junk pages (Cloudflare/bot challenges, cookie walls, micro-content).
-    - Oversized binaries and hanging connections.
-    """
+    """Resilient fetcher and text extractor for search results."""
 
     DEFAULT_USER_AGENT = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -473,8 +589,8 @@ class PageContentExtractor:
 
     def extract_html_text(
         self, html: str, url: str = ""
-    ) -> tuple[str | None, FetchStatus, str | None]:
-        """Extract clean body text from HTML, detecting paywalls and bot walls."""
+    ) -> tuple[str | None, FetchStatus, str | None, str | None]:
+        """Extract clean body text and publication date from HTML."""
         lower_html = html.lower()
 
         # 1. Check for bot / CAPTCHA challenge pages
@@ -484,6 +600,7 @@ class PageContentExtractor:
                     None,
                     FetchStatus.JUNK_PAGE,
                     f"Bot challenge or CAPTCHA detected ('{indicator}').",
+                    None,
                 )
 
         # 2. Check for paywall indicators
@@ -493,12 +610,16 @@ class PageContentExtractor:
                     None,
                     FetchStatus.PAYWALL,
                     f"Paywall or subscription barrier detected ('{indicator}').",
+                    None,
                 )
 
         try:
             soup = BeautifulSoup(html, "html.parser")
         except Exception as exc:
-            return None, FetchStatus.JUNK_PAGE, f"HTML parse error: {exc}"
+            return None, FetchStatus.JUNK_PAGE, f"HTML parse error: {exc}", None
+
+        # Extract publication date from metadata
+        pub_date = extract_publication_date(html)
 
         # 3. Strip boilerplate tags
         for tag in soup(
@@ -517,7 +638,6 @@ class PageContentExtractor:
         ):
             tag.decompose()
 
-        # Remove elements with typical boilerplate class names
         boilerplate_pattern = re.compile(
             r"(cookie|banner|modal|popup|sidebar|advertisement|newsletter)",
             re.IGNORECASE,
@@ -525,7 +645,6 @@ class PageContentExtractor:
         for tag in soup.find_all(class_=boilerplate_pattern):
             tag.decompose()
 
-        # Prioritize main article container if available
         container = (
             soup.find("article")
             or soup.find("main")
@@ -535,7 +654,6 @@ class PageContentExtractor:
         )
 
         text = container.get_text(separator=" ", strip=True)
-        # Collapse whitespace
         clean_text = re.sub(r"\s+", " ", text).strip()
 
         # 4. Reject junk or nearly empty pages (< 120 characters)
@@ -547,16 +665,19 @@ class PageContentExtractor:
                     f"Extracted content too short ({len(clean_text)} chars); "
                     "page likely empty or JS-only."
                 ),
+                pub_date,
             )
 
         # 5. Truncate to maximum character budget at word boundary
         if len(clean_text) > self.max_chars:
             clean_text = clean_text[: self.max_chars].rsplit(" ", 1)[0] + "..."
 
-        return clean_text, FetchStatus.SUCCESS, None
+        return clean_text, FetchStatus.SUCCESS, None, pub_date
 
-    def fetch_and_extract(self, url: str) -> tuple[str | None, FetchStatus, str | None]:
-        """Fetch URL with timeout/size guards and extract readable body text."""
+    def fetch_and_extract(
+        self, url: str, snippet: str = ""
+    ) -> tuple[str | None, FetchStatus, str | None, str | None]:
+        """Fetch URL with timeout/size guards and extract text and publication date."""
         close_client = False
         client = self._external_client
         if client is None:
@@ -571,29 +692,30 @@ class PageContentExtractor:
             with client.stream("GET", url) as resp:
                 status = resp.status_code
 
-                # Status code classification
                 if status in (401, 403):
                     return (
                         None,
                         FetchStatus.PAYWALL,
                         f"HTTP {status} Forbidden/Unauthorized (Access Gated)",
+                        None,
                     )
                 if status in (404, 410):
-                    return None, FetchStatus.DEAD_LINK, f"HTTP {status} Not Found"
+                    return None, FetchStatus.DEAD_LINK, f"HTTP {status} Not Found", None
                 if status >= 500:
                     return (
                         None,
                         FetchStatus.DEAD_LINK,
                         f"HTTP {status} Server Error",
+                        None,
                     )
                 if status >= 400:
                     return (
                         None,
                         FetchStatus.FETCH_ERROR,
                         f"HTTP {status} Client Error",
+                        None,
                     )
 
-                # Content-Type check (ignore binaries/images/PDFs)
                 content_type = resp.headers.get("Content-Type", "").lower()
                 allowed_types = ("text/html", "text/plain", "application/xhtml")
                 if not any(t in content_type for t in allowed_types):
@@ -604,26 +726,38 @@ class PageContentExtractor:
                             f"Unsupported Content-Type: '{content_type}' "
                             "(non-text/binary payload)"
                         ),
+                        None,
                     )
 
-                # Read body up to max_bytes
                 content_bytes = bytearray()
                 for chunk in resp.iter_bytes(chunk_size=8192):
                     content_bytes.extend(chunk)
                     if len(content_bytes) > self.max_bytes:
                         break
 
-            # Decode text safely
             encoding = resp.encoding or "utf-8"
             html_text = content_bytes.decode(encoding, errors="replace")
-            return self.extract_html_text(html_text, url=url)
+            text, st, err, pub_date = self.extract_html_text(html_text, url=url)
+            if not pub_date and snippet:
+                pub_date = extract_publication_date("", snippet=snippet)
+            return text, st, err, pub_date
 
         except (httpx.TimeoutException, TimeoutError):
-            return None, FetchStatus.TIMEOUT, f"Timed out after {self.timeout}s"
+            return (
+                None,
+                FetchStatus.TIMEOUT,
+                f"Timed out after {self.timeout}s",
+                None,
+            )
         except (httpx.ConnectError, httpx.NetworkError) as exc:
-            return None, FetchStatus.DEAD_LINK, f"Connection/DNS failure: {exc}"
+            return (
+                None,
+                FetchStatus.DEAD_LINK,
+                f"Connection/DNS failure: {exc}",
+                None,
+            )
         except Exception as exc:
-            return None, FetchStatus.FETCH_ERROR, f"Fetch error: {exc}"
+            return None, FetchStatus.FETCH_ERROR, f"Fetch error: {exc}", None
         finally:
             if close_client:
                 client.close()
@@ -634,25 +768,30 @@ class PageContentExtractor:
         *,
         fetch_pages: bool = True,
     ) -> list[SearchResult]:
-        """Enrich search results with full page content or fallback status."""
-        if not fetch_pages:
-            return results
-
+        """Enrich search results with full page content and publication dates."""
         for res in results:
-            content, status, err = self.fetch_and_extract(res.url)
-            res.page_content = content
-            res.fetch_status = status
-            res.fetch_error = err
+            if fetch_pages:
+                content, status, err, pub_date = self.fetch_and_extract(
+                    res.url, snippet=res.snippet
+                )
+                res.page_content = content
+                res.fetch_status = status
+                res.fetch_error = err
+                if pub_date:
+                    res.published_date = pub_date
+            # Fallback to snippet timestamp if still not set
+            if not res.published_date:
+                res.published_date = extract_publication_date("", snippet=res.snippet)
         return results
 
 
 # -----------------------------------------------------------------------------
-# Answer Synthesis with Citations
+# Answer Synthesis with URL and Date Citations (Task 3.20)
 # -----------------------------------------------------------------------------
 
 SYNTHESIS_PROMPT_TEMPLATE = """You are an accurate web search assistant.
-Answer the user's question using ONLY the retrieved web search results and
-extracted page contents below.
+Answer the user's question using ONLY the retrieved web search results,
+extracted page contents, and publication dates below.
 
 Retrieved Web Search Results:
 {context}
@@ -661,10 +800,11 @@ User Question: {question}
 
 Instructions:
 1. Answer the question thoroughly, factually, and concisely using the provided
-   page contents and snippets.
+   page contents, snippets, and publication dates.
 2. Every major claim or fact MUST cite its source using inline Markdown links
-   in the format: [Source Name](URL) or [Number](URL).
-3. Do NOT make up information or URLs that are not in the retrieved context.
+   in the format: [Source Name (Publication Date)](URL) or [Source Name](URL).
+   Always include the publication date when available.
+3. Do NOT make up information, URLs, or publication dates not present in the context.
 4. If the retrieved sources do not contain enough information to fully answer,
    clearly state what is known and what cannot be answered from the sources.
 """
@@ -677,33 +817,41 @@ def synthesize_web_answer(
     client: httpx.Client | None = None,
     model: str | None = None,
     api_key: str | None = None,
-) -> tuple[str, list[str]]:
-    """Synthesize an answer grounded in web search snippets with URL citations.
+) -> tuple[str, list[str], list[SourceCitation]]:
+    """Synthesize an answer grounded in web search snippets with URL and date citations.
 
     Returns:
-        (answer_text, list_of_cited_urls)
+        (answer_text, list_of_cited_urls, list_of_source_citations)
     """
     if not search_results:
         return (
             "I could not find any relevant web search results to answer "
             f"your question: '{question}'.",
             [],
+            [],
         )
 
-    # Format context blocks
+    # Format context blocks with publication dates
     context_lines: list[str] = []
     available_urls: list[str] = []
+    url_to_source: dict[str, SearchResult] = {r.url: r for r in search_results}
+
     for r in search_results:
         available_urls.append(r.url)
         content_body = r.effective_content
+        date_str = r.published_date or "Date Unknown"
         if r.fetch_status == FetchStatus.SUCCESS and r.page_content:
-            status_tag = "Full Page Content"
+            status_tag = f"Full Page Content | Published: {date_str}"
         else:
-            status_tag = f"Snippet Fallback ({r.fetch_status.value})"
+            status_tag = (
+                f"Snippet Fallback ({r.fetch_status.value}) | Published: {date_str}"
+            )
 
         context_lines.append(
-            f"[{r.rank}] Title: {r.title} [{status_tag}]\n"
+            f"[{r.rank}] Title: {r.title}\n"
             f"    URL: {r.url}\n"
+            f"    Publication Date: {date_str}\n"
+            f"    Status: {status_tag}\n"
             f"    Content: {content_body}"
         )
     context_str = "\n\n".join(context_lines)
@@ -711,16 +859,31 @@ def synthesize_web_answer(
     settings = get_settings()
     active_key = api_key if api_key is not None else settings.gemini_api_key
     if not active_key:
-        # Offline summary fallback
         summary_lines = [f"Based on retrieved web results for '{question}':\n"]
         for r in search_results:
             preview = r.effective_content[:250]
             if len(r.effective_content) > 250:
                 preview += "..."
-            summary_lines.append(
-                f"- **[{r.title}]({r.url})** [{r.fetch_status.value}]: {preview}"
+            date_info = (
+                f" (Published: {r.published_date})"
+                if r.published_date
+                else " (Date: Unknown)"
             )
-        return "\n".join(summary_lines), available_urls
+            summary_lines.append(
+                f"- **[{r.title}]({r.url})**{date_info} [{r.fetch_status.value}]: "
+                f"{preview}"
+            )
+
+        source_citations = [
+            SourceCitation(
+                title=r.title,
+                url=r.url,
+                published_date=r.published_date,
+                domain=urllib.parse.urlparse(r.url).netloc,
+            )
+            for r in search_results
+        ]
+        return "\n".join(summary_lines), available_urls, source_citations
 
     active_model = model or settings.gemini_model
     url = (
@@ -751,7 +914,14 @@ def synthesize_web_answer(
                 f"'{question}'. Top source: [{search_results[0].title}]"
                 f"({search_results[0].url})."
             )
-            return fallback_text, [search_results[0].url]
+            top_r = search_results[0]
+            top_cit = SourceCitation(
+                title=top_r.title,
+                url=top_r.url,
+                published_date=top_r.published_date,
+                domain=urllib.parse.urlparse(top_r.url).netloc,
+            )
+            return fallback_text, [top_r.url], [top_cit]
 
         data = resp.json()
         answer = data["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -762,17 +932,40 @@ def synthesize_web_answer(
             if match in available_urls and match not in cited_urls:
                 cited_urls.append(match)
 
-        # If no explicit links were parsed, include all retrieved URLs
         if not cited_urls:
             cited_urls = available_urls
 
-        return answer, cited_urls
+        # Build structured citations with URLs and publication dates
+        source_citations: list[SourceCitation] = []
+        for u in cited_urls:
+            res_item = url_to_source.get(u)
+            title = res_item.title if res_item else u
+            pub_date = res_item.published_date if res_item else None
+            domain = urllib.parse.urlparse(u).netloc
+            source_citations.append(
+                SourceCitation(
+                    title=title,
+                    url=u,
+                    published_date=pub_date,
+                    domain=domain,
+                )
+            )
+
+        return answer, cited_urls, source_citations
     except Exception as exc:
         logger.error("Failed to synthesize answer via LLM: %s", exc)
+        top_r = search_results[0]
+        top_cit = SourceCitation(
+            title=top_r.title,
+            url=top_r.url,
+            published_date=top_r.published_date,
+            domain=urllib.parse.urlparse(top_r.url).netloc,
+        )
         return (
             f"Error generating response: {exc}. Top result: "
-            f"[{search_results[0].title}]({search_results[0].url})",
-            [search_results[0].url],
+            f"[{top_r.title}]({top_r.url})",
+            [top_r.url],
+            [top_cit],
         )
     finally:
         if close_client:
@@ -836,12 +1029,12 @@ class WebSearchRAG:
             logger.info("Primary search yielded 0 results; trying alt: %s", alt_q)
             results = self.search_provider.search(alt_q, num_results=num_results)
 
-        # 2.5. Fetch and extract page body content (Task 3.18)
+        # 2.5. Fetch and extract page body content and dates (Task 3.18 & 3.20)
         if should_fetch and results:
             results = self.content_extractor.enrich_results(results, fetch_pages=True)
 
         # 3. Synthesize cited response
-        answer, citations = synthesize_web_answer(
+        answer, citations, source_citations = synthesize_web_answer(
             question,
             results,
             client=self.client,
@@ -855,6 +1048,7 @@ class WebSearchRAG:
             search_results=results,
             answer=answer,
             citations=citations,
+            source_citations=source_citations,
         )
 
 
@@ -866,7 +1060,7 @@ class WebSearchRAG:
 def main() -> None:
     """CLI runner for Web Search RAG."""
     parser = argparse.ArgumentParser(
-        description="Web Search RAG with Page Content Extraction (Task 3.18)"
+        description="Web Search RAG with URL & Date Citations (Task 3.20)"
     )
     parser.add_argument(
         "--query",
@@ -901,7 +1095,7 @@ def main() -> None:
 
     if args.query:
         print("\n" + "=" * 60)
-        print("WEB SEARCH RAG PIPELINE (TASK 3.18)")
+        print("WEB SEARCH RAG PIPELINE (TASK 3.20)")
         print("=" * 60)
         response = rag.query(args.query, num_results=args.num_results)
 
@@ -911,26 +1105,23 @@ def main() -> None:
         if response.rewritten_query.alternative_queries:
             print(f"    Alternatives: {response.rewritten_query.alternative_queries}")
         print(f"    Intent: {response.rewritten_query.intent}")
-        print(f"    Explanation: {response.rewritten_query.explanation}")
 
         print(f"\n[3] Retrieved Web Results ({len(response.search_results)} found):")
         for r in response.search_results:
             status_lbl = f"[{r.fetch_status.value}]"
-            content_len = len(r.page_content) if r.page_content else len(r.snippet)
-            print(f"    [{r.rank}] {status_lbl} {r.title} ({content_len} chars)")
+            date_lbl = f"[Date: {r.published_date or 'Unknown'}]"
+            print(f"    [{r.rank}] {status_lbl} {date_lbl} {r.title}")
             print(f"        URL: {r.url}")
-            if r.fetch_error:
-                print(f"        Fetch Note: {r.fetch_error}")
-            preview = r.effective_content[:120].replace("\n", " ")
-            print(f"        Preview: {preview}...")
 
-        print("\n[4] Synthesized Answer with Citations:")
+        print("\n[4] Synthesized Answer:")
         print("-" * 60)
         print(response.answer)
         print("-" * 60)
-        print("Cited Sources:")
-        for url in response.citations:
-            print(f" - {url}")
+        print("Cited Sources (URLs and Dates):")
+        for cit in response.source_citations:
+            date_info = f" (Date: {cit.published_date})" if cit.published_date else ""
+            print(f" - {cit.title}{date_info}")
+            print(f"   URL: {cit.url}")
         print()
     else:
         print("Interactive Web Search RAG (Type 'exit' to quit)\n")
@@ -944,8 +1135,14 @@ def main() -> None:
 
             resp = rag.query(user_q, num_results=args.num_results)
             print(f"\n-> Search Query: '{resp.rewritten_query.search_query}'")
-            print(f"-> Hits Retrieved: {len(resp.search_results)}")
             print(f"\nAnswer:\n{resp.answer}\n")
+            print("Citations:")
+            for cit in resp.source_citations:
+                date_str = (
+                    f" (Published: {cit.published_date})" if cit.published_date else ""
+                )
+                print(f" * {cit.title}{date_str} -> {cit.url}")
+            print("-" * 50)
 
 
 if __name__ == "__main__":

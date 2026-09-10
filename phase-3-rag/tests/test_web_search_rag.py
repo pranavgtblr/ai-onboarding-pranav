@@ -12,7 +12,9 @@ from phase_3_rag.web_search import (
     PageContentExtractor,
     QueryRewriteResult,
     SearchResult,
+    SourceCitation,
     WebSearchRAG,
+    extract_publication_date,
     heuristic_rewrite_query,
     rewrite_search_query,
     synthesize_web_answer,
@@ -190,13 +192,20 @@ def test_synthesize_web_answer_offline() -> None:
             url="https://fastapi.tiangolo.com",
             snippet="High performance Python web framework.",
             rank=1,
+            published_date="2024-06-01",
         )
     ]
-    answer, citations = synthesize_web_answer("What is FastAPI?", results, api_key="")
+    answer, citations, source_citations = synthesize_web_answer(
+        "What is FastAPI?", results, api_key=""
+    )
 
     assert "FastAPI Docs" in answer
     assert "https://fastapi.tiangolo.com" in answer
     assert citations == ["https://fastapi.tiangolo.com"]
+    assert len(source_citations) == 1
+    assert source_citations[0].url == "https://fastapi.tiangolo.com"
+    assert source_citations[0].published_date == "2024-06-01"
+    assert source_citations[0].domain == "fastapi.tiangolo.com"
 
 
 def test_synthesize_web_answer_llm_mocked() -> None:
@@ -228,14 +237,19 @@ def test_synthesize_web_answer_llm_mocked() -> None:
             url="https://fastapi.tiangolo.com",
             snippet="High performance API framework.",
             rank=1,
+            published_date="2023-11-10",
         )
     ]
-    answer, citations = synthesize_web_answer(
+    answer, citations, source_citations = synthesize_web_answer(
         "Who created FastAPI?", results, client=mock_client, api_key="test-fake-key"
     )
 
     assert "Sebastián Ramírez" in answer
     assert citations == ["https://fastapi.tiangolo.com"]
+    assert len(source_citations) == 1
+    assert source_citations[0].url == "https://fastapi.tiangolo.com"
+    assert source_citations[0].published_date == "2023-11-10"
+    assert source_citations[0].domain == "fastapi.tiangolo.com"
 
 
 # -----------------------------------------------------------------------------
@@ -263,7 +277,7 @@ def test_extract_html_text_clean_article() -> None:
     </html>
     """
     extractor = PageContentExtractor()
-    text, status, err = extractor.extract_html_text(html)
+    text, status, err, _ = extractor.extract_html_text(html)
 
     assert status == FetchStatus.SUCCESS
     assert err is None
@@ -288,7 +302,7 @@ def test_extract_html_text_detects_paywall() -> None:
     </html>
     """
     extractor = PageContentExtractor()
-    text, status, err = extractor.extract_html_text(html)
+    text, status, err, _ = extractor.extract_html_text(html)
 
     assert status == FetchStatus.PAYWALL
     assert text is None
@@ -307,7 +321,7 @@ def test_extract_html_text_detects_cloudflare_challenge() -> None:
     </html>
     """
     extractor = PageContentExtractor()
-    text, status, err = extractor.extract_html_text(html)
+    text, status, err, _ = extractor.extract_html_text(html)
 
     assert status == FetchStatus.JUNK_PAGE
     assert text is None
@@ -317,7 +331,7 @@ def test_extract_html_text_detects_cloudflare_challenge() -> None:
 def test_extract_html_text_rejects_micro_content() -> None:
     html = "<html><body><p>Hello world.</p></body></html>"
     extractor = PageContentExtractor()
-    text, status, err = extractor.extract_html_text(html)
+    text, status, err, _ = extractor.extract_html_text(html)
 
     # Content length < 120 chars is marked JUNK_PAGE
     assert status == FetchStatus.JUNK_PAGE
@@ -331,7 +345,7 @@ def test_fetch_and_extract_handles_http_404() -> None:
     mock_client.stream.return_value.__enter__.return_value = mock_resp
 
     extractor = PageContentExtractor(client=mock_client)
-    text, status, err = extractor.fetch_and_extract("https://example.com/dead-page")
+    text, status, err, _ = extractor.fetch_and_extract("https://example.com/dead-page")
 
     assert status == FetchStatus.DEAD_LINK
     assert "404" in str(err)
@@ -345,7 +359,7 @@ def test_fetch_and_extract_handles_http_403_paywall() -> None:
     mock_client.stream.return_value.__enter__.return_value = mock_resp
 
     extractor = PageContentExtractor(client=mock_client)
-    text, status, err = extractor.fetch_and_extract("https://example.com/forbidden")
+    text, status, err, _ = extractor.fetch_and_extract("https://example.com/forbidden")
 
     assert status == FetchStatus.PAYWALL
     assert "403" in str(err)
@@ -357,7 +371,9 @@ def test_fetch_and_extract_handles_timeout() -> None:
     mock_client.stream.side_effect = httpx.TimeoutException("Read timeout")
 
     extractor = PageContentExtractor(client=mock_client)
-    text, status, err = extractor.fetch_and_extract("https://example.com/slow-hanging")
+    text, status, err, _ = extractor.fetch_and_extract(
+        "https://example.com/slow-hanging"
+    )
 
     assert status == FetchStatus.TIMEOUT
     assert "Timed out" in str(err)
@@ -369,7 +385,7 @@ def test_fetch_and_extract_handles_connect_error() -> None:
     mock_client.stream.side_effect = httpx.ConnectError("DNS failed")
 
     extractor = PageContentExtractor(client=mock_client)
-    text, status, err = extractor.fetch_and_extract("https://nonexistent-domain.xyz")
+    text, status, err, _ = extractor.fetch_and_extract("https://nonexistent-domain.xyz")
 
     assert status == FetchStatus.DEAD_LINK
     assert "DNS failure" in str(err)
@@ -384,7 +400,9 @@ def test_fetch_and_extract_blocks_binary_content_type() -> None:
     mock_client.stream.return_value.__enter__.return_value = mock_resp
 
     extractor = PageContentExtractor(client=mock_client)
-    text, status, err = extractor.fetch_and_extract("https://example.com/document.pdf")
+    text, status, err, _ = extractor.fetch_and_extract(
+        "https://example.com/document.pdf"
+    )
 
     assert status == FetchStatus.JUNK_PAGE
     assert "Unsupported Content-Type" in str(err)
@@ -394,19 +412,20 @@ def test_fetch_and_extract_blocks_binary_content_type() -> None:
 def test_enrich_results_mixed_resilience() -> None:
     class DummyExtractor(PageContentExtractor):
         def fetch_and_extract(
-            self, url: str
-        ) -> tuple[str | None, FetchStatus, str | None]:
+            self, url: str, snippet: str = ""
+        ) -> tuple[str | None, FetchStatus, str | None, str | None]:
             if "valid" in url:
                 return (
                     "Extracted article text with substantial technical details.",
                     FetchStatus.SUCCESS,
                     None,
+                    "2024-01-15",
                 )
             if "dead" in url:
-                return None, FetchStatus.DEAD_LINK, "HTTP 404 Not Found"
+                return None, FetchStatus.DEAD_LINK, "HTTP 404 Not Found", None
             if "paywall" in url:
-                return None, FetchStatus.PAYWALL, "Subscription barrier"
-            return None, FetchStatus.JUNK_PAGE, "Bot challenge"
+                return None, FetchStatus.PAYWALL, "Subscription barrier", None
+            return None, FetchStatus.JUNK_PAGE, "Bot challenge", None
 
     extractor = DummyExtractor()
     items = [
@@ -463,3 +482,141 @@ def test_web_search_rag_pipeline_end_to_end() -> None:
     assert response.rewritten_query.search_query != ""
     assert len(response.search_results) >= 1
     assert "https://redis.io/topics/pubsub" in response.citations
+    assert len(response.source_citations) >= 1
+    assert response.source_citations[0].url == "https://redis.io/topics/pubsub"
+    assert response.source_citations[0].domain == "redis.io"
+
+
+# -----------------------------------------------------------------------------
+# Task 3.20 Publication Date Extraction & Source Citation Tests
+# -----------------------------------------------------------------------------
+
+
+def test_extract_publication_date_meta_tags() -> None:
+    html_article_meta = """
+    <html>
+      <head>
+        <meta property="article:published_time" content="2024-10-07T14:30:00Z" />
+      </head>
+      <body><p>Some article text.</p></body>
+    </html>
+    """
+    date = extract_publication_date(html_article_meta)
+    assert date == "2024-10-07"
+
+    html_og_meta = """
+    <html>
+      <head>
+        <meta property="og:published_time" content="2023-11-15T09:00:00+00:00" />
+      </head>
+      <body><p>Some article text.</p></body>
+    </html>
+    """
+    date2 = extract_publication_date(html_og_meta)
+    assert date2 == "2023-11-15"
+
+
+def test_extract_publication_date_json_ld() -> None:
+    html_json_ld = """
+    <html>
+      <head>
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "NewsArticle",
+          "headline": "Python 3.13 Released",
+          "datePublished": "2024-10-07T12:00:00Z",
+          "dateModified": "2024-10-08T08:30:00Z"
+        }
+        </script>
+      </head>
+      <body><p>Python news body.</p></body>
+    </html>
+    """
+    date = extract_publication_date(html_json_ld)
+    assert date == "2024-10-07"
+
+
+def test_extract_publication_date_time_tag() -> None:
+    html_time = """
+    <html>
+      <body>
+        <h1>Release Blog</h1>
+        <p>Posted on <time datetime="2024-05-20">May 20, 2024</time></p>
+      </body>
+    </html>
+    """
+    date = extract_publication_date(html_time)
+    assert date == "2024-05-20"
+
+
+def test_extract_publication_date_snippet_fallback() -> None:
+    snippet_iso = "Published 2024-09-15 - Fast multi-threaded Python runtime."
+    assert extract_publication_date(snippet=snippet_iso) == "2024-09-15"
+
+    snippet_month_name = (
+        "Oct 7, 2024 - Python 3.13.0 is the newest major release of Python."
+    )
+    assert extract_publication_date(snippet=snippet_month_name) == "Oct 7, 2024"
+
+    snippet_no_date = "General documentation for Python standard library."
+    assert extract_publication_date(snippet=snippet_no_date) is None
+
+
+def test_page_content_extractor_extracts_published_date() -> None:
+    html = """
+    <html>
+      <head>
+        <meta property="article:published_time" content="2024-10-07T10:00:00Z" />
+      </head>
+      <body>
+        <article>
+          <h1>Python 3.13 Performance and Concurrency</h1>
+          <p>Python 3.13 introduces experimental free-threaded mode (PEP 703)
+          and an experimental JIT compiler to accelerate execution speed.</p>
+        </article>
+      </body>
+    </html>
+    """
+    extractor = PageContentExtractor()
+    text, status, err, pub_date = extractor.extract_html_text(html)
+
+    assert status == FetchStatus.SUCCESS
+    assert err is None
+    assert text is not None
+    assert "free-threaded mode" in text
+    assert pub_date == "2024-10-07"
+
+
+def test_synthesize_web_answer_builds_source_citations() -> None:
+    results = [
+        SearchResult(
+            title="CPython Release",
+            url="https://python.org/downloads/release/python-3130/",
+            snippet="Python 3.13.0 final release notes.",
+            rank=1,
+            published_date="2024-10-07",
+        ),
+        SearchResult(
+            title="Real Python 3.13 Guide",
+            url="https://realpython.com/python313-features/",
+            snippet="Overview of free-threading and JIT.",
+            rank=2,
+            published_date="2024-10-10",
+        ),
+    ]
+
+    answer, citations, source_citations = synthesize_web_answer(
+        "When was Python 3.13 released?", results, api_key=""
+    )
+
+    assert len(citations) == 2
+    assert len(source_citations) == 2
+    assert isinstance(source_citations[0], SourceCitation)
+    assert source_citations[0].published_date == "2024-10-07"
+    assert source_citations[0].domain == "python.org"
+    assert source_citations[1].published_date == "2024-10-10"
+    assert source_citations[1].domain == "realpython.com"
+    # Ensure offline answer mentions published dates
+    assert "2024-10-07" in answer
+    assert "2024-10-10" in answer

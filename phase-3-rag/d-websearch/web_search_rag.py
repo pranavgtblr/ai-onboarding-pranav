@@ -1,4 +1,4 @@
-"""Web Search RAG Interactive Tool (Project D - Task 3.17 & 3.18).
+"""Web Search RAG Interactive Tool (Project D - Task 3.17, 3.18, 3.20).
 
 Demonstrates:
 1. Query Rewriting: Transforms conversational human questions into search keywords.
@@ -6,7 +6,10 @@ Demonstrates:
 3. Resilient Page Extraction (Task 3.18): Fetches destination URLs, handles dead
    links (404/500), paywalls (403/subscription gates), and junk/bot challenge pages
    without crashing, falling back gracefully to search snippets.
-4. Grounded Synthesis: Generating answers with inline citations.
+4. Publication Date Extraction & Source Citations (Task 3.20): Extracts publication
+   and last-modified dates from JSON-LD, meta tags, and snippets, citing both URLs
+   and publication dates to combat temporal decay.
+5. Grounded Synthesis: Generating answers with inline citations.
 """
 
 import argparse
@@ -37,15 +40,17 @@ def run_resilience_demo() -> None:
     # 1. Test Dead Link (Simulated 404 / 500)
     print("\n[Case 1: Dead Link (HTTP 404 / Server Failure)]")
     dead_html = "<html><body><h1>404 Not Found</h1></body></html>"
-    text, status, err = extractor.extract_html_text(dead_html)
+    text, status, err, pub_date = extractor.extract_html_text(dead_html)
     print(f"    - Extracted Text : {text}")
     print(f"    - Status Code    : [{status.value}]")
+    print(f"    - Published Date : {pub_date}")
     print(f"    - Note           : {err}")
 
     # 2. Test Paywall Page
     print("\n[Case 2: Paywall Barrier (Subscription Gated)]")
     paywall_html = """
     <html>
+      <head><meta property="article:published_time" content="2024-09-01T08:00:00Z" /></head>
       <body>
         <h1>Breaking Research: Quantum Computing Breakthrough</h1>
         <p>Researchers today announced a novel superconducting qubit topology...</p>
@@ -56,9 +61,10 @@ def run_resilience_demo() -> None:
       </body>
     </html>
     """
-    text, status, err = extractor.extract_html_text(paywall_html)
+    text, status, err, pub_date = extractor.extract_html_text(paywall_html)
     print(f"    - Extracted Text : {text}")
     print(f"    - Status Code    : [{status.value}]")
+    print(f"    - Published Date : {pub_date}")
     print(f"    - Note           : {err}")
 
     # 3. Test Junk / Bot Challenge Page
@@ -73,15 +79,19 @@ def run_resilience_demo() -> None:
       </body>
     </html>
     """
-    text, status, err = extractor.extract_html_text(bot_html)
+    text, status, err, pub_date = extractor.extract_html_text(bot_html)
     print(f"    - Extracted Text : {text}")
     print(f"    - Status Code    : [{status.value}]")
+    print(f"    - Published Date : {pub_date}")
     print(f"    - Note           : {err}")
 
     # 4. Test Valid Page
-    print("\n[Case 4: Valid Clean Article]")
+    print("\n[Case 4: Valid Clean Article with Metadata Date]")
     valid_html = """
     <html>
+      <head>
+        <meta property="article:published_time" content="2024-10-07T10:00:00Z" />
+      </head>
       <header><nav>Home | Products | Contact</nav></header>
       <main>
         <article>
@@ -95,10 +105,11 @@ def run_resilience_demo() -> None:
       <footer>Copyright 2026 Python Foundation. Cookie Preferences.</footer>
     </html>
     """
-    text, status, err = extractor.extract_html_text(valid_html)
+    text, status, err, pub_date = extractor.extract_html_text(valid_html)
     print(f"    - Extracted Text : {text[:100]}...")
     extracted_len = len(text or "")
     print(f"    - Status Code    : [{status.value}] ({extracted_len} chars)")
+    print(f"    - Published Date : {pub_date}")
 
     # 5. Mixed Pipeline Execution
     print("\n[Case 5: End-to-End Pipeline with Mixed Sources]")
@@ -112,6 +123,7 @@ def run_resilience_demo() -> None:
                 "PEP 703 proposes making the Global Interpreter Lock optional in "
                 "the CPython implementation. This provides scalable multithreading."
             ),
+            published_date="2024-10-07",
             fetch_status=FetchStatus.SUCCESS,
         ),
         SearchResult(
@@ -120,6 +132,7 @@ def run_resilience_demo() -> None:
             snippet="Python removes the GIL in version 3.13 milestone release.",
             rank=2,
             page_content=None,
+            published_date="2024-05-15",
             fetch_status=FetchStatus.DEAD_LINK,
             fetch_error="HTTP 404 Not Found",
         ),
@@ -129,12 +142,13 @@ def run_resilience_demo() -> None:
             snippet="Major companies adopt free-threaded Python for parallel tasks.",
             rank=3,
             page_content=None,
+            published_date="2024-08-20",
             fetch_status=FetchStatus.PAYWALL,
             fetch_error="Paywall barrier detected",
         ),
     ]
 
-    answer, citations = synthesize_web_answer(
+    answer, citations, source_citations = synthesize_web_answer(
         "What is free-threaded execution in Python 3.13?",
         mixed_results,
     )
@@ -142,9 +156,10 @@ def run_resilience_demo() -> None:
     print("Synthesized Output with Mixed / Flaky Sources:")
     print(answer)
     print("-" * 75)
-    print("Citations:")
-    for c in citations:
-        print(f" - {c}")
+    print("Citations (URLs & Dates):")
+    for sc in source_citations:
+        date_info = f" (Published: {sc.published_date})" if sc.published_date else ""
+        print(f" - [{sc.title}]{date_info} -> {sc.url}")
     print("=" * 75 + "\n")
 
 
@@ -186,18 +201,21 @@ def run_single_query(
     )
     response = rag.query(question, num_results=num_results, fetch_pages=fetch_pages)
 
-    # 3. Show retrieved search results with fetch statuses
+    # 3. Show retrieved search results with fetch statuses and publication dates
     print(f"\n[+] Retrieved Web Search Hits ({len(response.search_results)} found):")
     if not response.search_results:
         print("    (No results returned)")
     for r in response.search_results:
         status_tag = f"[{r.fetch_status.value}]"
+        date_tag = (
+            f"[Date: {r.published_date}]" if r.published_date else "[Date: Unknown]"
+        )
         body_len = (
             f"{len(r.page_content)} chars"
             if r.page_content
             else f"snippet ({len(r.snippet)} chars)"
         )
-        print(f"    [{r.rank}] {status_tag} {r.title} ({body_len})")
+        print(f"    [{r.rank}] {status_tag} {date_tag} {r.title} ({body_len})")
         print(f"        URL    : {r.url}")
         if r.fetch_error:
             print(f"        Notice : {r.fetch_error}")
@@ -211,9 +229,11 @@ def run_single_query(
     print(response.answer)
     print("-" * 70)
 
-    print("\n[*] Sources Cited:")
-    for url in response.citations:
-        print(f"    * {url}")
+    print("\n[*] Sources Cited (URLs and Publication Dates):")
+    for sc in response.source_citations:
+        date_info = f" (Published: {sc.published_date})" if sc.published_date else ""
+        print(f"    * [{sc.title}]{date_info}")
+        print(f"      URL: {sc.url}")
     print("=" * 70 + "\n")
 
 
@@ -248,12 +268,18 @@ def interactive_loop(
             print(f"\n-> Search Engine Query : '{resp.rewritten_query.search_query}'")
             print(f"-> Hits Retrieved      : {len(resp.search_results)}")
             for r in resp.search_results:
-                print(f"   [{r.fetch_status.value}] {r.title} -> {r.url}")
+                date_str = f" [{r.published_date}]" if r.published_date else ""
+                print(f"   [{r.fetch_status.value}]{date_str} {r.title} -> {r.url}")
             print("\nAnswer:\n" + resp.answer + "\n")
-            if resp.citations:
-                print("Citations:")
-                for url in resp.citations:
-                    print(f"  - {url}")
+            if resp.source_citations:
+                print("Citations (URLs & Dates):")
+                for sc in resp.source_citations:
+                    date_info = (
+                        f" (Published: {sc.published_date})"
+                        if sc.published_date
+                        else ""
+                    )
+                    print(f"  - [{sc.title}]{date_info} -> {sc.url}")
             print("-" * 50)
         except Exception as exc:
             print(f"\n[!] Error processing query: {exc}\n")
@@ -261,7 +287,7 @@ def interactive_loop(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Project D: Web Search RAG CLI (Task 3.17 & 3.18)"
+        description="Project D: Web Search RAG CLI (Task 3.17, 3.18, 3.20)"
     )
     parser.add_argument(
         "--query",
