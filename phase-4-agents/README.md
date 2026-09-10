@@ -269,4 +269,79 @@ Run all tests:
 uv run pytest tests/test_rag_tools.py
 ```
 
+---
+
+## Task 4.4: Explicit LangGraph `StateGraph` Architecture
+
+In **Task 4.1 to 4.3**, we utilized LangChain's high-level `create_agent` factory function.
+In **Task 4.4**, we drop down to the engine level and rebuild the agent as an explicit **`StateGraph`** with a typed state schema, explicit nodes, and deterministic edges.
+
+### 1. The Redux / XState Mental Model
+For frontend engineers:
+- **`AgentState`** is the **Redux State** / **XState Context**: An immutable typed data shape storing conversation history and step metrics.
+- **`add_messages`** is the **Redux Reducer**: An accumulator that appends incoming messages to history instead of overwriting the list.
+- **Nodes (`call_model`, `execute_tools`)** are **State Actions**: Functions that receive the current state and return state diffs.
+- **Edges (`START`, conditional router, `END`)** are **State Transitions**: Deterministic routing based on model outputs.
+
+### 2. Graph Topology
+
+```mermaid
+graph TD
+    START([START]) --> call_model[Node: call_model]
+    call_model --> router{route_model_output}
+    router -->|tool_calls present| execute_tools[Node: execute_tools]
+    router -->|no tool_calls| END([END])
+    execute_tools --> call_model
+```
+
+### 3. Core Primitives (`graph_agent.py`)
+
+#### A. Typed State Schema
+```python
+class AgentState(TypedDict, total=False):
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+    step_count: int
+```
+
+#### B. Explicit Nodes
+1. **`call_model(state: AgentState)`**:
+   Prepend system prompt, invoke model with `bind_tools(active_tools)`, and return new `AIMessage`.
+2. **`execute_tools(state: AgentState)`**:
+   Execute requested tools using `ToolNode(active_tools)`, producing `ToolMessage` outputs.
+
+#### C. Explicit Router
+```python
+def route_model_output(state: AgentState) -> Literal["execute_tools", "__end__"]:
+    last_msg = state["messages"][-1]
+    if isinstance(last_msg, AIMessage) and getattr(last_msg, "tool_calls", None):
+        return "execute_tools"
+    return "__end__"
+```
+
+### 4. Running the StateGraph Engine via CLI
+
+```bash
+# Run with explicit StateGraph engine (default)
+uv run python src/phase_4_agents/agent_cli.py --engine state_graph --query "What are the ECLSS pressure limits in our Mars PDF manuals?"
+
+# Compare against high-level create_agent
+uv run python src/phase_4_agents/agent_cli.py --engine create_agent --query "What are the ECLSS pressure limits in our Mars PDF manuals?"
+```
+
+### 5. Automated Tests
+Tested in `tests/test_graph_agent.py`:
+- `test_agent_state_schema_structure`: Validates `TypedDict` annotations.
+- `test_route_model_output_conditional_router`: Validates routing decisions.
+- `test_state_graph_compilation`: Validates `call_model` and `execute_tools` nodes.
+- `test_state_graph_direct_response_path`: Validates single-turn `START -> call_model -> END`.
+- `test_state_graph_tool_execution_loop`: Validates `START -> call_model -> execute_tools -> call_model -> END`.
+- `test_state_graph_custom_toolset`: Validates partial toolbinding.
+- `test_cli_integration_with_state_graph_engine`: Validates end-to-end CLI execution.
+
+Run the test suite:
+```bash
+uv run pytest tests/test_graph_agent.py
+```
+
+
 

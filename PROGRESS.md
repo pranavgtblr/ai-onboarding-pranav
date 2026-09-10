@@ -48,6 +48,7 @@
   - [x] 4.1 Rebuild Phase 2 tool-calling CLI with create_agent, map trace steps to Task 2.6 hand-rolled loop in README
   - [x] 4.2 Provider-agnostic setup: switch between two model providers with a config change only, no code change.
   - [x] 4.3 Convert your Phase 3 router into agent tools - pdf_search, site_search, db_query, web_search - and let the agent choose between them.
+  - [x] 4.4 Rebuild 4.3 as a StateGraph with a typed state schema and explicit nodes and edges.
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
 

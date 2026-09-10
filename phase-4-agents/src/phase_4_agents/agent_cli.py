@@ -16,6 +16,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 from phase_4_agents.config import get_chat_model, get_settings
+from phase_4_agents.graph_agent import build_state_graph_agent
 from phase_4_agents.rag_tools import get_all_tools, get_rag_tools
 from phase_4_agents.tools import ALL_TOOLS as BASIC_TOOLS
 
@@ -61,6 +62,7 @@ class AgentExecutionResult:
 
 def build_tool_agent(
     *,
+    engine: str = "state_graph",
     tools: list[Any] | None = None,
     system_prompt: str | None = None,
     provider: str | None = None,
@@ -68,7 +70,17 @@ def build_tool_agent(
     api_key: str | None = None,
     temperature: float | None = None,
 ):
-    """Construct a tool-calling agent using provider-agnostic get_chat_model."""
+    """Construct a tool-calling agent using StateGraph (4.4) or create_agent (4.1)."""
+    if engine.lower() == "state_graph":
+        return build_state_graph_agent(
+            tools=tools,
+            system_prompt=system_prompt,
+            provider=provider,
+            model_name=model_name,
+            api_key=api_key,
+            temperature=temperature,
+        )
+
     llm = get_chat_model(
         provider=provider,
         model=model_name,
@@ -276,6 +288,14 @@ def main() -> None:
         help="Toolset to equip the agent with (default: all).",
     )
     parser.add_argument(
+        "--engine",
+        "-e",
+        type=str,
+        choices=["state_graph", "create_agent"],
+        default="state_graph",
+        help="Agent execution engine: 'state_graph' (Task 4.4) or 'create_agent'.",
+    )
+    parser.add_argument(
         "--provider",
         "-p",
         type=str,
@@ -295,6 +315,7 @@ def main() -> None:
     selected_tools = toolset_map[args.tools]
 
     agent = build_tool_agent(
+        engine=args.engine,
         tools=selected_tools,
         provider=args.provider,
         model_name=args.model,
