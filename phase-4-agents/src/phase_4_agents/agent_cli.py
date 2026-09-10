@@ -1,0 +1,258 @@
+"""Task 4.1: Rebuilt Tool-Calling CLI using LangChain/LangGraph create_agent.
+
+Executes calculator and weather tools via modern create_agent, intercepts the
+LangGraph execution trace, and maps every step back to the hand-written loop
+from Task 2.6.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from dataclasses import dataclass, field
+from typing import Any
+
+from langchain.agents import create_agent
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from phase_4_agents.config import get_settings
+from phase_4_agents.tools import ALL_TOOLS
+
+
+@dataclass
+class AgentStepTrace:
+    """Detailed trace of an intermediate step in the agent loop."""
+
+    step_number: int
+    actor: str  # "User", "Model", "Tool"
+    message_type: str
+    content: str
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    phase_2_6_mapping: str = ""
+
+
+@dataclass
+class AgentExecutionResult:
+    """Full execution result containing trace steps and final synthesized answer."""
+
+    query: str
+    steps: list[AgentStepTrace]
+    final_answer: str
+    total_steps: int
+
+
+def build_tool_agent(
+    *,
+    model_name: str | None = None,
+    api_key: str | None = None,
+    temperature: float = 0.0,
+):
+    """Construct a tool-calling agent using create_agent on LangGraph runtime."""
+    settings = get_settings()
+    effective_key = api_key or settings.effective_api_key
+    if not effective_key:
+        raise ValueError(
+            "GEMINI_API_KEY or GOOGLE_API_KEY is required to build the tool agent."
+        )
+
+    effective_model = model_name or settings.gemini_model
+
+    llm = ChatGoogleGenerativeAI(
+        model=effective_model,
+        api_key=effective_key,
+        temperature=temperature,
+    )
+
+    # create_agent creates a CompiledStateGraph with a tool calling loop
+    return create_agent(
+        model=llm,
+        tools=ALL_TOOLS,
+        system_prompt=(
+            "You are a helpful assistant with access to a calculator and weather tool. "
+            "Use the calculator for any arithmetic calculations. "
+            "Use the weather tool to look up city weather."
+        ),
+    )
+
+
+def extract_text_from_content(content: Any) -> str:
+    """Extract plain text from string or structured content list."""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        texts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                texts.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                texts.append(str(item["text"]))
+        return " ".join(texts).strip()
+    return str(content)
+
+
+def run_agent_query(agent: Any, query: str) -> AgentExecutionResult:
+    """Run a query through the agent, capturing the step-by-step trace."""
+    response = agent.invoke({"messages": [{"role": "user", "content": query}]})
+    messages: list[BaseMessage] = response.get("messages", [])
+
+    step_traces: list[AgentStepTrace] = []
+    final_answer = ""
+    step_counter = 1
+
+    for msg in messages:
+        msg_type = type(msg).__name__
+
+        if isinstance(msg, HumanMessage):
+            trace = AgentStepTrace(
+                step_number=step_counter,
+                actor="User",
+                message_type=msg_type,
+                content=extract_text_from_content(msg.content),
+                phase_2_6_mapping=(
+                    "Task 2.6: Initial conversation state initialized: "
+                    'contents = [{"role": "user", "parts": [{"text": prompt}]}]'
+                ),
+            )
+            step_traces.append(trace)
+            step_counter += 1
+
+        elif isinstance(msg, AIMessage):
+            content_text = extract_text_from_content(msg.content)
+            raw_tool_calls = getattr(msg, "tool_calls", []) or []
+
+            if raw_tool_calls:
+                trace = AgentStepTrace(
+                    step_number=step_counter,
+                    actor="Model (Tool Decision)",
+                    message_type=msg_type,
+                    content=content_text,
+                    tool_calls=raw_tool_calls,
+                    phase_2_6_mapping=(
+                        "Task 2.6: Model returned candidate with functionCall; "
+                        "tool loop identified tool request and queued execution."
+                    ),
+                )
+            else:
+                final_answer = content_text
+                trace = AgentStepTrace(
+                    step_number=step_counter,
+                    actor="Model (Final Answer)",
+                    message_type=msg_type,
+                    content=content_text,
+                    phase_2_6_mapping=(
+                        "Task 2.6: Model returned text without functionCall; "
+                        "if not function_calls: break (loop terminated successfully)."
+                    ),
+                )
+            step_traces.append(trace)
+            step_counter += 1
+
+        elif isinstance(msg, ToolMessage):
+            trace = AgentStepTrace(
+                step_number=step_counter,
+                actor="Tool Execution",
+                message_type=msg_type,
+                content=extract_text_from_content(msg.content),
+                phase_2_6_mapping=(
+                    "Task 2.6: Local function executed (execute_calculator / "
+                    "execute_weather) and result appended to conversation as "
+                    '{"role": "function", "parts": [{"functionResponse": ...}]}'
+                ),
+            )
+            step_traces.append(trace)
+            step_counter += 1
+
+    return AgentExecutionResult(
+        query=query,
+        steps=step_traces,
+        final_answer=final_answer,
+        total_steps=len(step_traces),
+    )
+
+
+def print_trace_report(result: AgentExecutionResult) -> None:
+    """Print an execution trace report mapped to Task 2.6."""
+    print("\n" + "=" * 78)
+    print(" 🤖 LANGCHAIN / LANGGRAPH CREATE_AGENT EXECUTION TRACE (TASK 4.1)")
+    print("=" * 78)
+    print(f"QUESTION: {result.query}")
+    print(f"TOTAL STEPS CAPTURED: {result.total_steps}")
+    print("-" * 78)
+
+    for step in result.steps:
+        print(f"\n[Step {step.step_number}] Actor: {step.actor} ({step.message_type})")
+        if step.tool_calls:
+            print("  Tools Requested:")
+            for tc in step.tool_calls:
+                print(f"    • {tc.get('name')}({tc.get('args')}) [ID: {tc.get('id')}]")
+        if step.content:
+            preview = (
+                step.content if len(step.content) < 300 else step.content[:300] + "..."
+            )
+            print(f"  Content: {preview}")
+        print(f"  -> Task 2.6 Hand-Rolled Mapping: {step.phase_2_6_mapping}")
+
+    print("\n" + "=" * 78)
+    print("FINAL SYNTHESIZED ANSWER:")
+    print(result.final_answer or "(No text output)")
+    print("=" * 78 + "\n")
+
+
+def run_interactive(agent: Any) -> None:
+    """Interactive CLI REPL for testing the agent."""
+    print("\n" + "=" * 78)
+    print(" 🪐 Tool-Calling Agent CLI (LangChain create_agent + LangGraph runtime)")
+    print("=" * 78)
+    print("Available Tools:")
+    print(" • calculator(operation: add|subtract|multiply|divide, a, b)")
+    print(" • get_weather(city: Tokyo|London|New York|Paris|San Francisco)")
+    print("Type 'exit' or 'quit' to stop.\n")
+
+    while True:
+        try:
+            query = input("Ask Agent > ").strip()
+            if not query:
+                continue
+            if query.lower() in ("exit", "quit"):
+                print("Exiting tool-calling agent CLI.")
+                break
+
+            result = run_agent_query(agent, query)
+            print_trace_report(result)
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting tool-calling agent CLI.")
+            break
+        except Exception as exc:  # noqa: BLE001
+            print(f"\n[!] Error during agent execution: {exc}\n")
+
+
+def main() -> None:
+    """CLI entrypoint for tool-calling agent."""
+    parser = argparse.ArgumentParser(
+        description="LangChain create_agent tool-calling CLI (Task 4.1)"
+    )
+    parser.add_argument(
+        "--query", "-q", type=str, help="Single question to answer with trace."
+    )
+    parser.add_argument(
+        "--interactive", "-i", action="store_true", help="Launch interactive CLI loop."
+    )
+    parser.add_argument(
+        "--model", type=str, default=None, help="Custom Gemini model identifier."
+    )
+    args = parser.parse_args()
+
+    agent = build_tool_agent(model_name=args.model)
+
+    if args.query:
+        result = run_agent_query(agent, args.query)
+        print_trace_report(result)
+    elif args.interactive or len(sys.argv) == 1:
+        run_interactive(agent)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

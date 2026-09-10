@@ -45,5 +45,7 @@
   - [x] 3.22 Run the eval suite across all four routes. Commit the report
 
 - [ ] Phase 4 - Agents             (4.1  - 4.12)
+  - [x] 4.1 Rebuild Phase 2 tool-calling CLI with create_agent, map trace steps to Task 2.6 hand-rolled loop in README
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
+
