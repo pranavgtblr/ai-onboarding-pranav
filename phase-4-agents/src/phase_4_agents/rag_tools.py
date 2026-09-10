@@ -129,8 +129,10 @@ def pdf_search(query: str) -> str:
                 matches.append((overlap, doc_id, snippet))
 
     if not matches:
-        doc_id, snippet = FALLBACK_PDF_SNIPPETS[0]
-        matches.append((1, doc_id, snippet))
+        return (
+            f"PDF Search Results for '{query}': "
+            "No relevant PDF documents matched the query."
+        )
 
     matches.sort(key=lambda x: x[0], reverse=True)
     top_matches = matches[:3]
@@ -186,7 +188,13 @@ def site_search(query: str) -> str:
         scored.append((overlap, c))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    top_chunks = [c for s, c in scored[:3]]
+    if not scored or scored[0][0] == 0:
+        return (
+            f"Website Search Results for '{query}': "
+            "No matching documentation pages found."
+        )
+
+    top_chunks = [c for s, c in scored[:3] if s > 0]
 
     lines = [f"Website Search Results for '{query}':"]
     for c in top_chunks:
@@ -310,21 +318,15 @@ def db_query(query: str) -> str:
         else:
             q_lower = clean_q.lower()
             if "customer" in q_lower or "client" in q_lower or "user" in q_lower:
-                known_cities = [
-                    "san francisco",
-                    "new york",
-                    "chicago",
-                    "seattle",
-                    "tokyo",
-                    "london",
-                    "paris",
-                ]
-                matched_city = next((c for c in known_cities if c in q_lower), None)
-                if matched_city:
+                # Check for city filters like 'in atlantis' or 'living in atlantis'
+                city_match = re.search(r"(?:in|city)\s+([a-zA-Z]+)", q_lower)
+                matched_city = city_match.group(1) if city_match else None
+                if matched_city and matched_city not in ("the", "our", "all", "each"):
                     sql = (
                         f"SELECT * FROM customers "
                         f"WHERE LOWER(city) LIKE '%{matched_city}%' LIMIT 10;"
                     )
+
                 elif "count" in q_lower or "how many" in q_lower:
                     sql = "SELECT COUNT(*) AS total_customers FROM customers;"
                 else:
@@ -452,8 +454,22 @@ def web_search(query: str) -> str:
         ),
     ]
 
-    lines = [f"Web Search Results for '{clean_q}':"]
+    # Check query relevance against fallback sources
+    q_words = set(re.findall(r"\w+", clean_q.lower()))
+    matching_sources = []
     for title, src_url, snippet, pub_date in fallback_sources:
+        text = f"{title} {snippet}".lower()
+        if any(w in text for w in q_words if len(w) > 2):
+            matching_sources.append((title, src_url, snippet, pub_date))
+
+    if not matching_sources:
+        return (
+            f"Web Search Results for '{clean_q}': "
+            "No relevant web results found. Try broader search terms."
+        )
+
+    lines = [f"Web Search Results for '{clean_q}':"]
+    for title, src_url, snippet, pub_date in matching_sources:
         lines.append(
             f"• Title: {title}\n  URL: {src_url}\n  Date: {pub_date}\n  "
             f"Snippet: {snippet}"

@@ -343,5 +343,76 @@ Run the test suite:
 uv run pytest tests/test_graph_agent.py
 ```
 
+---
 
+## Task 4.5: Corrective Retrieval Cycle & Self-Correction Loop
 
+In **Task 4.4**, our StateGraph had a single loop: `call_model -> execute_tools -> call_model`. If a search tool returned zero results or irrelevant data, the model was forced to hallucinate or admit defeat immediately.
+
+In **Task 4.5**, we implement **Corrective RAG (CRAG)** by adding an explicit **Relevance Evaluator**, a **Query Rewriter**, and a **Cyclic Retry Edge** that loops back to try broader queries up to 2 times.
+
+### 1. The Marvel Analogy: JARVIS Adjusting Sensor Sweep
+Think of Iron Man searching for an enemy in an empty radar sector:
+- **First sweep**: "Scanning sector for Atlantis..." -> Result: Nothing detected (`0 rows`).
+- **Standard Agent (Task 4.4)**: Throws hands up: *"Target does not exist, Sir."*
+- **Corrective Agent (Task 4.5)**: JARVIS self-corrects: *"No signal on narrow band. Broadening sensor sweep to regional grid (customers)..."* -> Result: Match found!
+
+In TypeScript / React terms, this is an **XState retry guard** with an exponential backoff / retry counter pattern (`retryCount < 2 ? 'RETRY' : 'FALLBACK'`).
+
+### 2. Graph Topology with Cycle
+
+```mermaid
+graph TD
+    START([START]) --> call_model[Node: call_model]
+    call_model --> router_model{route_model_output}
+    router_model -->|tool_calls present| execute_tools[Node: execute_tools]
+    router_model -->|no tool_calls| END([END])
+    
+    execute_tools --> router_tool{route_tool_output}
+    router_tool -->|data found OR retries >= 2| call_model
+    router_tool -->|empty results AND retries < 2| rewrite_query[Node: rewrite_query]
+    
+    rewrite_query -->|loop back!| call_model
+```
+
+### 3. State Schema & Safety Guards
+
+#### A. State Schema Extension
+```python
+class AgentState(TypedDict, total=False):
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+    step_count: int
+    rewrite_count: int  # Capped strictly at 2
+```
+
+#### B. Relevance Evaluator
+```python
+def is_retrieval_empty_or_irrelevant(content_or_message: str | BaseMessage) -> bool:
+    """Detects empty indicators like '0 rows', 'No matching records found', etc."""
+```
+
+#### C. Conditional Tool Router & Termination Guard
+```python
+def route_tool_output(state: AgentState) -> Literal["rewrite_query", "call_model"]:
+    curr_retries = state.get("rewrite_count", 0)
+    if curr_retries >= 2:
+        return "call_model"  # Termination guard: cap at 2 attempts!
+    
+    last_tool_msg = state["messages"][-1]
+    if is_retrieval_empty_or_irrelevant(last_tool_msg):
+        return "rewrite_query"
+    return "call_model"
+```
+
+### 4. Verification & Testing
+
+Tested in `tests/test_retry_cycle.py`:
+1. `test_evaluator_identifies_empty_or_irrelevant_retrievals`: Validates miss detection across all 4 RAG tools.
+2. `test_rewrite_search_query_strips_noise`: Validates query cleaning and heuristic expansion.
+3. `test_route_tool_output_conditional_router`: Validates routing decisions based on state.
+4. `test_agent_retry_cycle_succeeds_on_second_attempt`: Runs unmatchable query `Find customers living in Atlantis` -> retries to `customers` -> succeeds on attempt 2.
+5. `test_agent_terminates_after_max_two_retries`: Tests impossible query, verifying that `rewrite_count` reaches exactly 2 and cleanly halts at `call_model -> END`.
+
+```bash
+uv run pytest tests/test_retry_cycle.py
+```

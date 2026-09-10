@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -63,8 +64,8 @@ class MockToolChatModel(BaseChatModel):
         last_message = messages[-1]
         content_str = str(last_message.content).lower()
 
-        # If a tool has already been executed, generate the synthesized final answer
-        if any(msg.type == "tool" for msg in messages):
+        # If the last message is a ToolMessage, synthesize the final answer
+        if messages[-1].type == "tool":
             tool_outputs = [str(msg.content) for msg in messages if msg.type == "tool"]
             combined = " ".join(tool_outputs)
             ai_msg = AIMessage(
@@ -74,6 +75,14 @@ class MockToolChatModel(BaseChatModel):
                 )
             )
             return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # Extract target query (handling self-correction rewrite attempts)
+        target_query = str(last_message.content)
+        if "[self-correction attempt" in content_str:
+            m = re.search(r"rewritten query:\s*['\"]([^'\"]+)['\"]", target_query)
+            if m:
+                target_query = m.group(1)
+                content_str = target_query.lower()
 
         # 1. Check for Greetings / Chit-Chat (direct parametric response, no tools)
         greetings = ("hello", "hi", "hey", "good morning", "how are you", "who are you")
@@ -100,7 +109,7 @@ class MockToolChatModel(BaseChatModel):
                 tool_calls=[
                     {
                         "name": "pdf_search",
-                        "args": {"query": str(last_message.content)},
+                        "args": {"query": target_query},
                         "id": "mock_call_pdf",
                         "type": "tool_call",
                     }
@@ -124,7 +133,7 @@ class MockToolChatModel(BaseChatModel):
                 tool_calls=[
                     {
                         "name": "site_search",
-                        "args": {"query": str(last_message.content)},
+                        "args": {"query": target_query},
                         "id": "mock_call_site",
                         "type": "tool_call",
                     }
@@ -142,6 +151,7 @@ class MockToolChatModel(BaseChatModel):
             "database",
             "stock",
             "table",
+            "atlantis",
         )
         if any(w in content_str for w in db_keywords):
             ai_msg = AIMessage(
@@ -149,7 +159,7 @@ class MockToolChatModel(BaseChatModel):
                 tool_calls=[
                     {
                         "name": "db_query",
-                        "args": {"query": str(last_message.content)},
+                        "args": {"query": target_query},
                         "id": "mock_call_db",
                         "type": "tool_call",
                     }
@@ -173,7 +183,7 @@ class MockToolChatModel(BaseChatModel):
                 tool_calls=[
                     {
                         "name": "web_search",
-                        "args": {"query": str(last_message.content)},
+                        "args": {"query": target_query},
                         "id": "mock_call_web",
                         "type": "tool_call",
                     }
@@ -212,7 +222,30 @@ class MockToolChatModel(BaseChatModel):
             )
             return ChatResult(generations=[ChatGeneration(message=ai_msg)])
 
-        # 7. Conversational / Direct Answer (no tools required)
+        # 7. Check for general search or non-existent query (for retries)
+        search_keywords = (
+            "search",
+            "information",
+            "query",
+            "find",
+            "lookup",
+            "unmatchable",
+        )
+        if any(w in content_str for w in search_keywords):
+            ai_msg = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "web_search",
+                        "args": {"query": target_query},
+                        "id": "mock_call_search",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 8. Conversational / Direct Answer (no tools required)
         ai_msg = AIMessage(
             content=f"Direct parametric response for: {last_message.content}"
         )
