@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import re
 import urllib.parse
 from abc import ABC, abstractmethod
@@ -214,7 +215,8 @@ def rewrite_search_query(
 
     close_client = False
     if client is None:
-        client = httpx.Client(timeout=20.0)
+        timeout_val = float(os.environ.get("GEMINI_SEARCH_TIMEOUT", "30.0"))
+        client = httpx.Client(timeout=httpx.Timeout(timeout_val, connect=10.0))
         close_client = True
 
     try:
@@ -247,7 +249,10 @@ def rewrite_search_query(
             explanation=explanation,
         )
     except Exception as exc:
-        logger.warning("Exception during LLM query rewrite (%s); falling back", exc)
+        logger.info(
+            "Gemini query rewrite timed out or unavailable (%s); using fallback",
+            exc,
+        )
         return heuristic_rewrite_query(question)
     finally:
         if close_client:

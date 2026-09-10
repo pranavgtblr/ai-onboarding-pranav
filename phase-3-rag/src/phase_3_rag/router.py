@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import re
 import time
 from enum import Enum
@@ -312,7 +313,8 @@ def classify_route_llm(
 
     close_client = False
     if client is None:
-        client = httpx.Client(timeout=15.0)
+        timeout_val = float(os.environ.get("GEMINI_ROUTER_TIMEOUT", "30.0"))
+        client = httpx.Client(timeout=httpx.Timeout(timeout_val, connect=10.0))
         close_client = True
 
     try:
@@ -347,7 +349,10 @@ def classify_route_llm(
             keywords=list(parsed.get("keywords", [])),
         )
     except Exception as exc:
-        logger.warning("Gemini router exception (%s); using heuristic", exc)
+        logger.info(
+            "Gemini router unavailable or timed out (%s); using heuristic",
+            exc,
+        )
         return classify_route_heuristic(question)
     finally:
         if close_client:
