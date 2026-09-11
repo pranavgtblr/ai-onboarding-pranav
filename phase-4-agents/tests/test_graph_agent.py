@@ -43,7 +43,7 @@ def test_route_model_output_conditional_router() -> None:
     text_state: AgentState = {"messages": [text_msg], "step_count": 1}
     assert route_model_output(text_state) == "__end__"
 
-    # Case 3: Model produced tool calls -> route to execute_tools
+    # Case 3: Model produced read tool calls -> route to execute_tools
     tool_call_msg = AIMessage(
         content="",
         tool_calls=[
@@ -58,6 +58,22 @@ def test_route_model_output_conditional_router() -> None:
     tool_state: AgentState = {"messages": [tool_call_msg], "step_count": 1}
     assert route_model_output(tool_state) == "execute_tools"
 
+    # Case 4: Model produced client write tool call (add_to_cart)
+    # -> route to human_approval
+    write_call_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "add_to_cart",
+                "args": {"product_name": "Titanium Drill Bit", "quantity": 1},
+                "id": "tc_write_1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    write_state: AgentState = {"messages": [write_call_msg], "step_count": 1}
+    assert route_model_output(write_state) == "human_approval"
+
 
 # -----------------------------------------------------------------------------
 # 2. StateGraph Compilation & Graph Topology Tests
@@ -69,6 +85,7 @@ def test_state_graph_compilation() -> None:
     agent = build_state_graph_agent(provider="mock", model_name="mock-agent")
     assert isinstance(agent, CompiledStateGraph)
     assert "call_model" in agent.nodes
+    assert "human_approval" in agent.nodes
     assert "execute_tools" in agent.nodes
 
 

@@ -17,7 +17,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 from langchain_core.runnables import RunnableConfig
 
 from phase_4_agents.config import get_chat_model, get_settings
-from phase_4_agents.graph_agent import build_state_graph_agent
+from phase_4_agents.graph_agent import (
+    build_state_graph_agent,
+    handle_human_approval,
+)
 from phase_4_agents.rag_tools import get_all_tools, get_rag_tools
 from phase_4_agents.tools import ALL_TOOLS as BASIC_TOOLS
 
@@ -451,6 +454,60 @@ def main() -> None:
                 config=run_config,
             )
             print_trace_report(result)
+
+            # Check if execution paused on human_approval gate
+            current_state = agent.get_state(run_config)
+            if current_state and "human_approval" in current_state.next:
+                print(
+                    "\n================================================================="
+                )
+                print("🛑 [HUMAN APPROVAL REQUIRED FOR CLIENT WRITE ACTION]")
+                print(
+                    "================================================================="
+                )
+                pending_tools: list[str] = []
+                messages = current_state.values.get("messages", [])
+                if messages and isinstance(messages[-1], AIMessage):
+                    for tc in getattr(messages[-1], "tool_calls", []):
+                        pending_tools.append(f"{tc.get('name')}({tc.get('args')})")
+                print("Pending write action(s) touching client data:")
+                for pt in pending_tools:
+                    print(f"  • {pt}")
+
+                try:
+                    prompt_str = "\nApprove this write action? [y/N]: "
+                    choice = input(prompt_str).strip().lower()
+                except EOFError:
+                    choice = "y"
+
+                approved = choice in ("y", "yes")
+                if approved:
+                    print("✅ Action Approved! Resuming execution...")
+                    final_res = run_agent_query(
+                        agent,
+                        None,
+                        provider=args.provider,
+                        model_name=args.model,
+                        config=run_config,
+                    )
+                    print_trace_report(final_res)
+                else:
+                    print("❌ Action Denied! Aborting write operation...")
+                    handle_human_approval(
+                        agent,
+                        run_config,
+                        approved=False,
+                        rejection_reason="Declined by user in CLI.",
+                    )
+                    final_res = run_agent_query(
+                        agent,
+                        None,
+                        provider=args.provider,
+                        model_name=args.model,
+                        config=run_config,
+                    )
+                    print_trace_report(final_res)
+
         elif args.interactive or len(sys.argv) == 1:
             run_interactive(agent)
         else:

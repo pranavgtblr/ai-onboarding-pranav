@@ -98,7 +98,39 @@ class MockToolChatModel(BaseChatModel):
             )
             return ChatResult(generations=[ChatGeneration(message=ai_msg)])
 
-        # 2. Check for PDF / Engineering Specs Search
+        # 2. Check for Cart / Write Actions (Task 4.7 Human-in-the-Loop)
+        cart_keywords = ("cart", "add to cart", "buy", "purchase", "checkout")
+        if any(w in content_str for w in cart_keywords):
+            # Extract product and quantity if possible
+            qty = 1
+            qty_match = re.search(r"\b(\d+)\b", target_query)
+            if qty_match:
+                qty = int(qty_match.group(1))
+
+            pname = "Titanium Drill Bit"
+            if "oxygen" in content_str or "scrubber" in content_str:
+                pname = "Oxygen Scrubber Cartridge"
+            elif "sensor" in content_str or "rover" in content_str:
+                pname = "Mars Rover Sensor"
+
+            ai_msg = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "add_to_cart",
+                        "args": {
+                            "product_name": pname,
+                            "quantity": qty,
+                            "customer_id": 1,
+                        },
+                        "id": "mock_call_cart",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 3. Check for PDF / Engineering Specs Search
         pdf_keywords = (
             "pdf",
             "eclss",
@@ -122,7 +154,7 @@ class MockToolChatModel(BaseChatModel):
             )
             return ChatResult(generations=[ChatGeneration(message=ai_msg)])
 
-        # 3. Check for Website Documentation Search
+        # 4. Check for Website Documentation Search
         site_keywords = (
             "site",
             "website",
@@ -146,7 +178,8 @@ class MockToolChatModel(BaseChatModel):
             )
             return ChatResult(generations=[ChatGeneration(message=ai_msg)])
 
-        # 4. Check for Database Queries (Customers, Orders, Appointments)
+        # 5. Check for Database Queries (Customers, Orders, Appointments)
+
         db_keywords = (
             "customer",
             "order",

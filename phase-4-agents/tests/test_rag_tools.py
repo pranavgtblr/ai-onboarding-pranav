@@ -91,9 +91,10 @@ def test_tool_collections() -> None:
         "db_query",
         "web_search",
     }
-    assert len(all_tools) == 6
+    assert len(all_tools) == 7
     assert "calculator" in {t.name for t in all_tools}
     assert "get_weather" in {t.name for t in all_tools}
+    assert "add_to_cart" in {t.name for t in all_tools}
 
 
 # -----------------------------------------------------------------------------

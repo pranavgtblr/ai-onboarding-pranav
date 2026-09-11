@@ -512,3 +512,106 @@ Run the checkpointer test suite:
 uv run pytest tests/test_checkpointer.py
 ```
 
+---
+
+## Task 4.7: Human-in-the-Loop (HITL) Write Protection Gate
+
+In real-world enterprise agent architectures, **autonomous reads are safe, but autonomous writes are dangerous**.
+An agent can freely search engineering specs or query order status (read operations). But when an agent wants to mutate client data—such as charging a credit card, placing an order, or running `add_to_cart`—it must yield control to a human operator.
+
+### 1. The Real-World & Pop Culture Mental Model
+- **Iron Man / JARVIS Authorization**: When JARVIS suggests targeting a target or initiating house protocol, Tony Stark must explicitly say *"Authorize"*. If Tony says *"No"*, JARVIS stands down without firing.
+- **Frontend / React Form Submission Modal**: When a user clicks "Purchase $10,000 in hardware", we don't dispatch the Redux mutation immediately—we pop a confirmation modal: *"Are you sure you want to purchase 50x Mars Rover Sensors?"*. Clicking `Confirm` dispatches the write action; clicking `Cancel` discards the mutation.
+
+### 2. Graph Topology with HITL Gate
+
+```mermaid
+graph TD
+    START([START]) --> call_model[Node: call_model]
+    call_model --> router{route_model_output}
+    router -->|Write Action: add_to_cart| human_approval[Node: human_approval<br/>PAUSED via interrupt_before]
+    router -->|Read Action: pdf/site/db| execute_tools[Node: execute_tools]
+    router -->|Direct Answer| END([END])
+    human_approval -->|Approved: invoke(None)| execute_tools
+    human_approval -.->|Rejected: update_state| call_model
+    execute_tools --> tool_router{route_tool_output}
+    tool_router -->|Empty Retrieval| rewrite_query[Node: rewrite_query]
+    rewrite_query --> call_model
+    tool_router -->|Success| call_model
+```
+
+### 3. How It Works Under the Hood
+
+1. **Write Tool Tagging (`CLIENT_DATA_WRITE_TOOLS`)**:
+   `rag_tools.py` defines `CLIENT_DATA_WRITE_TOOLS = {"add_to_cart"}`. Any tool mutating client state is registered here.
+2. **Conditional Router (`route_model_output`)**:
+   The router inspects the tool calls returned by the LLM. If any tool belongs to `CLIENT_DATA_WRITE_TOOLS`, it directs flow to the `"human_approval"` node instead of `"execute_tools"`.
+3. **Interrupt Gate (`interrupt_before=['human_approval']`)**:
+   When compiled with a checkpointer (`PostgresSaver` or `MemorySaver`), LangGraph automatically interrupts execution *immediately before* entering `human_approval`. State is safely committed to PostgreSQL.
+4. **Approval vs. Rejection Handler (`handle_human_approval`)**:
+   - **Approved (`approved=True`)**: Calls `agent.invoke(None, config=config)`, allowing the graph to proceed from `human_approval` into `execute_tools`, executing the database mutation.
+   - **Rejected (`approved=False`)**: Injects a cancellation `ToolMessage` (`as_node="execute_tools"`), bypassing the write tool entirely and letting the LLM generate an acknowledgment of the cancellation with **0 database mutations**.
+
+### 4. Interactive CLI Demonstration
+
+Run a purchase query through the CLI:
+```bash
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --engine state_graph \
+  --checkpointer memory \
+  --query "Add 2 Titanium Drill Bits to my cart"
+```
+
+#### A. When Approved (`y`):
+```text
+=================================================================
+🛑 [HUMAN APPROVAL REQUIRED FOR CLIENT WRITE ACTION]
+=================================================================
+Pending write action(s) touching client data:
+  • add_to_cart({'product_name': 'Titanium Drill Bit', 'quantity': 2, 'customer_id': 1})
+
+Approve this write action? [y/N]: y
+✅ Action Approved! Resuming execution...
+
+[Step 3] Actor: Tool Execution (ToolMessage)
+  Content: ✅ [Cart Updated] Successfully added 2x 'Titanium Drill Bit' to Customer #1's cart. Total: $240.00.
+
+[Step 4] Actor: Model (Final Answer) (AIMessage)
+  Content: Mock Model synthesized answer based on retrieved tool results: ✅ [Cart Updated] Successfully added 2x 'Titanium Drill Bit' to Customer #1's cart. Total: $240.00....
+```
+
+#### B. When Rejected (`n`):
+```text
+=================================================================
+🛑 [HUMAN APPROVAL REQUIRED FOR CLIENT WRITE ACTION]
+=================================================================
+Pending write action(s) touching client data:
+  • add_to_cart({'product_name': 'Oxygen Scrubber Cartridge', 'quantity': 10, 'customer_id': 1})
+
+Approve this write action? [y/N]: n
+❌ Action Denied! Aborting write operation...
+
+[Step 3] Actor: Tool Execution (ToolMessage)
+  Content: Action Cancelled: Declined by user in CLI. (add_to_cart was not executed).
+
+[Step 4] Actor: Model (Final Answer) (AIMessage)
+  Content: Mock Model synthesized answer based on retrieved tool results: Action Cancelled: Declined by user in CLI. (add_to_cart was not executed)....
+```
+
+### 5. Automated Tests
+
+Comprehensive tests in `tests/test_human_in_the_loop.py`:
+- `test_is_write_action_detector`: Validates detection of write tools vs read tools.
+- `test_route_model_output_routes_writes_to_human_approval`: Verifies router routing logic.
+- `test_read_tools_execute_without_human_pause`: Confirms read queries proceed uninterrupted.
+- `test_write_tool_pauses_for_human_approval`: Verifies graph pauses before `human_approval` and stores `add_to_cart` tool call in pending state.
+- `test_human_approval_executes_write_and_updates_db`: Approves write, verifies execution and database row inserted into `cart_items`.
+- `test_human_rejection_aborts_write_without_database_mutation`: Rejects write, verifies execution aborts and zero rows are inserted into `cart_items`.
+
+Run the HITL test suite:
+```bash
+uv run pytest tests/test_human_in_the_loop.py -v
+```
+
+

@@ -219,6 +219,21 @@ def _get_database_connection() -> sqlite3.Connection:
     if DEFAULT_DB_PATH.exists():
         conn = sqlite3.connect(DEFAULT_DB_PATH)
         conn.row_factory = sqlite3.Row
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cart_items (
+                cart_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL,
+                product_id INTEGER NOT NULL,
+                product_name TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                unit_price REAL NOT NULL,
+                total_price REAL NOT NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        conn.commit()
         return conn
 
     # Auto-seed in-memory DB if file is missing
@@ -274,6 +289,17 @@ def _get_database_connection() -> sqlite3.Connection:
         INSERT INTO appointments VALUES
             (201, 1, 'Dr. Sarah Connor', '2026-03-15', 'confirmed'),
             (202, 4, 'Dr. Leonard McCoy', '2026-03-18', 'scheduled');
+
+        CREATE TABLE IF NOT EXISTS cart_items (
+            cart_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            product_name TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            unit_price REAL NOT NULL,
+            total_price REAL NOT NULL,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         """
     )
     conn.commit()
@@ -380,7 +406,79 @@ def db_query(query: str) -> str:
 
 
 # -----------------------------------------------------------------------------
-# Tool 4: Web Search
+# Tool 4: Client Data Write Action (add_to_cart - Task 4.7)
+# -----------------------------------------------------------------------------
+
+# Registry of tools that perform write/mutation actions on client data
+CLIENT_DATA_WRITE_TOOLS = {"add_to_cart"}
+
+
+@tool
+def add_to_cart(product_name: str, quantity: int = 1, customer_id: int = 1) -> str:
+    """Add an item to the customer's active shopping cart (WRITE ACTION).
+
+    THIS TOOL MODIFIES CLIENT DATA AND REQUIRES EXPLICIT HUMAN APPROVAL
+    BEFORE EXECUTION.
+
+    Args:
+        product_name: Name of the product to purchase (e.g. 'Titanium Drill Bit').
+        quantity: Number of units to add (default: 1).
+        customer_id: Numeric ID of the authenticated customer (default: 1).
+    """
+    conn = _get_database_connection()
+    cursor = conn.cursor()
+    try:
+        # 1. Resolve product
+        cursor.execute(
+            "SELECT product_id, name, price, stock_quantity FROM products "
+            "WHERE LOWER(name) LIKE ? LIMIT 1",
+            (f"%{product_name.lower().strip()}%",),
+        )
+        row = cursor.fetchone()
+        if not row:
+            # Fallback products if table lookup is empty
+            catalog = {
+                "titanium drill bit": (3, 120.0),
+                "oxygen scrubber cartridge": (2, 850.0),
+                "mars rover sensor": (1, 450.0),
+            }
+            match = next((k for k in catalog if k in product_name.lower()), None)
+            if match:
+                pid, price = catalog[match]
+                pname = match.title()
+            else:
+                return f"Error: Product '{product_name}' not found in catalog."
+        else:
+            pid = row["product_id"]
+            pname = row["name"]
+            price = float(row["price"])
+
+        total_price = price * quantity
+
+        # 2. Insert into cart_items
+        cursor.execute(
+            """
+            INSERT INTO cart_items (
+                customer_id, product_id, product_name, quantity, unit_price, total_price
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (customer_id, pid, pname, quantity, price, total_price),
+        )
+        conn.commit()
+
+        return (
+            f"✅ [Cart Updated] Successfully added {quantity}x '{pname}' "
+            f"to Customer #{customer_id}'s cart. Total: ${total_price:.2f}."
+        )
+    except Exception as exc:
+        return f"Cart Update Error: {exc}"
+    finally:
+        conn.close()
+
+
+# -----------------------------------------------------------------------------
+# Tool 5: Web Search
 # -----------------------------------------------------------------------------
 
 
@@ -489,12 +587,13 @@ def get_rag_tools() -> list[BaseTool]:
 
 
 def get_all_tools() -> list[BaseTool]:
-    """Return all tools: RAG tools plus arithmetic calculator and weather."""
+    """Return all tools: RAG tools, write tools, arithmetic calculator, and weather."""
     return [
         pdf_search,
         site_search,
         db_query,
         web_search,
+        add_to_cart,
         calculator,
         get_weather,
     ]

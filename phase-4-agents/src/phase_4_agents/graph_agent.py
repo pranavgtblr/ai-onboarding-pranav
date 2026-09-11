@@ -30,7 +30,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
 from phase_4_agents.config import get_chat_model
-from phase_4_agents.rag_tools import get_all_tools
+from phase_4_agents.rag_tools import CLIENT_DATA_WRITE_TOOLS, get_all_tools
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are an intelligent multi-source reasoning assistant with access to "
@@ -127,14 +127,32 @@ def rewrite_search_query(failed_query: str, attempt: int = 1) -> str:
 
 
 # -----------------------------------------------------------------------------
-# 3. Conditional Routers
+# 3. Conditional Routers & Human Approval Check
 # -----------------------------------------------------------------------------
 
 
-def route_model_output(state: AgentState) -> Literal["execute_tools", "__end__"]:
+def is_write_action(state: AgentState) -> bool:
+    """Check if the latest model response contains a write action on client data."""
+    messages = state.get("messages", [])
+    if not messages:
+        return False
+    last_msg = messages[-1]
+    if isinstance(last_msg, AIMessage) and getattr(last_msg, "tool_calls", None):
+        for tc in last_msg.tool_calls:
+            tool_name = tc.get("name", "")
+            if tool_name in CLIENT_DATA_WRITE_TOOLS:
+                return True
+    return False
+
+
+def route_model_output(
+    state: AgentState,
+) -> Literal["human_approval", "execute_tools", "__end__"]:
     """Inspect the last message produced by the model node.
 
-    If tool calls were requested -> route to 'execute_tools'.
+    If tool calls were requested:
+        - If any tool touches client data (write action) -> route to 'human_approval'.
+        - If all tools are safe read actions -> route to 'execute_tools'.
     If plain conversational text -> route to '__end__'.
     """
     messages = state.get("messages", [])
@@ -145,6 +163,8 @@ def route_model_output(state: AgentState) -> Literal["execute_tools", "__end__"]
     if isinstance(last_message, AIMessage) and getattr(
         last_message, "tool_calls", None
     ):
+        if is_write_action(state):
+            return "human_approval"
         return "execute_tools"
 
     return "__end__"
@@ -293,11 +313,20 @@ def build_state_graph_agent(
             "step_count": state.get("step_count", 0) + 1,
         }
 
+    # Node 4: Human Approval Gate (Task 4.7)
+    def human_approval_node(state: AgentState) -> dict[str, Any]:
+        """Intermediate gate before write actions touching client data.
+
+        Graph pauses here when compiled with interrupt_before=['human_approval'].
+        """
+        return {"step_count": state.get("step_count", 0) + 1}
+
     # 4. Assemble the Explicit Graph
     workflow = StateGraph(AgentState)
 
     # Add explicit nodes
     workflow.add_node("call_model", call_model)
+    workflow.add_node("human_approval", human_approval_node)
     workflow.add_node("execute_tools", execute_tools_node)
     workflow.add_node("rewrite_query", rewrite_query_node)
 
@@ -307,10 +336,12 @@ def build_state_graph_agent(
         "call_model",
         route_model_output,
         {
+            "human_approval": "human_approval",
             "execute_tools": "execute_tools",
             "__end__": END,
         },
     )
+    workflow.add_edge("human_approval", "execute_tools")
     workflow.add_conditional_edges(
         "execute_tools",
         route_tool_output,
@@ -325,7 +356,82 @@ def build_state_graph_agent(
     compile_kwargs: dict[str, Any] = {}
     if checkpointer is not None:
         compile_kwargs["checkpointer"] = checkpointer
-    if interrupt_before is not None:
-        compile_kwargs["interrupt_before"] = interrupt_before
+
+    # By default, always pause before human_approval if checkpointer is enabled!
+    active_interrupts = list(interrupt_before or [])
+    if checkpointer is not None and "human_approval" not in active_interrupts:
+        active_interrupts.append("human_approval")
+
+    if active_interrupts:
+        compile_kwargs["interrupt_before"] = active_interrupts
 
     return workflow.compile(**compile_kwargs)
+
+
+def handle_human_approval(
+    agent: Any,
+    config: Any,
+    *,
+    approved: bool,
+    rejection_reason: str = "User declined the write action.",
+) -> Any:
+    """Process human approval or rejection of a paused write action.
+
+    Args:
+        agent: CompiledStateGraph instance.
+        config: RunnableConfig containing the thread_id.
+        approved: True to approve and resume execution, False to abort.
+        rejection_reason: Explanation recorded if rejected.
+
+    Returns:
+        The updated state or final execution result.
+    """
+    state = agent.get_state(config)
+    if not state or not state.values:
+        raise ValueError("No state found for the specified thread_id.")
+
+    if approved:
+        # User approved: continue execution from the paused interrupt
+        return agent.invoke(None, config=config)
+
+    # User rejected: abort write action
+    # Find pending tool calls from the last AIMessage
+    messages = list(state.values.get("messages", []))
+    pending_tool_calls: Sequence[Any] = []
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            pending_tool_calls = msg.tool_calls
+            break
+
+    rejection_messages: list[BaseMessage] = []
+    for tc in pending_tool_calls:
+        tc_id = tc.get("id", "cancelled_tool_call")
+        tc_name = tc.get("name", "write_tool")
+        rejection_messages.append(
+            ToolMessage(
+                content=(
+                    f"Action Cancelled: {rejection_reason} "
+                    f"({tc_name} was not executed)."
+                ),
+                tool_call_id=tc_id,
+            )
+        )
+
+    # If no specific tool call ID found, add a generic cancellation message
+    if not rejection_messages:
+        rejection_messages.append(
+            HumanMessage(
+                content=(
+                    "[Human Rejection]: Write action was denied by user. "
+                    f"Reason: {rejection_reason}"
+                )
+            )
+        )
+
+    # Update state with rejection ToolMessage as if execute_tools completed,
+    # thereby bypassing actual tool execution and letting model synthesize
+    # cancellation response.
+    agent.update_state(
+        config, {"messages": rejection_messages}, as_node="execute_tools"
+    )
+    return agent.invoke(None, config=config)
