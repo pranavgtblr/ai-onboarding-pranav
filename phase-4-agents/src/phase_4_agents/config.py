@@ -245,7 +245,17 @@ class MockToolChatModel(BaseChatModel):
             return ChatResult(generations=[ChatGeneration(message=ai_msg)])
 
         # 6. Check for Math / Calculator
-        math_keywords = ("+", "*", "multiply", "add", "calculate", "math", "divide")
+        math_keywords = (
+            "+",
+            "*",
+            "multiply",
+            "multiplied",
+            "multipli",
+            "add",
+            "calculate",
+            "math",
+            "divide",
+        )
         if any(w in content_str for w in math_keywords):
             ai_msg = AIMessage(
                 content="",

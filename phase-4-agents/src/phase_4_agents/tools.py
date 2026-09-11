@@ -7,6 +7,8 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from phase_4_agents.schemas import CalculatorInput, WeatherInput
+
 # Mock weather database identical to Task 2.6
 MOCK_WEATHER_DATABASE: dict[str, dict[str, Any]] = {
     "tokyo": {
@@ -47,14 +49,17 @@ MOCK_WEATHER_DATABASE: dict[str, dict[str, Any]] = {
 }
 
 
-@tool
+@tool(args_schema=CalculatorInput)
 def calculator(operation: str, a: float, b: float) -> str:
     """Execute basic arithmetic operations: add, subtract, multiply, or divide.
 
+    Use this tool ONLY for arithmetic computations. DO NOT use for date math,
+    string manipulation, or general reasoning.
+
     Args:
         operation: One of 'add', 'subtract', 'multiply', or 'divide'.
-        a: First operand.
-        b: Second operand.
+        a: First numeric operand.
+        b: Second numeric operand.
     """
     op = operation.lower().strip()
     if op in ("add", "+"):
@@ -65,10 +70,18 @@ def calculator(operation: str, a: float, b: float) -> str:
         res = a * b
     elif op in ("divide", "/"):
         if b == 0:
-            return "Error: Division by zero is undefined."
+            return (
+                "Calculator Error: Division by zero is mathematically undefined. "
+                "Action for model: Check the divisor operand 'b' or formulate an "
+                "alternative mathematical expression."
+            )
         res = a / b
     else:
-        return f"Error: Unknown operation '{operation}'."
+        return (
+            f"Calculator Error: Unknown operation '{operation}'. "
+            "Action for model: Call calculator with one of "
+            "('add', 'subtract', 'multiply', 'divide')."
+        )
 
     if isinstance(res, float) and res.is_integer():
         formatted = int(res)
@@ -77,12 +90,15 @@ def calculator(operation: str, a: float, b: float) -> str:
     return str(formatted)
 
 
-@tool
+@tool(args_schema=WeatherInput)
 def get_weather(city: str) -> str:
     """Retrieve current weather conditions and temperature for a given city.
 
+    Use this tool ONLY for current meteorological inquiries. DO NOT use for historical
+    weather or general city information (use web_search or site_search instead).
+
     Args:
-        city: Name of the city (e.g., 'Tokyo', 'London', 'Paris').
+        city: Name of the city (e.g., 'Tokyo', 'London', 'Paris', 'New York').
     """
     normalized = city.strip().lower()
     if normalized in MOCK_WEATHER_DATABASE:

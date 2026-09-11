@@ -17,6 +17,13 @@ from typing import Any
 import httpx
 from langchain_core.tools import BaseTool, tool
 
+from phase_4_agents.schemas import (
+    AddToCartInput,
+    DatabaseQueryInput,
+    PDFSearchInput,
+    SiteSearchInput,
+    WebSearchInput,
+)
 from phase_4_agents.tools import calculator, get_weather
 
 # Locate Phase 3 data paths relative to repo root
@@ -91,16 +98,21 @@ FALLBACK_SITE_CHUNKS = [
 # -----------------------------------------------------------------------------
 
 
-@tool
+@tool(args_schema=PDFSearchInput)
 def pdf_search(query: str) -> str:
     """Search internal engineering PDF specifications and manuals.
 
-    Use this tool when the user asks about:
+    Use this tool ONLY when the user asks about:
     - Project Odyssey Mars Base engineering specifications
     - ECLSS (Environmental Control and Life Support System) operating limits
-    - Cabin atmospheric pressure, oxygen levels, power bus voltage
+    - Cabin atmospheric pressure, oxygen levels, primary power bus voltage
     - Propulsion systems (MDAS, hypergolic fuel, specific impulse)
     - Habitat thermal loops, radiator panels, spacesuit maintenance
+
+    DO NOT USE FOR:
+    - Toobler company capabilities or website offerings (use site_search instead).
+    - Relational database orders or customer lookups (use db_query instead).
+    - Breaking news or real-time internet information (use web_search instead).
 
     Args:
         query: Search keywords or question describing the engineering topic.
@@ -131,7 +143,10 @@ def pdf_search(query: str) -> str:
     if not matches:
         return (
             f"PDF Search Results for '{query}': "
-            "No relevant PDF documents matched the query."
+            "No relevant PDF documents matched the query. "
+            "Action for model: Check spelling or try broader keywords "
+            "(e.g. 'eclss', 'pressure', 'propulsion', 'thermal'). "
+            "DO NOT query company capabilities or live news here."
         )
 
     matches.sort(key=lambda x: x[0], reverse=True)
@@ -150,14 +165,19 @@ def pdf_search(query: str) -> str:
 # -----------------------------------------------------------------------------
 
 
-@tool
+@tool(args_schema=SiteSearchInput)
 def site_search(query: str) -> str:
     """Search crawled website documentation and company capabilities.
 
-    Use this tool when the user asks about:
-    - Company capabilities, digital innovation stack, and technical offerings
-    - Services, web/mobile development, IoT solutions, and cloud architecture
-    - Documentation crawled from public sites or internal portals
+    Use this tool ONLY when the user asks about:
+    - Toobler digital innovation capabilities, technical stack, and cloud engineering
+    - Services: React/Next.js architectures, Python microservices, IoT solutions
+    - Documentation crawled from company websites or engineering blogs
+
+    DO NOT USE FOR:
+    - Mars Odyssey engineering manuals or ECLSS limits (use pdf_search instead).
+    - Relational database orders or customers (use db_query instead).
+    - Live external breaking news (use web_search instead).
 
     Args:
         query: Search keywords or question regarding site documentation.
@@ -190,8 +210,10 @@ def site_search(query: str) -> str:
     scored.sort(key=lambda x: x[0], reverse=True)
     if not scored or scored[0][0] == 0:
         return (
-            f"Website Search Results for '{query}': "
-            "No matching documentation pages found."
+            f"Website Search Results for '{query}': No matching documentation "
+            "pages found. Action for model: Search for general capabilities "
+            "like 'cloud', 'iot', 'react', 'python', or 'digital innovation'. "
+            "DO NOT query Mars engineering specs here."
         )
 
     top_chunks = [c for s, c in scored[:3] if s > 0]
@@ -306,15 +328,19 @@ def _get_database_connection() -> sqlite3.Connection:
     return conn
 
 
-@tool
+@tool(args_schema=DatabaseQueryInput)
 def db_query(query: str) -> str:
     """Execute a structured database query against transactional business tables.
 
-    Use this tool when the user asks about:
-    - Customers: names, emails, phone numbers, cities
-    - Orders: order numbers, customer orders, shipping statuses, order totals
-    - Products: catalog, prices, categories, inventory stock levels
-    - Appointments: doctor names, appointment dates, booking schedules
+    Use this tool ONLY for querying relational database tables:
+    - Customers: customer_id, name, email, phone, city
+    - Orders: order_id, customer_id, order_date, status, total_amount
+    - Products: product_id, name, category, price, stock_quantity
+    - Appointments: appointment_id, customer_id, doctor_name, appointment_date, status
+
+    DO NOT USE FOR:
+    - Mutating client data (use add_to_cart for purchasing or adding items to cart).
+    - Searching Mars PDF manuals or external web documentation.
 
     Args:
         query: SQL SELECT statement OR natural language description of what to query.
@@ -335,8 +361,16 @@ def db_query(query: str) -> str:
             "REPLACE",
         ]
         tokens = set(re.findall(r"\b\w+\b", clean_q.upper()))
-        if tokens & set(forbidden):
-            return "Security Error: Only read-only SELECT queries are allowed."
+        found_forbidden = tokens & set(forbidden)
+        if found_forbidden:
+            forbidden_op = next(iter(found_forbidden))
+            return (
+                "Security Error: Only read-only SELECT queries are allowed. "
+                f"Write operation '{forbidden_op}' is strictly forbidden in db_query. "
+                "If you need to mutate client data (e.g. add items to cart), use "
+                "the dedicated 'add_to_cart' tool. To query records, rewrite as a "
+                "SELECT statement."
+            )
 
         # Check if query is raw SQL
         if clean_q.upper().startswith("SELECT"):
@@ -400,7 +434,17 @@ def db_query(query: str) -> str:
 
         return "\n".join(lines)
     except Exception as exc:
-        return f"Database Query Error: {exc}"
+        return (
+            f"Database Query Error: {exc}. "
+            "Action for model: Valid tables in this database are "
+            "'customers', 'orders', 'products', 'appointments'. Schema hints: "
+            "customers(customer_id, name, email, phone, city), "
+            "products(product_id, name, category, price, stock_quantity), "
+            "orders(order_id, customer_id, order_date, status, total_amount), "
+            "appointments(appointment_id, customer_id, doctor_name, "
+            "appointment_date, status). "
+            "Rewrite your query referencing only these valid tables."
+        )
     finally:
         conn.close()
 
@@ -413,16 +457,19 @@ def db_query(query: str) -> str:
 CLIENT_DATA_WRITE_TOOLS = {"add_to_cart"}
 
 
-@tool
+@tool(args_schema=AddToCartInput)
 def add_to_cart(product_name: str, quantity: int = 1, customer_id: int = 1) -> str:
     """Add an item to the customer's active shopping cart (WRITE ACTION).
 
-    THIS TOOL MODIFIES CLIENT DATA AND REQUIRES EXPLICIT HUMAN APPROVAL
-    BEFORE EXECUTION.
+    THIS TOOL MUTATES CLIENT DATA AND REQUIRES EXPLICIT HUMAN APPROVAL BEFORE EXECUTION.
+    Use this tool ONLY when the user explicitly requests purchasing or adding items.
+
+    DO NOT USE FOR:
+    - Read-only queries about products, inventory, or prices (use db_query instead).
 
     Args:
         product_name: Name of the product to purchase (e.g. 'Titanium Drill Bit').
-        quantity: Number of units to add (default: 1).
+        quantity: Number of units to add (default: 1, range: 1 to 100).
         customer_id: Numeric ID of the authenticated customer (default: 1).
     """
     conn = _get_database_connection()
@@ -447,7 +494,13 @@ def add_to_cart(product_name: str, quantity: int = 1, customer_id: int = 1) -> s
                 pid, price = catalog[match]
                 pname = match.title()
             else:
-                return f"Error: Product '{product_name}' not found in catalog."
+                return (
+                    f"Catalog Error: Product '{product_name}' not found in catalog. "
+                    "Action for model: Available products are: 'Mars Rover Sensor' "
+                    "($450.00), 'Oxygen Scrubber Cartridge' ($850.00), 'Titanium "
+                    "Drill Bit' ($120.00). Please re-call add_to_cart with an exact "
+                    "or partial name matching one of these products."
+                )
         else:
             pid = row["product_id"]
             pname = row["name"]
@@ -482,15 +535,19 @@ def add_to_cart(product_name: str, quantity: int = 1, customer_id: int = 1) -> s
 # -----------------------------------------------------------------------------
 
 
-@tool
+@tool(args_schema=WebSearchInput)
 def web_search(query: str) -> str:
     """Search live internet sources for real-time, current, or external information.
 
-    Use this tool when the user asks about:
-    - Breaking news, recent events, sports scores, live stock quotes
+    Use this tool ONLY when the user asks about:
+    - Breaking news, recent events, 2026 releases, NASA Artemis roadmap updates
     - Queries mentioning 'latest', 'recent', 'today', '2026', 'current'
-    - External libraries (React 19, Python 3.13, LangGraph updates)
-    - Information not contained in internal Mars PDF manuals or local database
+    - External libraries and frameworks not contained in internal documentation
+
+    DO NOT USE FOR:
+    - Internal Mars Odyssey engineering specs (use pdf_search instead).
+    - Toobler capabilities or company offerings (use site_search instead).
+    - Relational database transactions (use db_query instead).
 
     Args:
         query: Search terms to find real-time internet information.
@@ -562,8 +619,9 @@ def web_search(query: str) -> str:
 
     if not matching_sources:
         return (
-            f"Web Search Results for '{clean_q}': "
-            "No relevant web results found. Try broader search terms."
+            f"Web Search Results for '{clean_q}': No relevant web results found. "
+            "Action for model: Try broader search terms or verify keywords for "
+            "live 2026 events / NASA Artemis roadmap."
         )
 
     lines = [f"Web Search Results for '{clean_q}':"]

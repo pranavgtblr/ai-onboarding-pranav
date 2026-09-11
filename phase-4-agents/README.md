@@ -894,6 +894,128 @@ Run the streaming test suite:
 uv run pytest tests/test_streaming.py -v
 ```
 
+---
 
+## Task 4.10: Tool Design Pass, Actionable Errors & Guardrails
 
+Production AI agents fail most frequently not at the LLM reasoning level, but at the **tool interface layer**:
+1. **Ambiguous Schemas**: Unconstrained strings allow hallucinated extra fields (`hallucinated_param: true`), negative numbers, or invalid enum values.
+2. **End-User-Targeted Error Messages**: Generic errors like `"500 Internal Server Error"` or `"Query failed"` give the model zero guidance on how to self-correct, forcing it to hallucinate or give up.
+3. **Runaway Loops & Burned Budgets**: Models get stuck in infinite ping-pong loops repeating identical failing calls until credit limits are drained or rate limits trigger.
 
+Task 4.10 implements a complete defensive tool design and guardrail architecture:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    TASK 4.10 GUARDRAIL ARCHITECTURE                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  [1. Strict Pydantic Schemas] (schemas.py)                              │
+│  ├── Type safety, Field descriptions, ge/le bounds                      │
+│  └── model_config = ConfigDict(extra="forbid")                          │
+│                                                                         │
+│  [2. Model-Actionable Error Messages] (rag_tools.py, tools.py)          │
+│  ├── SQL syntax error ──► "Valid tables: customers, orders, products... │
+│  │                        Rewrite your query referencing only these."   │
+│  ├── Product not found ──► "Available items: 'Mars Rover Sensor' ($450)│
+│  │                         Please re-call with matching product name."  │
+│  └── Search misses ──────► "Try broader keywords ('eclss', 'thermal').  │
+│                            DO NOT query live news here."                │
+│                                                                         │
+│  [3. Circuit Breakers & Stuck Detector] (graph_agent.py)                │
+│  ├── Consecutive Duplicate Check (same tool & identical args twice)     │
+│  ├── Cyclic Loop Check (same tool call >= 3 times across history)       │
+│  ├── Hard Iteration Limit (max_iterations, default 15)                  │
+│  └── Dollar Budget Cap (cost_cap_usd, default $0.05)                    │
+│                                                                         │
+│  [4. Fail Loudly (Never Loop!)]                                         │
+│  ├── Raises AgentStuckError                                             │
+│  ├── Raises AgentMaxIterationsExceededError                             │
+│  ├── Raises AgentCostCapExceededError                                   │
+│  └── Emits Loud Warning Banners & clean CLI exit code 1                 │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. Tight Pydantic Schemas (`schemas.py`)
+
+All tools bind explicit `args_schema` derived from Pydantic models with `extra="forbid"`:
+
+- `PDFSearchInput`: `query: str` (min_length=2, max_length=300).
+- `SiteSearchInput`: `query: str` (min_length=2, max_length=300).
+- `DatabaseQueryInput`: `query: str` with strict validation that mutations (`DROP`, `DELETE`, `INSERT`, `UPDATE`, `ALTER`) are rejected.
+- `AddToCartInput`: `product_name: str`, `quantity: int` (ge=1, le=100), `customer_id: int` (ge=1).
+- `CalculatorInput`: `operation: str` with docstrings explaining valid operators, `a: float`, `b: float`.
+- `WeatherInput`: `city: str` (min_length=1, max_length=100).
+
+```python
+class AddToCartInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_name: str = Field(
+        ...,
+        description="Exact name of the product to purchase. Example: 'Titanium Drill Bit'",
+        min_length=1,
+        max_length=200,
+    )
+    quantity: int = Field(
+        1,
+        description="Number of units to purchase (positive integer between 1 and 100)",
+        ge=1,
+        le=100,
+    )
+    customer_id: int = Field(
+        1,
+        description="Numeric ID of the customer placing the order",
+        ge=1,
+    )
+```
+
+### 2. Actionable Error Messages Written for the Model
+
+When a tool fails or misses, the output is formatted as a structured diagnostic for the LLM:
+- **Database Errors**: Returns the exact schema of valid tables and column names (`customers`, `orders`, `products`, `appointments`) so the LLM can self-correct its SQL immediately.
+- **Product Misses**: Returns the active store catalog and prices so the model can pick a real product rather than hallucinating inventory.
+- **Search Misses**: Suggests alternative technical keywords and sets clear negative domain boundaries (`"DO NOT query Mars engineering specs here"`).
+- **Calculator Division by Zero**: Explains mathematical undefinedness and prompts alternative operations.
+
+### 3. Stuck Loop Detection & Circuit Breakers
+
+In `graph_agent.py`, `detect_stuck_agent(...)` maintains a normalized history of all tool invocations:
+- **Immediate Repetition**: If the model invokes the exact same tool with identical arguments two steps in a row without state progress, the circuit breaker trips.
+- **Cyclic Repetition**: If the same tool invocation appears 3 or more times anywhere in the conversation history, the agent trips a cyclic loop error.
+- **Iteration Limits**: Halts execution when step count exceeds `--max-iterations` (default: 15).
+- **Cost Budget Cap**: Tracks estimated token costs across all steps ($0.15/1M input, $0.60/1M output). If estimated expenditure exceeds `--cost-cap` (default: $0.05), the agent halts immediately.
+
+### 4. CLI Demonstration: Failing Loudly
+
+```bash
+# Test iteration limit guardrail (fails loudly with exit code 1)
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --max-iterations 2 \
+  --query "What is 25 multiplied by 4?"
+
+# Test budget cost cap guardrail
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --cost-cap 0.000000001 \
+  --query "Hello assistant"
+```
+
+Output:
+```text
+==============================================================================
+💥 AGENT FAILED LOUDLY: AgentMaxIterationsExceededError
+==============================================================================
+Error: AGENT HALTED: Reached maximum iteration limit of 2 steps. Failing loudly to prevent runaway infinite loop.
+The agent was stopped to prevent an infinite loop or excessive budget burn.
+==============================================================================
+```
+
+### 5. Automated Tests
+
+Run the guardrail test suite:
+```bash
+uv run pytest tests/test_tool_design_and_guardrails.py -v
+```
+All 14 tests pass covering schema validation, actionable error self-correction, stuck loop detection, iteration limits, and budget caps.

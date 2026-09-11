@@ -18,6 +18,7 @@ from langchain_core.runnables import RunnableConfig
 
 from phase_4_agents.config import get_chat_model, get_settings
 from phase_4_agents.graph_agent import (
+    AgentExecutionError,
     build_state_graph_agent,
     handle_human_approval,
     list_state_history,
@@ -65,6 +66,8 @@ class AgentExecutionResult:
     total_steps: int
     provider: str = "google_genai"
     model: str = "gemini-3.5-flash-lite"
+    total_tokens: int = 0
+    total_cost_usd: float = 0.0
 
 
 def build_tool_agent(
@@ -78,6 +81,9 @@ def build_tool_agent(
     temperature: float | None = None,
     checkpointer: Any = None,
     interrupt_before: list[str] | None = None,
+    max_iterations: int = 15,
+    cost_cap_usd: float = 0.05,
+    fail_loudly: bool = True,
 ):
     """Construct a tool-calling agent using StateGraph (4.4) or create_agent (4.1)."""
     if engine.lower() == "state_graph":
@@ -90,6 +96,9 @@ def build_tool_agent(
             temperature=temperature,
             checkpointer=checkpointer,
             interrupt_before=interrupt_before,
+            max_iterations=max_iterations,
+            cost_cap_usd=cost_cap_usd,
+            fail_loudly=fail_loudly,
         )
 
     llm = get_chat_model(
@@ -214,6 +223,14 @@ def run_agent_query(
     settings = get_settings()
     active_provider = provider or settings.model_provider
     active_model = model_name or settings.model_name
+    tot_tokens = (
+        int(response.get("total_tokens", 0)) if isinstance(response, dict) else 0
+    )
+    tot_cost = (
+        float(response.get("total_cost_usd", 0.0))
+        if isinstance(response, dict)
+        else 0.0
+    )
     return AgentExecutionResult(
         query=query,
         steps=step_traces,
@@ -221,6 +238,8 @@ def run_agent_query(
         total_steps=len(step_traces),
         provider=active_provider,
         model=active_model,
+        total_tokens=tot_tokens,
+        total_cost_usd=tot_cost,
     )
 
 
@@ -233,6 +252,9 @@ def print_trace_report(result: AgentExecutionResult) -> None:
     print(f"ACTIVE PROVIDER : {result.provider}")
     print(f"ACTIVE MODEL    : {result.model}")
     print(f"TOTAL STEPS     : {result.total_steps}")
+    if result.total_tokens > 0:
+        cost_str = f"~${result.total_cost_usd:.6f} USD"
+        print(f"TOKENS / BUDGET : {result.total_tokens} tokens ({cost_str})")
     print("-" * 78)
 
     for step in result.steps:
@@ -373,6 +395,18 @@ def main() -> None:
         action="store_true",
         help="Stream intermediate agent execution steps in real-time.",
     )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=15,
+        help="Maximum reasoning iterations before loud failure (default: 15).",
+    )
+    parser.add_argument(
+        "--cost-cap",
+        type=float,
+        default=0.05,
+        help="Maximum estimated USD budget before loud failure (default: 0.05).",
+    )
     args = parser.parse_args()
 
     toolset_map = {
@@ -414,6 +448,8 @@ def main() -> None:
             model_name=args.model,
             checkpointer=active_checkpointer,
             interrupt_before=interrupt_nodes,
+            max_iterations=args.max_iterations,
+            cost_cap_usd=args.cost_cap,
         )
 
         run_config: RunnableConfig = {"configurable": {"thread_id": args.thread_id}}
@@ -681,6 +717,15 @@ def main() -> None:
             run_interactive(agent)
         else:
             parser.print_help()
+    except AgentExecutionError as exc:
+        print("\n" + "=" * 78)
+        print(
+            f"💥 [AGENT EXECUTION HALTED - GUARDRAIL TRIGGERED: {type(exc).__name__}]"
+        )
+        print(f"Reason: {exc}")
+        print("Safety policy enforced: When stuck, fail loudly - never loop.")
+        print("=" * 78 + "\n")
+        sys.exit(1)
     finally:
         if checkpointer_ctx is not None:
             checkpointer_ctx.__exit__(None, None, None)

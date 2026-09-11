@@ -54,6 +54,7 @@
   - [x] 4.7 Add human-in-the-loop: the graph pauses before any write action and waits for approval. Required for anything touching client data - this is the add_to_cart case from Part 4.
   - [x] 4.8 Time-travel debugging: replay a completed run from an arbitrary checkpoint with modified state.
   - [x] 4.9 Stream intermediate steps to a UI so a 20-second run does not look frozen. Reuse the Phase 0 streaming endpoint.
+  - [x] 4.10 Tool design pass: tight schemas, unambiguous names, and error messages written for the model to act on. Add an iteration limit and a cost cap. When stuck, fail loudly - never loop.
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)

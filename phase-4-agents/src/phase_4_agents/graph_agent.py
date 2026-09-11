@@ -53,6 +53,84 @@ DEFAULT_SYSTEM_PROMPT = (
 
 
 # -----------------------------------------------------------------------------
+# 0. Custom Exceptions (Task 4.10 Guardrails)
+# -----------------------------------------------------------------------------
+
+
+class AgentExecutionError(Exception):
+    """Base exception for agent execution and guardrail failures."""
+
+
+class AgentStuckError(AgentExecutionError):
+    """Raised when the agent gets stuck in a loop calling identical tools."""
+
+
+class AgentMaxIterationsExceededError(AgentExecutionError):
+    """Raised when the agent reaches the configured maximum iteration limit."""
+
+
+class AgentCostCapExceededError(AgentExecutionError):
+    """Raised when the agent's estimated token cost exceeds the configured cost cap."""
+
+
+# -----------------------------------------------------------------------------
+# Stuck Loop Detection Helper (Task 4.10)
+# -----------------------------------------------------------------------------
+
+
+def _normalize_args(args: Any) -> str:
+    """Deterministically serialize tool arguments for comparison."""
+    if isinstance(args, dict):
+        return json.dumps(args, sort_keys=True, default=str)
+    return str(args)
+
+
+def detect_stuck_agent(
+    tool_call_history: list[dict[str, Any]],
+) -> tuple[bool, str]:
+    """Detect if agent is stuck in repetitive tool-calling cycles or identical loops.
+
+    Conditions checked:
+    1. Two consecutive identical tool calls (same tool name and identical arguments).
+    2. Same tool call repeated 3 or more times across total conversation history.
+
+    Returns:
+        (is_stuck, reason_message)
+    """
+    if not tool_call_history:
+        return False, ""
+
+    # 1. Immediate consecutive duplicate check
+    if len(tool_call_history) >= 2:
+        last_call = tool_call_history[-1]
+        prev_call = tool_call_history[-2]
+        if last_call.get("name") == prev_call.get("name") and _normalize_args(
+            last_call.get("args")
+        ) == _normalize_args(prev_call.get("args")):
+            tool_name = last_call.get("name")
+            args_str = _normalize_args(last_call.get("args"))
+            return (
+                True,
+                f"Detected consecutive identical tool call: '{tool_name}' "
+                f"with args {args_str} called twice in a row without state progress.",
+            )
+
+    # 2. Repeated cyclic tool call detection (same call appears >= 3 times in history)
+    signatures = [
+        f"{c.get('name')}:{_normalize_args(c.get('args'))}" for c in tool_call_history
+    ]
+    for sig in signatures:
+        if signatures.count(sig) >= 3:
+            return (
+                True,
+                f"Detected cyclic loop: Tool call '{sig}' executed 3 or more times. "
+                "Halting execution to prevent infinite cycle.",
+            )
+
+    return False, ""
+
+
+# -----------------------------------------------------------------------------
 # 1. Typed State Schema
 # -----------------------------------------------------------------------------
 
@@ -65,15 +143,23 @@ class AgentState(TypedDict, total=False):
             reducer to append new messages from nodes immutably.
         step_count: Number of reasoning iterations executed by the graph.
         rewrite_count: Number of query rewriting retry attempts executed (max 2).
+        total_tokens: Cumulative prompt + completion tokens used across calls.
+        total_cost_usd: Estimated cumulative cost in USD.
+        tool_call_history: List of past tool invocations for stuck-loop detection.
+        error_status: Optional description of fatal guardrail failure.
     """
 
     messages: Annotated[Sequence[BaseMessage], add_messages]
     step_count: int
     rewrite_count: int
+    total_tokens: int
+    total_cost_usd: float
+    tool_call_history: list[dict[str, Any]]
+    error_status: str | None
 
 
 # -----------------------------------------------------------------------------
-# 2. Relevance Evaluator & Query Rewriter
+# 2. Relevance Evaluator, Query Rewriter & Stuck Detector
 # -----------------------------------------------------------------------------
 
 
@@ -125,6 +211,8 @@ def rewrite_search_query(failed_query: str, attempt: int = 1) -> str:
 
     # Generic fallback: extract keywords
     words = re.findall(r"\b\w+\b", q_clean)
+    if attempt >= 2 and words:
+        return words[0]
     if len(words) > 2:
         return " ".join(words[:2])
     return q_clean
@@ -154,11 +242,15 @@ def route_model_output(
 ) -> Literal["human_approval", "execute_tools", "__end__"]:
     """Inspect the last message produced by the model node.
 
+    If error_status is set -> route to '__end__'.
     If tool calls were requested:
         - If any tool touches client data (write action) -> route to 'human_approval'.
         - If all tools are safe read actions -> route to 'execute_tools'.
     If plain conversational text -> route to '__end__'.
     """
+    if state.get("error_status"):
+        return "__end__"
+
     messages = state.get("messages", [])
     if not messages:
         return "__end__"
@@ -179,11 +271,15 @@ def route_tool_output(
 ) -> Literal["rewrite_query", "call_model"]:
     """Evaluate tool execution results.
 
+    If error_status is set -> route to 'call_model' for termination.
     If retrieval returned nothing relevant AND rewrite_count < 2:
         -> Route to 'rewrite_query' to retry.
     Otherwise (data found OR retries exhausted):
         -> Route to 'call_model' to synthesize response.
     """
+    if state.get("error_status"):
+        return "call_model"
+
     messages = state.get("messages", [])
     curr_retries = state.get("rewrite_count", 0)
 
@@ -221,8 +317,11 @@ def build_state_graph_agent(
     temperature: float | None = None,
     checkpointer: Any = None,
     interrupt_before: list[str] | None = None,
+    max_iterations: int = 15,
+    cost_cap_usd: float = 0.05,
+    fail_loudly: bool = True,
 ):
-    """Construct a compiled StateGraph with explicit nodes, edges, and retry cycle.
+    """Construct a compiled StateGraph with nodes, edges, cycles, and guardrails.
 
     Args:
         model: Optional pre-configured BaseChatModel instance.
@@ -233,8 +332,10 @@ def build_state_graph_agent(
         api_key: Provider API key override.
         temperature: Sampling temperature.
         checkpointer: Optional checkpointer (e.g. PostgresSaver or MemorySaver).
-        interrupt_before: Optional list of node names to interrupt execution before.
-
+        interrupt_before: Optional list of node names to interrupt before.
+        max_iterations: Maximum reasoning steps permitted before halting (15).
+        cost_cap_usd: Cumulative estimated dollar budget cap (default: $0.05).
+        fail_loudly: Whether to raise typed exceptions on failure (default: True).
 
     Returns:
         CompiledStateGraph runnable.
@@ -254,7 +355,18 @@ def build_state_graph_agent(
 
     # Node 1: Call Model
     def call_model(state: AgentState) -> dict[str, Any]:
-        """Invoke the LLM with current state messages and optional system prompt."""
+        """Invoke the LLM with current state messages, tracking costs and guardrails."""
+        curr_steps = state.get("step_count", 0) + 1
+        if curr_steps > max_iterations:
+            msg = (
+                "AGENT HALTED: Reached maximum iteration limit of "
+                f"{max_iterations} steps. "
+                "Failing loudly to prevent runaway infinite loop."
+            )
+            if fail_loudly:
+                raise AgentMaxIterationsExceededError(msg)
+            return {"step_count": curr_steps, "error_status": msg}
+
         messages = list(state.get("messages", []))
 
         if messages and not isinstance(messages[0], SystemMessage):
@@ -263,10 +375,71 @@ def build_state_graph_agent(
             full_messages = messages
 
         response = bound_model.invoke(full_messages)
-        curr_steps = state.get("step_count", 0) + 1
+
+        # Token usage and pricing calculation
+        usage = getattr(response, "usage_metadata", None) or {}
+        in_tokens = int(usage.get("input_tokens") or 0)
+        out_tokens = int(usage.get("output_tokens") or 0)
+        if in_tokens == 0 and out_tokens == 0:
+            char_count = sum(len(str(m.content)) for m in full_messages) + len(
+                str(response.content)
+            )
+            in_tokens = max(1, char_count // 4)
+            out_tokens = max(1, len(str(response.content)) // 4)
+
+        # Rates: $0.15/1M input ($0.00000015/token), $0.60/1M output ($0.00000060/token)
+        step_cost = (in_tokens * 0.00000015) + (out_tokens * 0.00000060)
+        cum_tokens = state.get("total_tokens", 0) + in_tokens + out_tokens
+        cum_cost = state.get("total_cost_usd", 0.0) + step_cost
+
+        # Cost cap check
+        if cum_cost > cost_cap_usd:
+            msg = (
+                f"AGENT HALTED: Estimated cost ${cum_cost:.6f} exceeded cost cap "
+                f"of ${cost_cap_usd:.6f}. Total tokens used: {cum_tokens}. "
+                "Failing loudly to prevent budget overrun."
+            )
+            if fail_loudly:
+                raise AgentCostCapExceededError(msg)
+            return {
+                "messages": [response],
+                "step_count": curr_steps,
+                "total_tokens": cum_tokens,
+                "total_cost_usd": cum_cost,
+                "error_status": msg,
+            }
+
+        # Tool call history and stuck loop detector
+        new_history = list(state.get("tool_call_history", []))
+        if isinstance(response, AIMessage) and getattr(response, "tool_calls", None):
+            for tc in response.tool_calls:
+                new_history.append(
+                    {
+                        "name": tc.get("name"),
+                        "args": tc.get("args"),
+                        "step": curr_steps,
+                    }
+                )
+            is_stuck, reason = detect_stuck_agent(new_history)
+            if is_stuck:
+                msg = f"AGENT HALTED: Stuck in loop! {reason}"
+                if fail_loudly:
+                    raise AgentStuckError(msg)
+                return {
+                    "messages": [response],
+                    "step_count": curr_steps,
+                    "total_tokens": cum_tokens,
+                    "total_cost_usd": cum_cost,
+                    "tool_call_history": new_history,
+                    "error_status": msg,
+                }
+
         return {
             "messages": [response],
             "step_count": curr_steps,
+            "total_tokens": cum_tokens,
+            "total_cost_usd": cum_cost,
+            "tool_call_history": new_history,
         }
 
     # Node 2: Execute Tools
@@ -274,8 +447,18 @@ def build_state_graph_agent(
 
     def execute_tools_node(state: AgentState) -> dict[str, Any]:
         """Execute requested tool calls and increment step count."""
-        tool_output = tool_node.invoke(state)
         curr_steps = state.get("step_count", 0) + 1
+        if curr_steps > max_iterations:
+            msg = (
+                "AGENT HALTED: Reached maximum iteration limit of "
+                f"{max_iterations} steps. "
+                "Failing loudly to prevent runaway infinite loop."
+            )
+            if fail_loudly:
+                raise AgentMaxIterationsExceededError(msg)
+            return {"step_count": curr_steps, "error_status": msg}
+
+        tool_output = tool_node.invoke(state)
         return {
             "messages": tool_output.get("messages", []),
             "step_count": curr_steps,
@@ -284,6 +467,17 @@ def build_state_graph_agent(
     # Node 3: Rewrite Query (Task 4.5 Self-Correction Cycle)
     def rewrite_query_node(state: AgentState) -> dict[str, Any]:
         """Rewrite search query after empty retrieval and increment retry count."""
+        curr_steps = state.get("step_count", 0) + 1
+        if curr_steps > max_iterations:
+            msg = (
+                "AGENT HALTED: Reached maximum iteration limit of "
+                f"{max_iterations} steps. "
+                "Failing loudly to prevent runaway infinite loop."
+            )
+            if fail_loudly:
+                raise AgentMaxIterationsExceededError(msg)
+            return {"step_count": curr_steps, "error_status": msg}
+
         curr_retries = state.get("rewrite_count", 0)
         messages = list(state.get("messages", []))
 
@@ -314,7 +508,7 @@ def build_state_graph_agent(
         return {
             "messages": [self_correction_msg],
             "rewrite_count": next_retries,
-            "step_count": state.get("step_count", 0) + 1,
+            "step_count": curr_steps,
         }
 
     # Node 4: Human Approval Gate (Task 4.7)
@@ -672,10 +866,26 @@ def stream_agent_steps(
         data={"query": query},
     )
 
-    for chunk in agent.stream(input_payload, config=config, stream_mode="updates"):
-        for node_name, state_chunk in chunk.items():
-            step_counter += 1
-            yield _parse_stream_update_to_event(node_name, state_chunk, step_counter)
+    try:
+        for chunk in agent.stream(input_payload, config=config, stream_mode="updates"):
+            for node_name, state_chunk in chunk.items():
+                step_counter += 1
+                yield _parse_stream_update_to_event(
+                    node_name, state_chunk, step_counter
+                )
+    except AgentExecutionError as exc:
+        step_counter += 1
+        yield AgentStreamEvent(
+            event="error",
+            node="guardrail",
+            step_number=step_counter,
+            data={
+                "error_type": type(exc).__name__,
+                "message": str(exc),
+                "status": "halted",
+            },
+        )
+        raise
 
     yield AgentStreamEvent(
         event="done",
