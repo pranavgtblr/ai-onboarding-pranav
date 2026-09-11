@@ -52,6 +52,7 @@
   - [x] 4.5 Add a conditional edge and a cycle: if retrieval returns nothing relevant, rewrite the query and retry, up to 2 attempts.
   - [x] 4.6 Add a Postgres or Redis checkpointer. Kill the process mid-run and resume from the checkpoint. Show it in the README. In-memory state is for demos only.
   - [x] 4.7 Add human-in-the-loop: the graph pauses before any write action and waits for approval. Required for anything touching client data - this is the add_to_cart case from Part 4.
+  - [x] 4.8 Time-travel debugging: replay a completed run from an arbitrary checkpoint with modified state.
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)

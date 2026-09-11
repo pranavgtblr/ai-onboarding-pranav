@@ -614,4 +614,137 @@ Run the HITL test suite:
 uv run pytest tests/test_human_in_the_loop.py -v
 ```
 
+---
+
+## Task 4.8: Time-Travel Debugging & State Forking
+
+In traditional software development, debugging a bug that happens at step 10 requires restarting the program from scratch and reproducing steps 1 through 9. If step 4 involved an expensive API call or a complex database query, you pay that latency and cost on every debugging loop.
+
+In **LangGraph**, every state transition produces an immutable **`StateSnapshot`** persisted to the checkpointer. **Time-Travel Debugging** allows developers to:
+1. Rewind to any arbitrary checkpoint in the execution history.
+2. Inspect the exact state (messages, step metrics, pending nodes) at that instant.
+3. Modify the state (e.g. rewrite a user prompt, correct a corrupted tool output, tweak parameters).
+4. Replay execution forward from that point along a **new branch/fork** without overwriting the original run.
+
+### 1. The Redux DevTools & Git Mental Model
+
+* **Frontend / Redux DevTools**: If you have used Redux DevTools or Elm, you know the slider where you can jump back to `ACTION_3`, inspect the Redux store, edit a field in the inspector, and resume dispatching actions. LangGraph brings Redux DevTools to server-side AI agents.
+* **Git Branching (`git checkout -b`)**: Checkpoints form a directed acyclic graph (DAG) where each snapshot has a `checkpoint_id` and a `parent_checkpoint_id`. Updating state at an earlier checkpoint does **not** mutate the past; it creates a new child checkpoint branching off the parent, identical to `git checkout -b new-experiment <commit-hash>`.
+* **Pop Culture (Doctor Strange & The Time Stone)**: In *Avengers: Infinity War*, Doctor Strange rewinds time to inspect 14,000,605 alternate futures. Time travel in LangGraph lets you rewind to the decision node, change a single variable, and observe how the agent's reasoning diverges.
+
+### 2. Checkpoint Branching Topology
+
+```text
+Original Run (Tokyo Query):
+[snap 7: __start__] ──► [snap 6: call_model] ──► [snap 5: execute_tools] ──► ... ──► [snap 0: ()] (Finished)
+                              │
+                              └─── (time_travel_replay with modified query: "Paris")
+                                    │
+                                    ▼
+Forked Run (Paris Branch):
+[fork 6: call_model] ──► [fork 5: execute_tools] ──► ... ──► [fork 0: ()] (Finished)
+```
+
+### 3. Core Engine Primitives (`graph_agent.py`)
+
+#### A. History Inspection (`list_state_history`)
+Iterates through `agent.get_state_history(config)`, extracting structured metadata:
+* `checkpoint_id`: Unique snapshot UUID.
+* `parent_checkpoint_id`: Pointer to the immediate predecessor snapshot.
+* `next`: Next node(s) scheduled to execute (e.g. `('execute_tools',)` or empty `()` if completed).
+* `messages_count`, `last_message_type`, and `last_message_preview`.
+
+#### B. State Rewind & Forking (`time_travel_replay`)
+```python
+def time_travel_replay(agent, config, checkpoint_id, state_update=None, as_node=None):
+    target_snap = get_checkpoint_snapshot(agent, config, checkpoint_id)
+    target_config = target_snap.config
+
+    if state_update is not None:
+        # Fork checkpoint history with updated state
+        fork_config = agent.update_state(target_config, state_update, as_node=as_node)
+    else:
+        fork_config = target_config
+
+    result = agent.invoke(None, config=fork_config)
+    return fork_config, result
+```
+
+### 4. Interactive CLI Demonstration
+
+#### Step 1: Run Initial Query
+```bash
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --engine state_graph \
+  --checkpointer postgres \
+  --thread-id tt-demo-pg \
+  --query "Find customers living in Tokyo"
+```
+
+#### Step 2: Inspect Checkpoint History
+```bash
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --engine state_graph \
+  --checkpointer postgres \
+  --thread-id tt-demo-pg \
+  --history
+```
+Output:
+```text
+⏳ [CHECKPOINT HISTORY] Thread 'tt-demo-pg':
+Idx  Checkpoint ID                          Next Node          Msgs   Last Message
+----------------------------------------------------------------------------------------
+0    1f1adb6d-34ef-6354-8006-d4241aefc13b   ()                 7      Mock Model synthesized a
+1    1f1adb6d-34ec-69e7-8005-fd4093af5508   ('call_model',)    6      Database Query Results: 
+2    1f1adb6d-34e1-684b-8004-9cee88c38501   ('execute_tools',) 5      
+3    1f1adb6d-34dd-6cd0-8003-99e60f84dd8a   ('call_model',)    4      [Self-Correction Attempt
+4    1f1adb6d-34da-670d-8002-f9f29dc78d53   ('rewrite_query',) 3      Database Query Results: 
+5    1f1adb6d-34d2-6538-8001-b6605a96f818   ('execute_tools',) 2      
+6    1f1adb6d-34cb-6563-8000-f7b705273b0e   ('call_model',)    1      Find customers living in
+7    1f1adb6d-34c7-674f-bfff-3704f3c39994   ('__start__',)     0      
+```
+
+#### Step 3: Replay with Modified State from Intermediate Checkpoint
+Rewind to Checkpoint Index 6 (before initial model call) and branch with query `"Find customers living in Paris"`:
+```bash
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --engine state_graph \
+  --checkpointer postgres \
+  --thread-id tt-demo-pg \
+  --checkpoint-id 1f1adb6d-34cb-6563-8000-f7b705273b0e \
+  --modify-query "Find customers living in Paris" \
+  --replay
+```
+Output:
+```text
+⏳ [TIME TRAVEL] Replaying thread 'tt-demo-pg' from checkpoint '1f1adb6d-34cb-6563-8000-f7b705273b0e'...
+🔄 Injecting modified query: 'Find customers living in Paris'
+🌱 Created new checkpoint fork: 1f1adb6e-38b8-6fbd-8001-3013691d5ce9
+
+[Step 3] Actor: Model (Tool Decision) (AIMessage) -> db_query({'query': 'Find customers living in Paris'})
+[Step 4] Actor: Tool Execution (ToolMessage) -> Executed SQL: SELECT * FROM customers WHERE LOWER(city) LIKE '%paris%'
+...
+[Step 8] Actor: Model (Final Answer) (AIMessage)
+```
+
+Both the original run and the forked run are preserved in PostgreSQL.
+
+### 5. Automated Tests
+
+Comprehensive tests in `tests/test_time_travel.py`:
+- `test_list_state_history_records_snapshots`: Validates history snapshots, parent checkpoint links, and step metrics.
+- `test_replay_from_intermediate_checkpoint`: Rewinds to a paused intermediate checkpoint and verifies deterministic completion.
+- `test_time_travel_with_modified_state_forks_history`: Modifies the query at an earlier checkpoint, verifies fork creation and diverging execution without mutating original history.
+- `test_time_travel_corrects_tool_output_to_debug_llm`: Replaces an upstream faulty tool output with corrected data in checkpoint state and verifies downstream LLM synthesis recovers.
+- `test_time_travel_with_postgres_saver`: Confirms full time-travel capability persists across process lifecycles via PostgreSQL checkpointer.
+
+Run the time-travel test suite:
+```bash
+uv run pytest tests/test_time_travel.py -v
+```
+
+
 

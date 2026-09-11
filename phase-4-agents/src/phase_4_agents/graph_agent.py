@@ -435,3 +435,108 @@ def handle_human_approval(
         config, {"messages": rejection_messages}, as_node="execute_tools"
     )
     return agent.invoke(None, config=config)
+
+
+# -----------------------------------------------------------------------------
+# 5. Task 4.8: Time-Travel Debugging Utilities
+# -----------------------------------------------------------------------------
+
+
+def list_state_history(agent: Any, config: Any) -> list[dict[str, Any]]:
+    """Return chronological or reverse-chronological checkpoints for a thread.
+
+    Args:
+        agent: CompiledStateGraph instance with an attached checkpointer.
+        config: RunnableConfig containing the thread_id.
+
+    Returns:
+        List of summarized checkpoint dictionaries.
+    """
+    history_snapshots = list(agent.get_state_history(config))
+    summaries: list[dict[str, Any]] = []
+
+    for idx, snap in enumerate(history_snapshots):
+        cfg = snap.config.get("configurable", {})
+        parent_cfg = (snap.parent_config or {}).get("configurable", {})
+        msgs = snap.values.get("messages", [])
+        last_msg = msgs[-1] if msgs else None
+
+        summaries.append(
+            {
+                "index": idx,
+                "checkpoint_id": cfg.get("checkpoint_id", ""),
+                "parent_checkpoint_id": parent_cfg.get("checkpoint_id"),
+                "thread_id": cfg.get("thread_id", ""),
+                "next": tuple(snap.next),
+                "step_count": snap.values.get("step_count", 0),
+                "rewrite_count": snap.values.get("rewrite_count", 0),
+                "messages_count": len(msgs),
+                "last_message_type": (type(last_msg).__name__ if last_msg else None),
+                "last_message_preview": (
+                    str(last_msg.content)[:120] if last_msg else ""
+                ),
+                "created_at": getattr(snap, "created_at", None),
+                "metadata": getattr(snap, "metadata", {}),
+            }
+        )
+
+    return summaries
+
+
+def get_checkpoint_snapshot(agent: Any, config: Any, checkpoint_id: str) -> Any:
+    """Locate and return the exact StateSnapshot for a specific checkpoint ID.
+
+    Args:
+        agent: CompiledStateGraph instance.
+        config: RunnableConfig containing the thread_id.
+        checkpoint_id: Checkpoint UUID string to find.
+
+    Returns:
+        The matching StateSnapshot, or None if not found.
+    """
+    for snap in agent.get_state_history(config):
+        cfg = snap.config.get("configurable", {})
+        if cfg.get("checkpoint_id") == checkpoint_id:
+            return snap
+    return None
+
+
+def time_travel_replay(
+    agent: Any,
+    config: Any,
+    checkpoint_id: str,
+    state_update: dict[str, Any] | None = None,
+    as_node: str | None = None,
+) -> tuple[dict[str, Any], Any]:
+    """Replay execution from an arbitrary checkpoint with optional modified state.
+
+    Rewinds to checkpoint_id, applies state_update (if provided) to branch
+    a new checkpoint fork, and resumes downstream execution via agent.invoke().
+
+    Args:
+        agent: CompiledStateGraph instance.
+        config: RunnableConfig containing thread_id.
+        checkpoint_id: Target checkpoint UUID to rewind to.
+        state_update: Optional dictionary of state keys/messages to update.
+        as_node: Optional node name to attribute the update to.
+
+    Returns:
+        A tuple of (fork_config, execution_result).
+    """
+    target_snap = get_checkpoint_snapshot(agent, config, checkpoint_id)
+    if not target_snap:
+        raise ValueError(f"Checkpoint '{checkpoint_id}' not found in thread history.")
+
+    target_config = target_snap.config
+
+    if state_update is not None:
+        # Fork the checkpoint history with updated state
+        update_kwargs: dict[str, Any] = {}
+        if as_node is not None:
+            update_kwargs["as_node"] = as_node
+        fork_config = agent.update_state(target_config, state_update, **update_kwargs)
+    else:
+        fork_config = target_config
+
+    result = agent.invoke(None, config=fork_config)
+    return fork_config, result

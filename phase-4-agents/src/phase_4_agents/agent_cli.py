@@ -20,6 +20,8 @@ from phase_4_agents.config import get_chat_model, get_settings
 from phase_4_agents.graph_agent import (
     build_state_graph_agent,
     handle_human_approval,
+    list_state_history,
+    time_travel_replay,
 )
 from phase_4_agents.rag_tools import get_all_tools, get_rag_tools
 from phase_4_agents.tools import ALL_TOOLS as BASIC_TOOLS
@@ -343,6 +345,28 @@ def main() -> None:
         action="store_true",
         help="Resume execution of an interrupted thread from its checkpoint.",
     )
+    parser.add_argument(
+        "--history",
+        action="store_true",
+        help="List checkpoint history for thread (Task 4.8 Time Travel).",
+    )
+    parser.add_argument(
+        "--checkpoint-id",
+        type=str,
+        default=None,
+        help="Target checkpoint ID for time travel inspection or replay.",
+    )
+    parser.add_argument(
+        "--modify-query",
+        type=str,
+        default=None,
+        help="Modified query text to inject when replaying from a checkpoint.",
+    )
+    parser.add_argument(
+        "--replay",
+        action="store_true",
+        help="Replay execution from --checkpoint-id with optional --modify-query.",
+    )
     args = parser.parse_args()
 
     toolset_map = {
@@ -443,6 +467,108 @@ def main() -> None:
                 f"'{args.thread_id}'!"
             )
             print(done_msg)
+            return
+
+        if args.history:
+            print(f"\n⏳ [CHECKPOINT HISTORY] Thread '{args.thread_id}':")
+            history = list_state_history(agent, run_config)
+            if not history:
+                print(f"No checkpoint history found for thread '{args.thread_id}'.")
+            else:
+                hdr = (
+                    f"{'Idx':<4} {'Checkpoint ID':<38} {'Next Node':<18} "
+                    f"{'Msgs':<6} {'Last Message'}"
+                )
+                print(hdr)
+                print("-" * 88)
+                for item in history:
+                    cid = item["checkpoint_id"]
+                    nxt = str(item["next"])
+                    mc = item["messages_count"]
+                    prev = item["last_message_preview"].replace("\n", " ")[:24]
+                    idx = item["index"]
+                    print(f"{idx:<4} {cid:<38} {nxt:<18} {mc:<6} {prev}")
+            return
+
+        if args.replay:
+            if not args.checkpoint_id:
+                print("Error: --replay requires --checkpoint-id <UUID>.")
+                sys.exit(1)
+
+            print(
+                f"\n⏳ [TIME TRAVEL] Replaying thread '{args.thread_id}' "
+                f"from checkpoint '{args.checkpoint_id}'..."
+            )
+            state_update = None
+            if args.modify_query:
+                print(f"🔄 Injecting modified query: '{args.modify_query}'")
+                state_update = {"messages": [HumanMessage(content=args.modify_query)]}
+
+            fork_cfg, raw_result = time_travel_replay(
+                agent,
+                run_config,
+                args.checkpoint_id,
+                state_update=state_update,
+            )
+            fork_cid = fork_cfg.get("configurable", {}).get("checkpoint_id", "")
+            print(f"🌱 Created new checkpoint fork: {fork_cid}")
+
+            messages = raw_result.get("messages", [])
+            step_traces: list[AgentStepTrace] = []
+            final_ans = ""
+            for s_idx, msg in enumerate(messages, start=1):
+                m_type = type(msg).__name__
+                txt = extract_text_from_content(msg.content)
+                if isinstance(msg, HumanMessage):
+                    step_traces.append(
+                        AgentStepTrace(
+                            step_number=s_idx,
+                            actor="User",
+                            message_type=m_type,
+                            content=txt,
+                        )
+                    )
+                elif isinstance(msg, AIMessage):
+                    t_calls = getattr(msg, "tool_calls", [])
+                    if t_calls:
+                        step_traces.append(
+                            AgentStepTrace(
+                                step_number=s_idx,
+                                actor="Model (Tool Decision)",
+                                message_type=m_type,
+                                content=txt,
+                                tool_calls=list(t_calls),
+                            )
+                        )
+                    else:
+                        final_ans = txt
+                        step_traces.append(
+                            AgentStepTrace(
+                                step_number=s_idx,
+                                actor="Model (Final Answer)",
+                                message_type=m_type,
+                                content=txt,
+                            )
+                        )
+                elif isinstance(msg, ToolMessage):
+                    step_traces.append(
+                        AgentStepTrace(
+                            step_number=s_idx,
+                            actor="Tool Execution",
+                            message_type=m_type,
+                            content=txt,
+                        )
+                    )
+
+            replay_result = AgentExecutionResult(
+                query=args.modify_query or "(Replayed from checkpoint)",
+                steps=step_traces,
+                final_answer=final_ans,
+                total_steps=len(step_traces),
+                provider=args.provider or "default",
+                model=args.model or "default",
+            )
+            print_trace_report(replay_result)
             return
 
         if args.query:
