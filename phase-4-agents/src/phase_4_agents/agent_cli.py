@@ -21,6 +21,7 @@ from phase_4_agents.graph_agent import (
     build_state_graph_agent,
     handle_human_approval,
     list_state_history,
+    stream_agent_steps,
     time_travel_replay,
 )
 from phase_4_agents.rag_tools import get_all_tools, get_rag_tools
@@ -367,6 +368,11 @@ def main() -> None:
         action="store_true",
         help="Replay execution from --checkpoint-id with optional --modify-query.",
     )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="Stream intermediate agent execution steps in real-time.",
+    )
     args = parser.parse_args()
 
     toolset_map = {
@@ -569,6 +575,43 @@ def main() -> None:
                 model=args.model or "default",
             )
             print_trace_report(replay_result)
+            return
+
+        if args.stream and args.query:
+            print(f"\n🌊 [STREAMING EXECUTION] Query: '{args.query}'")
+            print("=" * 78)
+            for event in stream_agent_steps(agent, args.query, config=run_config):
+                ts = event.timestamp.split("T")[1].split(".")[0]
+                if event.event == "step_start":
+                    print(f"[{ts}] 🚀 Step 1: Initializing execution graph...")
+                elif event.event == "tool_decision":
+                    tools = event.data.get("tools_requested", [])
+                    t_str = ", ".join(f"{t['name']}({t['args']})" for t in tools)
+                    print(
+                        f"[{ts}] 🧠 Step {event.step_number} [{event.node}]: "
+                        f"Tools requested -> {t_str}"
+                    )
+                elif event.event == "tool_execution":
+                    print(
+                        f"[{ts}] ⚡ Step {event.step_number} [{event.node}]: "
+                        "Tools executed successfully."
+                    )
+                elif event.event == "self_correction":
+                    attempt = event.data.get("rewrite_count", 1)
+                    print(
+                        f"[{ts}] 🔄 Step {event.step_number} [{event.node}]: "
+                        f"Self-correction cycle triggered (attempt {attempt}/2)."
+                    )
+                elif event.event == "approval_paused":
+                    print(
+                        f"[{ts}] 🛑 Step {event.step_number} [{event.node}]: "
+                        "Execution paused awaiting human approval."
+                    )
+                elif event.event == "final_answer":
+                    ans = event.data.get("content", "")
+                    print(f"\n[{ts}] 🎯 Final Answer Synthesized:\n{ans}")
+                elif event.event == "done":
+                    print(f"\n[{ts}] 🏁 Stream completed successfully.")
             return
 
         if args.query:

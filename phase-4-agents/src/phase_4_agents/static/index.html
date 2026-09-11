@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Odyssey Agent Live Stream | Task 4.9</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #07090e;
+      --bg-surface: #0e131f;
+      --bg-surface-elevated: #161e31;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(56, 189, 248, 0.3);
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-cyan: #38bdf8;
+      --accent-purple: #a855f7;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
+    }
+
+    header {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(14, 19, 31, 0.7);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 9999px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .status-dot.active {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 10px var(--accent-emerald);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.2); }
+    }
+
+    main {
+      flex: 1;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    .control-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .query-input {
+      flex: 1;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 0.85rem 1.2rem;
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .query-input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+    }
+
+    .provider-select {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 0 1rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .btn-submit {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #ffffff;
+      border: none;
+      padding: 0 1.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: transform 0.1s, box-shadow 0.2s, opacity 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .presets-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .preset-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-right: 0.25rem;
+    }
+
+    .preset-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .preset-chip:hover {
+      background: rgba(56, 189, 248, 0.1);
+      border-color: rgba(56, 189, 248, 0.3);
+      color: var(--accent-cyan);
+    }
+
+    .stream-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .stream-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 0.5rem;
+    }
+
+    .stream-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .timer-badge {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.1);
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .step-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      position: relative;
+      animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: border-color 0.2s;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .step-card.tool_decision {
+      border-left: 4px solid var(--accent-amber);
+    }
+
+    .step-card.tool_execution {
+      border-left: 4px solid var(--accent-emerald);
+    }
+
+    .step-card.self_correction {
+      border-left: 4px solid var(--accent-purple);
+    }
+
+    .step-card.approval_paused {
+      border-left: 4px solid var(--accent-rose);
+      background: linear-gradient(to bottom, rgba(244, 63, 94, 0.05), var(--bg-surface));
+    }
+
+    .step-card.final_answer {
+      border-left: 4px solid var(--accent-cyan);
+      background: linear-gradient(to bottom, rgba(56, 189, 248, 0.04), var(--bg-surface));
+    }
+
+    .step-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .step-badge-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .step-number {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .node-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .event-tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+
+    .event-tag.tool_decision { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); }
+    .event-tag.tool_execution { background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); }
+    .event-tag.self_correction { background: rgba(168, 85, 247, 0.2); color: var(--accent-purple); }
+    .event-tag.approval_paused { background: rgba(244, 63, 94, 0.2); color: var(--accent-rose); }
+    .event-tag.final_answer { background: rgba(56, 189, 248, 0.2); color: var(--accent-cyan); }
+
+    .step-time {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .step-body {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+
+    .code-box {
+      background: #03060a;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .approval-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .btn-approve {
+      background: #10b981;
+      color: #ffffff;
+      border: none;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-reject {
+      background: #f43f5e;
+      color: #ffffff;
+      border: none;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-muted);
+      border: 1px dashed var(--border-subtle);
+      border-radius: 16px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🚀</div>
+      <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <h1 class="brand-title">Odyssey Agent Live Stream</h1>
+          <span class="brand-badge">Task 4.9</span>
+        </div>
+      </div>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Ready</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="control-card">
+      <div class="input-row">
+        <input 
+          type="text" 
+          id="queryInput" 
+          class="query-input" 
+          placeholder="Ask engineering specs, query orders, run calculations, or buy items..."
+          value="Find customers living in Tokyo"
+        />
+        <select id="providerSelect" class="provider-select">
+          <option value="mock">Mock Engine (Deterministic)</option>
+          <option value="google_genai">Google Gemini (Live)</option>
+          <option value="openai">OpenAI (Live)</option>
+        </select>
+        <button id="submitBtn" class="btn-submit" onclick="startStream()">
+          <span>Run Stream</span>
+          <span>⚡</span>
+        </button>
+      </div>
+
+      <div class="presets-row">
+        <span class="preset-label">Quick Tests:</span>
+        <button class="preset-chip" onclick="setQuery('Find customers living in Tokyo')">🔍 DB Query with Self-Correction Retry</button>
+        <button class="preset-chip" onclick="setQuery('What are the ECLSS pressure limits in our Mars PDF manuals?')">📄 Mars PDF Engineering Specs</button>
+        <button class="preset-chip" onclick="setQuery('Add 2 Titanium Drill Bits to my cart')">🛒 Human-in-the-Loop Write Action</button>
+        <button class="preset-chip" onclick="setQuery('What is the weather in Tokyo and multiply 14 by 7')">🧮 Multi-Tool Math & Weather</button>
+      </div>
+    </div>
+
+    <div class="stream-container">
+      <div class="stream-header">
+        <div class="stream-title">
+          <span>Intermediate Graph Execution Timeline</span>
+          <span id="stepCountBadge" style="font-size: 0.8rem; color: var(--text-muted);">(0 steps)</span>
+        </div>
+        <div class="timer-badge" id="timerBadge">0.00s</div>
+      </div>
+
+      <div id="streamFeed">
+        <div class="empty-state">
+          Enter a query above and click <strong>Run Stream</strong> to observe real-time intermediate node transitions.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let timerInterval = null;
+    let startTime = null;
+    let activeThreadId = null;
+
+    function setQuery(text) {
+      document.getElementById('queryInput').value = text;
+      startStream();
+    }
+
+    function updateTimer() {
+      if (!startTime) return;
+      const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+      document.getElementById('timerBadge').innerText = elapsed + 's';
+    }
+
+    async function startStream() {
+      const query = document.getElementById('queryInput').value.trim();
+      if (!query) return;
+
+      const provider = document.getElementById('providerSelect').value;
+      activeThreadId = 'session-web-' + Math.random().toString(36).substring(2, 9);
+
+      // UI updates
+      const feed = document.getElementById('streamFeed');
+      feed.innerHTML = '';
+      document.getElementById('submitBtn').disabled = true;
+      document.getElementById('statusDot').className = 'status-dot active';
+      document.getElementById('statusText').innerText = 'Streaming...';
+      document.getElementById('stepCountBadge').innerText = '(running)';
+
+      startTime = performance.now();
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimer, 50);
+
+      const url = `/stream?query=${encodeURIComponent(query)}&provider=${encodeURIComponent(provider)}&thread_id=${encodeURIComponent(activeThreadId)}`;
+
+      try {
+        const response = await fetch(url);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let stepCount = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop(); // Keep last partial line
+
+          for (const rawEvent of lines) {
+            if (!rawEvent.trim()) continue;
+            let eventType = 'message';
+            let dataStr = '';
+
+            for (const line of rawEvent.split('\n')) {
+              if (line.startsWith('event: ')) {
+                eventType = line.replace('event: ', '').trim();
+              } else if (line.startsWith('data: ')) {
+                dataStr = line.replace('data: ', '').trim();
+              }
+            }
+
+            if (dataStr) {
+              try {
+                const data = JSON.parse(dataStr);
+                stepCount++;
+                renderStep(eventType, data);
+              } catch (e) {
+                console.error('Error parsing SSE json:', e, dataStr);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Stream error:', err);
+        renderError('Stream connection error: ' + err.message);
+      } finally {
+        clearInterval(timerInterval);
+        document.getElementById('submitBtn').disabled = false;
+        document.getElementById('statusDot').className = 'status-dot';
+        document.getElementById('statusText').innerText = 'Completed';
+      }
+    }
+
+    function renderStep(eventType, data) {
+      const feed = document.getElementById('streamFeed');
+      const stepCard = document.createElement('div');
+      stepCard.className = `step-card ${eventType}`;
+
+      const nodeName = data.node || 'GRAPH';
+      const stepNumber = data.step || 0;
+      const timestamp = (data.timestamp || new Date().toISOString()).split('T')[1].split('.')[0];
+
+      let bodyHtml = '';
+
+      if (eventType === 'step_start') {
+        bodyHtml = `<div><strong>Initial Query:</strong> ${data.query}</div>`;
+      } else if (eventType === 'tool_decision') {
+        const tools = (data.tools_requested || []).map(t => `<code>${t.name}(${JSON.stringify(t.args)})</code>`).join('<br/>');
+        bodyHtml = `<div><strong>Tools Selected by Model:</strong><div class="code-box" style="margin-top: 0.5rem;">${tools}</div></div>`;
+      } else if (eventType === 'tool_execution') {
+        const results = (data.results || []).map(r => r.content).join('\n---\n');
+        bodyHtml = `<div><strong>Tool Execution Output:</strong><div class="code-box" style="margin-top: 0.5rem;">${results}</div></div>`;
+      } else if (eventType === 'self_correction') {
+        bodyHtml = `<div><strong>Self-Correction Cycle Triggered (Attempt ${data.rewrite_count}/2):</strong><div style="color: var(--accent-purple); margin-top: 0.25rem;">${data.message}</div></div>`;
+      } else if (eventType === 'approval_paused') {
+        bodyHtml = `
+          <div style="color: var(--accent-rose);">
+            <strong>🛑 Human Approval Required:</strong> Write action touching client data detected.
+          </div>
+          <div class="approval-actions" id="approvalActions">
+            <button class="btn-approve" onclick="submitApproval(true)">Approve Write</button>
+            <button class="btn-reject" onclick="submitApproval(false)">Reject</button>
+          </div>
+        `;
+      } else if (eventType === 'final_answer') {
+        bodyHtml = `<div><strong>Final Synthesized Answer:</strong><div class="code-box" style="margin-top: 0.5rem; color: var(--accent-cyan); font-weight: 500;">${data.content}</div></div>`;
+      } else if (eventType === 'done') {
+        bodyHtml = `<div style="color: var(--accent-emerald); font-weight: 500;">🏁 Run completed successfully. Graph reached terminal state.</div>`;
+      } else {
+        bodyHtml = `<pre class="code-box">${JSON.stringify(data, null, 2)}</pre>`;
+      }
+
+      stepCard.innerHTML = `
+        <div class="step-top">
+          <div class="step-badge-group">
+            <span class="step-number">#${stepNumber}</span>
+            <span class="node-tag">${nodeName}</span>
+            <span class="event-tag ${eventType}">${eventType}</span>
+          </div>
+          <span class="step-time">${timestamp}</span>
+        </div>
+        <div class="step-body">${bodyHtml}</div>
+      `;
+
+      feed.appendChild(stepCard);
+      document.getElementById('stepCountBadge').innerText = `(${feed.children.length} steps)`;
+      stepCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function submitApproval(approved) {
+      const actions = document.getElementById('approvalActions');
+      if (actions) actions.innerHTML = `<em>${approved ? '✅ Approved! Resuming...' : '❌ Rejected! Aborting...'}</em>`;
+      try {
+        await fetch('/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: activeThreadId,
+            approved: approved,
+            rejection_reason: approved ? '' : 'User declined from UI.'
+          })
+        });
+      } catch (err) {
+        console.error('Error sending approval:', err);
+      }
+    }
+
+    function renderError(msg) {
+      const feed = document.getElementById('streamFeed');
+      const errCard = document.createElement('div');
+      errCard.className = 'step-card';
+      errCard.style.borderColor = 'var(--accent-rose)';
+      errCard.innerHTML = `<div style="color: var(--accent-rose);">⚠️ ${msg}</div>`;
+      feed.appendChild(errCard);
+    }
+  </script>
+</body>
+</html>

@@ -12,8 +12,12 @@ Rebuilds the agent using an explicit:
 
 from __future__ import annotations
 
+import asyncio
+import json
 import re
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Iterator, Sequence
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -540,3 +544,167 @@ def time_travel_replay(
 
     result = agent.invoke(None, config=fork_config)
     return fork_config, result
+
+
+# -----------------------------------------------------------------------------
+# 6. Task 4.9: Progressive Intermediate Step Streaming
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class AgentStreamEvent:
+    """Discrete intermediate execution event emitted during graph streaming."""
+
+    event: str
+    node: str
+    step_number: int
+    data: dict[str, Any]
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+
+    def to_sse(self) -> str:
+        """Serialize event to standard Server-Sent Event (SSE) format."""
+        payload = {
+            "event": self.event,
+            "node": self.node,
+            "step": self.step_number,
+            "timestamp": self.timestamp,
+            **self.data,
+        }
+        return f"event: {self.event}\ndata: {json.dumps(payload)}\n\n"
+
+
+def _parse_stream_update_to_event(
+    node_name: str,
+    state_chunk: dict[str, Any],
+    step_counter: int,
+) -> AgentStreamEvent:
+    """Convert a LangGraph stream update chunk into an AgentStreamEvent."""
+    messages = state_chunk.get("messages", [])
+    last_msg = messages[-1] if messages else None
+
+    if node_name == "call_model":
+        if isinstance(last_msg, AIMessage) and getattr(last_msg, "tool_calls", None):
+            tools = [
+                {
+                    "name": tc.get("name"),
+                    "args": tc.get("args"),
+                    "id": tc.get("id"),
+                }
+                for tc in last_msg.tool_calls
+            ]
+            return AgentStreamEvent(
+                event="tool_decision",
+                node=node_name,
+                step_number=step_counter,
+                data={
+                    "tools_requested": tools,
+                    "thought": str(last_msg.content),
+                },
+            )
+        return AgentStreamEvent(
+            event="final_answer",
+            node=node_name,
+            step_number=step_counter,
+            data={
+                "content": str(last_msg.content) if last_msg else "",
+            },
+        )
+
+    if node_name == "execute_tools":
+        tool_results = []
+        for msg in messages:
+            if isinstance(msg, ToolMessage):
+                tool_results.append(
+                    {
+                        "tool_call_id": getattr(msg, "tool_call_id", ""),
+                        "content": str(msg.content),
+                    }
+                )
+        return AgentStreamEvent(
+            event="tool_execution",
+            node=node_name,
+            step_number=step_counter,
+            data={"results": tool_results},
+        )
+
+    if node_name == "rewrite_query":
+        return AgentStreamEvent(
+            event="self_correction",
+            node=node_name,
+            step_number=step_counter,
+            data={
+                "rewrite_count": state_chunk.get("rewrite_count", 1),
+                "message": str(last_msg.content) if last_msg else "",
+            },
+        )
+
+    if node_name == "human_approval":
+        return AgentStreamEvent(
+            event="approval_paused",
+            node=node_name,
+            step_number=step_counter,
+            data={"status": "waiting_for_approval"},
+        )
+
+    return AgentStreamEvent(
+        event="node_update",
+        node=node_name,
+        step_number=step_counter,
+        data={"messages_count": len(messages)},
+    )
+
+
+def stream_agent_steps(
+    agent: Any,
+    query: str,
+    config: Any | None = None,
+) -> Iterator[AgentStreamEvent]:
+    """Synchronous generator yielding progressive AgentStreamEvents."""
+    input_payload = {"messages": [HumanMessage(content=query)]}
+    step_counter = 1
+
+    yield AgentStreamEvent(
+        event="step_start",
+        node="START",
+        step_number=step_counter,
+        data={"query": query},
+    )
+
+    for chunk in agent.stream(input_payload, config=config, stream_mode="updates"):
+        for node_name, state_chunk in chunk.items():
+            step_counter += 1
+            yield _parse_stream_update_to_event(node_name, state_chunk, step_counter)
+
+    yield AgentStreamEvent(
+        event="done",
+        node="END",
+        step_number=step_counter + 1,
+        data={"status": "completed"},
+    )
+
+
+async def astream_agent_steps(
+    agent: Any,
+    query: str,
+    config: Any | None = None,
+) -> AsyncIterator[AgentStreamEvent]:
+    """Asynchronous generator yielding progressive AgentStreamEvents."""
+    queue: asyncio.Queue[AgentStreamEvent | None] = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def _worker() -> None:
+        try:
+            for ev in stream_agent_steps(agent, query, config=config):
+                asyncio.run_coroutine_threadsafe(queue.put(ev), loop).result()
+        finally:
+            asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()
+
+    loop.run_in_executor(None, _worker)
+
+    while True:
+        item = await queue.get()
+        if item is None:
+            break
+        yield item

@@ -746,5 +746,154 @@ Run the time-travel test suite:
 uv run pytest tests/test_time_travel.py -v
 ```
 
+---
+
+## Task 4.9: Progressive Intermediate Step Streaming & Real-Time Web UI
+
+In a complex multi-step agent architecture with RAG retrieval, SQL execution, self-correction loops, and human-in-the-loop gates, an end-to-end run can easily take 10 to 25 seconds. If the user interface sits on a static spinner waiting for a single monolithic JSON response, the user assumes the application has crashed or frozen.
+
+In **Task 4.9**, we reuse the **Phase 0 streaming endpoint** pattern (`StreamingResponse`) and implement progressive intermediate step streaming via **Server-Sent Events (SSE)**, accompanied by a real-time dark-mode glassmorphic Web UI and terminal streaming support.
+
+### 1. The UX Problem & Mental Models
+
+* **The Pop Culture Mental Model (Iron Man & JARVIS)**:
+  When Tony Stark asks a complex tactical question, JARVIS does not go mute for 20 seconds before dumping a wall of text. Instead, JARVIS gives instantaneous intermediate verbal and HUD feedback:
+  - *"Accessing Mars telemetry..."* (Tool Decision)
+  - *"Query returned 0 rows. Expanding sensor sweep..."* (Self-Correction Loop)
+  - *"ECLSS pressure limits confirmed at 101.3 kPa."* (Tool Execution)
+  - *"Generating mission recommendation, Sir."* (Final Synthesis)
+* **The Full-Stack / React Mental Model (Optimistic UI & Step Steppers)**:
+  In modern web apps (like GitHub Actions, Vercel deployments, or Stripe multi-step checkouts), long-running workflows stream their internal state machine transitions to the client. The UI renders a dynamic progress stepper:
+  `[Step 1: Planning] ──► [Step 2: Database Query] ──► [Step 3: Self-Correction] ──► [Step 4: Final Answer]`.
+* **SSE vs. WebSockets**:
+  - **WebSockets** are bidirectional, stateful, and require custom framing, sticky sessions, and reconnect logic.
+  - **Server-Sent Events (SSE)** run over standard HTTP (`text/event-stream`), are lightweight, unidirectional, auto-reconnecting, and firewall-friendly—perfect for streaming LLM generation and agent execution steps.
+
+### 2. Architecture: Reusing the Phase 0 Streaming Endpoint
+
+We extended the FastAPI server (`src/phase_4_agents/server.py`) while preserving strict backward compatibility with Phase 0:
+
+```text
+Client (Web UI / Terminal / Curl)
+           │
+           │  GET /stream?query=... or POST /stream
+           ▼
+FastAPI Server (server.py)
+   ├── No query param? ────────► Phase 0 Baseline (20 Chunks of text/plain)
+   └── Query param present? ───► Agent SSE Stream (text/event-stream)
+                                       │
+                                       ▼
+                             StateGraph Engine (graph_agent.py)
+                                  ├── stream_agent_steps() (Sync Generator)
+                                  └── astream_agent_steps() (Async Generator)
+                                       │
+                                       ├── Node: call_model      ──► event: tool_decision
+                                       ├── Node: execute_tools   ──► event: tool_execution
+                                       ├── Node: rewrite_query   ──► event: self_correction
+                                       ├── Node: human_approval  ──► event: approval_paused
+                                       └── Node: call_model(end) ──► event: final_answer
+```
+
+### 3. Server-Sent Events (SSE) Specification
+
+Each event follows the standard SSE specification: `event: <type>\ndata: <json>\n\n`:
+
+| SSE Event Type | Triggering LangGraph Node | Payload Content | UI Visual Treatment |
+| :--- | :--- | :--- | :--- |
+| `init` | Run initialization | `thread_id`, `query`, `step_count: 0` | Blue badge, timer starts |
+| `tool_decision` | `call_model` (with tool calls) | `tool_calls: [{name, args}]`, `step_count` | Amber badge, tool name + JSON arguments |
+| `tool_execution` | `execute_tools` | `tool_results: [{tool, output}]` | Emerald badge, result preview snippet |
+| `self_correction` | `rewrite_query` | `rewrite_count`, `revised_query` | Purple badge, previous vs revised query |
+| `approval_paused` | `human_approval` (HITL gate) | `pending_actions`, `thread_id` | Rose warning badge, interactive `[Approve]` / `[Reject]` buttons |
+| `final_answer` | `call_model` (no tool calls) | `answer`, `step_count` | Indigo badge, markdown synthesized answer |
+| `done` | Graph termination (`END`) | `thread_id`, `status: "completed"` | Green completion banner |
+| `error` | Unhandled exception | `error: str`, `status: "failed"` | Red error banner |
+
+### 4. Running the Web UI & Streaming Server
+
+#### Step 1: Start the FastAPI Streaming Server
+```bash
+uv run python src/phase_4_agents/server.py --port 8000
+```
+
+#### Step 2: Open the Interactive Web Dashboard
+Navigate to `http://localhost:8000/` or `http://localhost:8000/ui` in your browser.
+- **Glassmorphic Dark Mode**: Designed with modern typography (`Outfit`, `Inter`, `Fira Code`) and responsive CSS flexbox layout.
+- **Progress Stepper**: Displays live execution time, current step count, and dynamic progress bar.
+- **Interactive HITL Approval**: When a client-data write tool (`add_to_cart`) is requested, execution pauses, a warning banner appears, and real-time `Approve` / `Reject` buttons trigger `POST /approve`.
+
+#### Step 3: Stream via Terminal CLI
+```bash
+# Stream execution steps directly to terminal output
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --query "Find customers living in Tokyo" \
+  --stream
+```
+Output:
+```text
+======================================================================
+🌊 STREAMING AGENT EXECUTION STEPS: 'Find customers living in Tokyo'
+======================================================================
+
+[STEP 0] EVENT: init
+  Thread ID: session-stream-cli
+  Message: Initializing agent execution...
+
+[STEP 1] EVENT: tool_decision
+  Tool Calls:
+    • db_query: {'query': 'Find customers living in Tokyo'}
+
+[STEP 2] EVENT: tool_execution
+  Tool Results:
+    • db_query: Database Query Results: 0 rows found.
+
+[STEP 3] EVENT: self_correction
+  Self-Correction Attempt: 1/2
+  Revised Query: customers
+
+[STEP 4] EVENT: tool_decision
+  Tool Calls:
+    • db_query: {'query': 'SELECT * FROM customers'}
+
+[STEP 5] EVENT: tool_execution
+  Tool Results:
+    • db_query: Database Query Results: 10 rows found...
+
+[STEP 6] EVENT: final_answer
+  Final Answer:
+  Mock Model synthesized answer based on retrieved tool results...
+
+[STEP 7] EVENT: done
+  Execution Completed! Thread ID: session-stream-cli
+======================================================================
+```
+
+#### Step 4: Stream via `curl` (Raw SSE Feed)
+```bash
+# Stream intermediate events over HTTP
+curl -N "http://localhost:8000/stream?query=What+are+the+ECLSS+pressure+limits+in+our+Mars+PDF+manuals%3F"
+
+# Baseline Phase 0 endpoint (without query returns 20 text chunks)
+curl -N "http://localhost:8000/stream"
+```
+
+### 5. Automated Tests
+
+Comprehensive tests in `tests/test_streaming.py`:
+- `test_agent_stream_event_serialization`: Verifies JSON dictionary and standard SSE chunk formatting (`event: ...\ndata: ...\n\n`).
+- `test_stream_agent_steps_sync_generator`: Verifies synchronous step generation and event sequencing (`init` -> `tool_decision` -> `tool_execution` -> `final_answer` -> `done`).
+- `test_astream_agent_steps_async_generator`: Verifies asynchronous non-blocking generator execution via threadsafe queue bridge.
+- `test_phase_0_streaming_endpoint_compatibility`: Asserts that `GET /stream` without query parameter emits exact 20 Phase 0 chunks (`Chunk 1` to `Chunk 20`).
+- `test_get_stream_with_query_emits_sse_events`: Verifies `GET /stream?query=...` streams valid SSE events with `text/event-stream` media type.
+- `test_post_stream_json_payload`: Verifies `POST /stream` with JSON payload streams SSE chunks.
+- `test_web_ui_dashboard_served_at_root_and_ui`: Verifies that `GET /` and `GET /ui` return the HTML streaming dashboard.
+
+Run the streaming test suite:
+```bash
+uv run pytest tests/test_streaming.py -v
+```
+
+
 
 
