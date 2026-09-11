@@ -50,7 +50,9 @@
   - [x] 4.3 Convert your Phase 3 router into agent tools - pdf_search, site_search, db_query, web_search - and let the agent choose between them.
   - [x] 4.4 Rebuild 4.3 as a StateGraph with a typed state schema and explicit nodes and edges.
   - [x] 4.5 Add a conditional edge and a cycle: if retrieval returns nothing relevant, rewrite the query and retry, up to 2 attempts.
+  - [x] 4.6 Add a Postgres or Redis checkpointer. Kill the process mid-run and resume from the checkpoint. Show it in the README. In-memory state is for demos only.
 - [ ] Phase 5 - Production         (5.1  - 5.9)
+
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
 
 

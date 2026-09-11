@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     temperature: float = 0.0
     request_timeout_seconds: float = 30.0
 
+    # Persistence / Checkpointer Configuration (Task 4.6)
+    postgres_uri: str = (
+        "postgresql://postgres:postgres@localhost:5433/langgraph?sslmode=disable"
+    )
+
     @property
     def effective_google_api_key(self) -> str:
         """Return the available Google API key."""
@@ -327,3 +332,38 @@ def get_chat_model(
 def get_settings() -> Settings:
     """Return cached application settings singleton."""
     return Settings()
+
+
+def get_postgres_checkpointer(
+    uri: str | None = None,
+    *,
+    auto_setup: bool = True,
+):
+    """Context manager yielding an initialized PostgresSaver instance.
+
+    Usage:
+        with get_postgres_checkpointer() as checkpointer:
+            graph = build_state_graph_agent(checkpointer=checkpointer)
+            res = graph.invoke(..., config={"configurable": {"thread_id": "..."}})
+    """
+    from langgraph.checkpoint.postgres import PostgresSaver
+
+    cfg = get_settings()
+    target_uri = uri or cfg.postgres_uri
+
+    class _CheckpointerContext:
+        def __init__(self, conn_uri: str) -> None:
+            self.conn_uri = conn_uri
+            self._ctx = PostgresSaver.from_conn_string(self.conn_uri)
+            self._saver: PostgresSaver | None = None
+
+        def __enter__(self) -> PostgresSaver:
+            self._saver = self._ctx.__enter__()
+            if auto_setup:
+                self._saver.setup()
+            return self._saver
+
+        def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+            self._ctx.__exit__(exc_type, exc_val, exc_tb)
+
+    return _CheckpointerContext(target_uri)

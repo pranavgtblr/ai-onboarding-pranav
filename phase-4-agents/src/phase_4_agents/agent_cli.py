@@ -14,6 +14,7 @@ from typing import Any
 
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 
 from phase_4_agents.config import get_chat_model, get_settings
 from phase_4_agents.graph_agent import build_state_graph_agent
@@ -52,7 +53,7 @@ class AgentStepTrace:
 class AgentExecutionResult:
     """Full execution result containing trace steps and final synthesized answer."""
 
-    query: str
+    query: str | None
     steps: list[AgentStepTrace]
     final_answer: str
     total_steps: int
@@ -69,6 +70,8 @@ def build_tool_agent(
     model_name: str | None = None,
     api_key: str | None = None,
     temperature: float | None = None,
+    checkpointer: Any = None,
+    interrupt_before: list[str] | None = None,
 ):
     """Construct a tool-calling agent using StateGraph (4.4) or create_agent (4.1)."""
     if engine.lower() == "state_graph":
@@ -79,6 +82,8 @@ def build_tool_agent(
             model_name=model_name,
             api_key=api_key,
             temperature=temperature,
+            checkpointer=checkpointer,
+            interrupt_before=interrupt_before,
         )
 
     llm = get_chat_model(
@@ -116,14 +121,22 @@ def extract_text_from_content(content: Any) -> str:
 
 def run_agent_query(
     agent: Any,
-    query: str,
+    query: str | None,
     *,
     provider: str | None = None,
     model_name: str | None = None,
+    config: RunnableConfig | None = None,
 ) -> AgentExecutionResult:
     """Run a query through the agent, capturing the step-by-step trace."""
-    response = agent.invoke({"messages": [{"role": "user", "content": query}]})
-    messages: list[BaseMessage] = response.get("messages", [])
+    invoke_config = config or {}
+    if query is not None:
+        invoke_input: Any = {"messages": [{"role": "user", "content": query}]}
+    else:
+        # Resuming an interrupted run without new input
+        invoke_input = None
+
+    response = agent.invoke(invoke_input, config=invoke_config)
+    messages: list[BaseMessage] = response.get("messages", []) if response else []
 
     step_traces: list[AgentStepTrace] = []
     final_answer = ""
@@ -305,6 +318,28 @@ def main() -> None:
     parser.add_argument(
         "--model", "-m", type=str, default=None, help="Model identifier."
     )
+    parser.add_argument(
+        "--thread-id",
+        type=str,
+        default="default-session",
+        help="Session thread identifier for persistent checkpointing.",
+    )
+    parser.add_argument(
+        "--checkpointer",
+        choices=["postgres", "memory", "none"],
+        default="postgres",
+        help="Persistence checkpointer (default: postgres).",
+    )
+    parser.add_argument(
+        "--simulate-kill",
+        action="store_true",
+        help="Simulate process termination mid-run (interrupts before tool execution).",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume execution of an interrupted thread from its checkpoint.",
+    )
     args = parser.parse_args()
 
     toolset_map = {
@@ -314,25 +349,115 @@ def main() -> None:
     }
     selected_tools = toolset_map[args.tools]
 
-    agent = build_tool_agent(
-        engine=args.engine,
-        tools=selected_tools,
-        provider=args.provider,
-        model_name=args.model,
-    )
+    # Configure checkpointer
+    checkpointer_ctx: Any = None
+    active_checkpointer: Any = None
+    if args.checkpointer == "postgres":
+        try:
+            from phase_4_agents.config import get_postgres_checkpointer
 
-    if args.query:
-        result = run_agent_query(
-            agent,
-            args.query,
+            checkpointer_ctx = get_postgres_checkpointer()
+            active_checkpointer = checkpointer_ctx.__enter__()
+        except Exception as exc:
+            print(
+                f"[Checkpointer Warning] Could not connect to Postgres ({exc}). "
+                "Falling back to MemorySaver."
+            )
+            from langgraph.checkpoint.memory import MemorySaver
+
+            active_checkpointer = MemorySaver()
+    elif args.checkpointer == "memory":
+        from langgraph.checkpoint.memory import MemorySaver
+
+        active_checkpointer = MemorySaver()
+
+    interrupt_nodes = ["execute_tools"] if args.simulate_kill else None
+
+    try:
+        agent = build_tool_agent(
+            engine=args.engine,
+            tools=selected_tools,
             provider=args.provider,
             model_name=args.model,
+            checkpointer=active_checkpointer,
+            interrupt_before=interrupt_nodes,
         )
-        print_trace_report(result)
-    elif args.interactive or len(sys.argv) == 1:
-        run_interactive(agent)
-    else:
-        parser.print_help()
+
+        run_config: RunnableConfig = {"configurable": {"thread_id": args.thread_id}}
+
+        if args.simulate_kill:
+            if not args.query:
+                print("Error: --simulate-kill requires --query to start a run.")
+                sys.exit(1)
+            print(f"[Process 1] Starting run on thread '{args.thread_id}'...")
+            print(
+                "[Process 1] Executing until interrupt point (before tool execution)..."
+            )
+            result = run_agent_query(
+                agent,
+                args.query,
+                provider=args.provider,
+                model_name=args.model,
+                config=run_config,
+            )
+            print_trace_report(result)
+            print("\n=================================================================")
+            msg = (
+                f"💥 [PROCESS KILLED / INTERRUPTED] Thread '{args.thread_id}' "
+                f"saved to {args.checkpointer.upper()}!"
+            )
+            print(msg)
+            print("To resume this exact execution in a new process, run:")
+            print(
+                f"  uv run python src/phase_4_agents/agent_cli.py "
+                f"--thread-id {args.thread_id} --resume"
+            )
+            print("=================================================================")
+            return
+
+        if args.resume:
+            print(
+                f"[Process 2] Connecting to {args.checkpointer.upper()} checkpointer..."
+            )
+            print(f"[Process 2] Loading checkpoint for thread '{args.thread_id}'...")
+            saved_state = agent.get_state(run_config)
+            if not saved_state or not saved_state.values:
+                print(f"Error: No checkpoint found for thread '{args.thread_id}'.")
+                sys.exit(1)
+
+            print(f"[Process 2] Found checkpoint! Next node to run: {saved_state.next}")
+            print("[Process 2] Resuming execution from checkpoint...")
+            result = run_agent_query(
+                agent,
+                None,  # Resume with no new input
+                provider=args.provider,
+                model_name=args.model,
+                config=run_config,
+            )
+            print_trace_report(result)
+            done_msg = (
+                f"\n✅ [RUN RESUMED & COMPLETED] Finished execution for thread "
+                f"'{args.thread_id}'!"
+            )
+            print(done_msg)
+            return
+
+        if args.query:
+            result = run_agent_query(
+                agent,
+                args.query,
+                provider=args.provider,
+                model_name=args.model,
+                config=run_config,
+            )
+            print_trace_report(result)
+        elif args.interactive or len(sys.argv) == 1:
+            run_interactive(agent)
+        else:
+            parser.print_help()
+    finally:
+        if checkpointer_ctx is not None:
+            checkpointer_ctx.__exit__(None, None, None)
 
 
 if __name__ == "__main__":

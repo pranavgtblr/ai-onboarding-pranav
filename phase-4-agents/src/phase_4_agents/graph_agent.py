@@ -195,6 +195,8 @@ def build_state_graph_agent(
     model_name: str | None = None,
     api_key: str | None = None,
     temperature: float | None = None,
+    checkpointer: Any = None,
+    interrupt_before: list[str] | None = None,
 ):
     """Construct a compiled StateGraph with explicit nodes, edges, and retry cycle.
 
@@ -206,10 +208,14 @@ def build_state_graph_agent(
         model_name: Model identifier.
         api_key: Provider API key override.
         temperature: Sampling temperature.
+        checkpointer: Optional checkpointer (e.g. PostgresSaver or MemorySaver).
+        interrupt_before: Optional list of node names to interrupt execution before.
+
 
     Returns:
         CompiledStateGraph runnable.
     """
+
     llm = model or get_chat_model(
         provider=provider,
         model=model_name,
@@ -316,4 +322,10 @@ def build_state_graph_agent(
     # The cycle: loop back to call_model with the rewritten query!
     workflow.add_edge("rewrite_query", "call_model")
 
-    return workflow.compile()
+    compile_kwargs: dict[str, Any] = {}
+    if checkpointer is not None:
+        compile_kwargs["checkpointer"] = checkpointer
+    if interrupt_before is not None:
+        compile_kwargs["interrupt_before"] = interrupt_before
+
+    return workflow.compile(**compile_kwargs)

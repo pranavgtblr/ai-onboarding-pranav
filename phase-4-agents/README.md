@@ -416,3 +416,99 @@ Tested in `tests/test_retry_cycle.py`:
 ```bash
 uv run pytest tests/test_retry_cycle.py
 ```
+
+---
+
+## Task 4.6: Postgres Checkpointer with Process Interruption & Resumption
+
+In **Tasks 4.1 to 4.5**, state was held entirely in Python process RAM (`MemorySaver` or ephemeral runtime state). 
+
+### Why In-Memory State is for Demos Only
+In production:
+- A backend server crashes, pods restart (Kubernetes OOMKills, rolling updates).
+- A multi-step agent query takes 30 seconds, and during step 2 the machine restarts.
+- **In-Memory**: All conversation context, intermediate variables, tool results, and retry counters are lost permanently. The user sees a 500 error and has to re-explain everything.
+- **Durable Checkpointer (`PostgresSaver`)**: After **every single node execution**, LangGraph serializes state into PostgreSQL tables (`checkpoints`, `checkpoint_writes`, `checkpoint_blobs`). If the process dies at step 3, a brand new process starts, reads the checkpoint for `thread_id`, and resumes from step 4 as if nothing happened.
+
+### 1. PostgreSQL Schema Topology
+
+Using `langgraph-checkpoint-postgres`, state is persisted to PostgreSQL (running on port `5433` in Docker):
+
+```text
+PostgreSQL Database: langgraph
+├── checkpoints
+│   ├── thread_id (e.g. "session-404")
+│   ├── checkpoint_id (UUID / timestamp)
+│   ├── parent_checkpoint_id
+│   └── type, metadata
+├── checkpoint_blobs
+│   └── Channel state data (messages, step_count, rewrite_count)
+└── checkpoint_writes
+    └── Pending writes and intermediate task events
+```
+
+### 2. Live Process Interruption & Resumption CLI Demo
+
+We equipped `agent_cli.py` with `--simulate-kill` and `--resume` flags to demonstrate durability across process lifecycles.
+
+#### Step 1: Start Process 1 and Kill Mid-Run
+Run a query on a dedicated session thread, instructing the agent to halt before executing tools:
+```bash
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --thread-id session-matrix-1 \
+  --query "Find customers living in Tokyo" \
+  --simulate-kill
+```
+Output:
+```text
+[Process 1] Starting run on thread 'session-matrix-1'...
+[Process 1] Executing until interrupt point (before tool execution)...
+...
+[Step 1] Actor: User (HumanMessage)
+[Step 2] Actor: Model (Tool Decision) (AIMessage) -> db_query
+
+=================================================================
+💥 [PROCESS KILLED / INTERRUPTED] Thread 'session-matrix-1' saved to POSTGRES!
+To resume this exact execution in a new process, run:
+  uv run python src/phase_4_agents/agent_cli.py --thread-id session-matrix-1 --resume
+=================================================================
+```
+*At this point, Process 1 has exited completely and its OS PID is gone.*
+
+#### Step 2: Spawn Brand New Process 2 and Resume from Checkpoint
+In a separate terminal or new command invocation, resume the thread:
+```bash
+uv run python src/phase_4_agents/agent_cli.py \
+  --provider mock \
+  --thread-id session-matrix-1 \
+  --resume
+```
+Output:
+```text
+[Process 2] Connecting to POSTGRES checkpointer...
+[Process 2] Loading checkpoint for thread 'session-matrix-1'...
+[Process 2] Found checkpoint! Next node to run: ('execute_tools',)
+[Process 2] Resuming execution from checkpoint...
+...
+[Step 3] Actor: Tool Execution (ToolMessage)
+[Step 4] Actor: User (Self-Correction Message)
+[Step 5] Actor: Model (Tool Decision - Revised Query)
+[Step 6] Actor: Tool Execution (Populated Customer Records)
+[Step 7] Actor: Model (Final Synthesized Answer)
+
+✅ [RUN RESUMED & COMPLETED] Finished execution for thread 'session-matrix-1'!
+```
+
+### 3. Automated Tests
+
+Comprehensive tests in `tests/test_checkpointer.py`:
+- `test_postgres_saver_connection_and_setup`: Verifies connection and migrations on Postgres port 5433.
+- `test_kill_process_mid_run_and_resume_from_checkpoint`: Runs Process 1 until interrupt, destroys process/client, creates fresh Process 2, confirms `next == ('execute_tools',)` and message history, resumes with `invoke(None)` to completion.
+- `test_checkpointer_thread_isolation`: Verifies that concurrent threads maintain separate checkpoint histories without leaking.
+
+Run the checkpointer test suite:
+```bash
+uv run pytest tests/test_checkpointer.py
+```
+
