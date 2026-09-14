@@ -29,6 +29,7 @@ prompt-injection-demo = "phase_5_production.defended_agent:main"
 output-safety-demo = "phase_5_production.output_safety_demo:run_output_safety_demo"
 cost-controls-demo = "phase_5_production.cost_control_demo:main"
 reliability-demo = "phase_5_production.reliability_demo:main"
+pii-audit-demo = "phase_5_production.pii_audit_demo:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]

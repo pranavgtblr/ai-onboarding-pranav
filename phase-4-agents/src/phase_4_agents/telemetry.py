@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -152,21 +153,30 @@ class StepTelemetryTracer(BaseCallbackHandler):
     - Exact or tokenizer-estimated token counts.
     - USD cost calculated against active provider rates.
     - Structured JSON logging per step.
+    - Sanitized preview redaction for privacy and compliance.
     """
 
     def __init__(
         self,
         default_model: str = "gemini-2.5-flash",
         log_to_console: bool = True,
+        sanitizer: Callable[[str], str] | None = None,
     ) -> None:
         super().__init__()
         self.default_model = default_model
         self.log_to_console = log_to_console
+        self.sanitizer = sanitizer
         self.steps: list[StepTelemetry] = []
         self._step_counter = 0
 
         # In-flight active runs tracked by UUID string
         self._active_runs: dict[str, dict[str, Any]] = {}
+
+    def _sanitize(self, text: str) -> str:
+        """Apply sanitizer to preview or error strings if configured."""
+        if self.sanitizer is not None and text:
+            return self.sanitizer(text)
+        return text
 
     def reset(self) -> None:
         """Clear recorded steps and active runs for reuse."""
@@ -196,7 +206,8 @@ class StepTelemetryTracer(BaseCallbackHandler):
         preview = ""
         if messages and messages[0]:
             prompt_chars = sum(len(str(m.content)) for m in messages[0])
-            preview = str(messages[0][-1].content)[:120].replace("\n", " ")
+            raw_preview = str(messages[0][-1].content)[:120].replace("\n", " ")
+            preview = self._sanitize(raw_preview)
 
         model_name = (
             (metadata or {}).get("ls_model_name")
@@ -250,7 +261,8 @@ class StepTelemetryTracer(BaseCallbackHandler):
 
         if response.generations and response.generations[0]:
             first_gen = response.generations[0][0]
-            output_preview = first_gen.text[:120].replace("\n", " ")
+            raw_out = first_gen.text[:120].replace("\n", " ")
+            output_preview = self._sanitize(raw_out)
             msg = getattr(first_gen, "message", None)
             if msg:
                 usage_meta = getattr(msg, "usage_metadata", None)
@@ -316,7 +328,7 @@ class StepTelemetryTracer(BaseCallbackHandler):
             status="error",
             input_preview=active.get("preview", "") if active else "",
             output_preview="",
-            error_message=str(error),
+            error_message=self._sanitize(str(error)),
         )
         self.steps.append(step)
 
@@ -344,7 +356,7 @@ class StepTelemetryTracer(BaseCallbackHandler):
         start_iso = datetime.now(timezone.utc).isoformat()
 
         raw_in = inputs or input_str
-        in_preview = str(raw_in)[:120].replace("\n", " ")
+        in_preview = self._sanitize(str(raw_in)[:120].replace("\n", " "))
 
         self._active_runs[run_key] = {
             "type": "tool_execution",
@@ -373,7 +385,7 @@ class StepTelemetryTracer(BaseCallbackHandler):
         latency_ms = round((end_perf - start_perf) * 1000.0, 2)
         tool_name = active.get("name", "unknown_tool") if active else "unknown_tool"
         in_preview = active.get("preview", "") if active else ""
-        out_preview = str(output)[:120].replace("\n", " ")
+        out_preview = self._sanitize(str(output)[:120].replace("\n", " "))
 
         self._step_counter += 1
         step = StepTelemetry(
@@ -430,7 +442,7 @@ class StepTelemetryTracer(BaseCallbackHandler):
             status="error",
             input_preview=active.get("preview", "") if active else "",
             output_preview="",
-            error_message=str(error),
+            error_message=self._sanitize(str(error)),
         )
         self.steps.append(step)
 

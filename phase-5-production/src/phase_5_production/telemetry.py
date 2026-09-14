@@ -1,7 +1,7 @@
-"""Task 5.1: Production Telemetry and Tracing for AI Agents.
+"""Task 5.1 & Task 5.9: Production Telemetry, Tracing, and PII Sanitization.
 
 Re-exports core telemetry models and helpers from `phase_4_agents.telemetry`
-and provides production-level CLI and dashboard hooks.
+along with PII-redacted tracers (`PIISanitizedTracer`) and logging sanitizers.
 """
 
 from __future__ import annotations
@@ -18,34 +18,80 @@ from phase_4_agents.telemetry import (
     configure_langsmith_tracing,
 )
 
+from phase_5_production.pii_redaction import (
+    PIIFormatter,
+    PIILoggingFilter,
+    PIIRedactor,
+    install_pii_log_sanitizer,
+    redact_pii,
+)
+
 __all__ = [
     "MODEL_RATES",
+    "PIIFormatter",
+    "PIILoggingFilter",
+    "PIIRedactor",
+    "PIISanitizedTracer",
     "StepTelemetry",
     "StepTelemetryTracer",
     "calculate_token_cost",
     "configure_langsmith_tracing",
+    "install_pii_log_sanitizer",
     "main",
+    "redact_pii",
 ]
 
 
-def main() -> None:
-    """CLI runner demonstrating production step telemetry."""
-    print("Initializing production telemetry demo...")
-    tracer = StepTelemetryTracer(log_to_console=False)
+class PIISanitizedTracer(StepTelemetryTracer):
+    """Production StepTelemetryTracer with automated PII scrubbing.
 
-    # Simulate a 2-step agent run for verification
+    Ensures that inputs, prompt previews, tool argument strings, outputs,
+    and exception traces never leak emails, phone numbers, credit cards,
+    SSNs, API keys, or URI passwords into telemetry storage or logs.
+    """
+
+    def __init__(
+        self,
+        default_model: str = "gemini-2.5-flash",
+        log_to_console: bool = True,
+        redactor: PIIRedactor | None = None,
+    ) -> None:
+        self.redactor = redactor or PIIRedactor()
+        super().__init__(
+            default_model=default_model,
+            log_to_console=log_to_console,
+            sanitizer=self.redactor.redact_text,
+        )
+
+
+def main() -> None:
+    """CLI runner demonstrating production step telemetry with PII protection."""
+    print("Initializing production telemetry demo with PII sanitization...")
+    tracer = PIISanitizedTracer(log_to_console=False)
+
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.outputs import ChatGeneration
+
+    # Simulate a step with sensitive user information
     fake_run_id = UUID("12345678-1234-5678-1234-567812345678")
     tracer.on_chat_model_start(
         serialized={"name": "gemini-2.5-flash"},
-        messages=[[type("Msg", (), {"content": "Search Mars rover specs"})()]],  # type: ignore
+        messages=[
+            [
+                HumanMessage(
+                    content=(
+                        "Customer query: Contact alice.smith@example.com "
+                        "at +1-555-839-2001 regarding SSN 000-12-3456."
+                    )
+                )
+            ]
+        ],
         run_id=fake_run_id,
     )
-    time.sleep(0.05)  # 50ms simulated model call
-    from langchain_core.messages import AIMessage
-    from langchain_core.outputs import ChatGeneration
+    time.sleep(0.02)
 
     ai_msg = AIMessage(
-        content="Calling pdf_search",
+        content="Looked up account with key sk-abcdef1234567890abcdef1234567890.",
         usage_metadata={"input_tokens": 45, "output_tokens": 15, "total_tokens": 60},
     )
     res = LLMResult(
@@ -54,16 +100,10 @@ def main() -> None:
     )
     tracer.on_llm_end(res, run_id=fake_run_id)
 
-    tool_run_id = UUID("87654321-4321-8765-4321-876543218765")
-    tracer.on_tool_start(
-        serialized={"name": "pdf_search"},
-        input_str="Mars rover specs",
-        run_id=tool_run_id,
-    )
-    time.sleep(0.02)  # 20ms simulated tool call
-    tracer.on_tool_end("ECLSS specs returned 3 chunks.", run_id=tool_run_id)
-
     print(tracer.format_summary_table())
+    for s in tracer.steps:
+        print(f"Sanitized Input Preview : {s.input_preview}")
+        print(f"Sanitized Output Preview: {s.output_preview}")
 
 
 if __name__ == "__main__":
