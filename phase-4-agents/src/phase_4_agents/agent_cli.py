@@ -415,6 +415,14 @@ def main() -> None:
             "(read-only + approval-gated write)."
         ),
     )
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        help=(
+            "Capture and display per-step tokens, cost, and latency "
+            "telemetry (Task 5.1)."
+        ),
+    )
     args = parser.parse_args()
 
     system_prompt = None
@@ -484,7 +492,24 @@ def main() -> None:
             cost_cap_usd=args.cost_cap,
         )
 
+        step_tracer = None
+        callbacks: list[Any] = []
+        if args.trace:
+            from phase_4_agents.telemetry import (
+                StepTelemetryTracer,
+                configure_langsmith_tracing,
+            )
+
+            configure_langsmith_tracing()
+            step_tracer = StepTelemetryTracer(
+                default_model=args.model or "gemini-2.5-flash",
+                log_to_console=False,
+            )
+            callbacks.append(step_tracer)
+
         run_config: RunnableConfig = {"configurable": {"thread_id": args.thread_id}}
+        if callbacks:
+            run_config["callbacks"] = callbacks
 
         if args.simulate_kill:
             if not args.query:
@@ -744,6 +769,9 @@ def main() -> None:
                         config=run_config,
                     )
                     print_trace_report(final_res)
+
+            if step_tracer and step_tracer.steps:
+                print("\n" + step_tracer.format_summary_table())
 
         elif args.interactive or len(sys.argv) == 1:
             run_interactive(agent)

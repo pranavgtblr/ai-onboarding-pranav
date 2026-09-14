@@ -1,0 +1,56 @@
+[project]
+name = "phase-5-production"
+version = "0.1.0"
+description = "Phase 5: Production AI Engineering - Tracing, CI Regression, Evals, and Guardrails"
+readme = "README.md"
+authors = [
+    { name = "Pranav G", email = "pranav.g@toobler.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "httpx>=0.27.0",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langgraph>=0.2.0",
+    "langsmith>=0.1.0",
+    "phase-4-agents",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.0.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.scripts]
+production-tracer = "phase_5_production.telemetry:main"
+
+[build-system]
+requires = ["uv_build>=0.12.8,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+phase-4-agents = { path = "../phase-4-agents", editable = true }
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.5",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "strict"

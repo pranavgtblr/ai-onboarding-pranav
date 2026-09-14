@@ -58,6 +58,7 @@
   - [x] 4.11 Build an MCP server exposing 2 or 3 read-only tools over one of your Phase 3 knowledge bases.
   - [x] 4.12 Connect MCP server to agent and desktop MCP client, approval-gated write tool, capstone verification (answers over Phase 3 KB, approval-gated write action, survives process restart, streams progress).
 - [ ] Phase 5 - Production         (5.1  - 5.9)
+  - [x] 5.1 Wire LangSmith or an equivalent into your Phase 4 agent. Every run logs per-step tokens, cost and latency.
 
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
 
