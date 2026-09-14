@@ -55,6 +55,7 @@
   - [x] 4.8 Time-travel debugging: replay a completed run from an arbitrary checkpoint with modified state.
   - [x] 4.9 Stream intermediate steps to a UI so a 20-second run does not look frozen. Reuse the Phase 0 streaming endpoint.
   - [x] 4.10 Tool design pass: tight schemas, unambiguous names, and error messages written for the model to act on. Add an iteration limit and a cost cap. When stuck, fail loudly - never loop.
+  - [x] 4.11 Build an MCP server exposing 2 or 3 read-only tools over one of your Phase 3 knowledge bases.
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)

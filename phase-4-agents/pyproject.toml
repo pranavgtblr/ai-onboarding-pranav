@@ -17,6 +17,7 @@ dependencies = [
     "langgraph>=0.2.0",
     "langgraph-checkpoint-postgres>=2.0.0",
     "langgraph-checkpoint-redis>=0.5.2",
+    "mcp>=2.2.0",
     "psycopg>=3.3.5",
     "psycopg-binary>=3.3.5",
     "psycopg-pool>=3.3.1",
@@ -28,6 +29,7 @@ dependencies = [
 
 [project.scripts]
 tool-agent = "phase_4_agents.agent_cli:main"
+ecommerce-mcp = "phase_4_agents.mcp_server:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]

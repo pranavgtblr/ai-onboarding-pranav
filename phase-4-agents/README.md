@@ -1012,10 +1012,140 @@ The agent was stopped to prevent an infinite loop or excessive budget burn.
 ==============================================================================
 ```
 
-### 5. Automated Tests
-
 Run the guardrail test suite:
 ```bash
 uv run pytest tests/test_tool_design_and_guardrails.py -v
 ```
 All 14 tests pass covering schema validation, actionable error self-correction, stuck loop detection, iteration limits, and budget caps.
+
+---
+
+## Task 4.11: Model Context Protocol (MCP) Server for Knowledge Bases
+
+The **Model Context Protocol (MCP)** is an open standard that allows AI assistants (Claude Desktop, Cursor, Antigravity, custom agents) to securely connect to external data sources and tools over standardized JSON-RPC protocols.
+
+Task 4.11 builds an MCP server over the **Phase 3 Ecommerce SQLite Knowledge Base** (`ecommerce.db`), exposing 3 read-only tools and a database schema resource:
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│               MODEL CONTEXT PROTOCOL (MCP) ARCHITECTURE                │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│   [MCP Clients]                                                        │
+│   ├── Claude Desktop / Cursor / Antigravity IDE                        │
+│   └── LangGraph Autonomous Agent (via LangChain Adapter)               │
+│                            │                                           │
+│                 JSON-RPC over stdio / HTTP                             │
+│                            ▼                                           │
+│   [MCP Server: `ecommerce-knowledge-base`] (mcp_server.py)             │
+│   ├── Resource: `ecommerce://schema`                                   │
+│   │   └── Full table schemas (products, customers, orders...)          │
+│   │                                                                    │
+│   ├── Tool 1: `query_products` (READ-ONLY)                             │
+│   │   └── Filter by category, min/max price, stock availability        │
+│   │                                                                    │
+│   ├── Tool 2: `get_customer_orders` (READ-ONLY)                        │
+│   │   └── Customer order history and line items by customer_id         │
+│   │                                                                    │
+│   └── Tool 3: `execute_read_only_sql` (READ-ONLY)                      │
+│       └── AST/regex security checks, disallows mutations               │
+│           (DROP, INSERT, UPDATE, DELETE), mandatory LIMIT cap         │
+│                            │                                           │
+│                            ▼                                           │
+│   [Phase 3 SQLite Database: `ecommerce.db`]                            │
+│   ├── customers, products, orders, order_items, appointments           │
+│   └── sensitive_admin_logs (ACCESS FORBIDDEN)                          │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. The 3 Read-Only Tools
+
+1. **`query_products`**:
+   - Query catalog items with optional filters: `category` (case-insensitive string), `min_price` (float), `max_price` (float), `in_stock_only` (bool), and `limit` (int, default 10, max 50).
+   - Returns structured product summaries (`product_id`, `name`, `category`, `price`, `stock_quantity`).
+   - If no items match, returns actionable model guidance listing available catalog categories.
+
+2. **`get_customer_orders`**:
+   - Looks up order history for a given `customer_id`.
+   - Supports filtering by `status` (`'pending'`, `'completed'`, `'shipped'`, `'cancelled'`).
+   - Returns order dates, totals, and nested item line items with unit prices.
+
+3. **`execute_read_only_sql`**:
+   - Executes arbitrary SQL queries starting with `SELECT` or `WITH`.
+   - Security defenses:
+     - Rejects mutation keywords (`DROP`, `DELETE`, `INSERT`, `UPDATE`, `ALTER`, `ATTACH`, `PRAGMA`).
+     - Rejects semicolon statement chaining.
+     - Forbids access to sensitive tables (`sensitive_admin_logs`, `sqlite_master`).
+     - Enforces mandatory `LIMIT` (defaults to 20, capped at 50).
+
+### 2. MCP Resource: Database Schema
+
+Exposed at URI: `ecommerce://schema`:
+- Provides DDL definitions and record counts for all client-accessible tables.
+- Enables MCP clients to pre-load context without executing database queries.
+
+### 3. Running the MCP Server
+
+The server communicates over standard input/output (`stdio`) following the MCP specification:
+
+```bash
+# Run directly via module
+uv run python -m phase_4_agents.mcp_server
+
+# Or run via registered entrypoint script
+uv run ecommerce-mcp
+```
+
+### 4. Connecting External MCP Clients
+
+To use this server in **Claude Desktop** or **Cursor**, add it to your configuration file (e.g. `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "ecommerce-knowledge-base": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/home/toobler/Toobler/ai-onboarding-pranav/phase-4-agents",
+        "ecommerce-mcp"
+      ]
+    }
+  }
+}
+```
+
+### 5. LangChain & LangGraph Integration (`mcp_client.py`)
+
+We provide `convert_mcp_to_langchain_tools(server)`, which inspects the MCP server's registered tools and dynamically generates LangChain `StructuredTool` instances with Pydantic v2 schemas:
+
+```python
+from phase_4_agents.mcp_client import convert_mcp_to_langchain_tools
+from phase_4_agents.mcp_server import create_ecommerce_mcp_server
+
+# Initialize MCP server
+mcp_server = create_ecommerce_mcp_server()
+
+# Convert MCP tools to LangChain BaseTools
+tools = convert_mcp_to_langchain_tools(mcp_server)
+
+# Pass directly to LangGraph agent
+agent = build_state_graph_agent(tools=tools)
+```
+
+### 6. Automated Tests
+
+Run the dedicated MCP test suite:
+```bash
+uv run pytest tests/test_mcp_server.py -v
+```
+
+Tests cover:
+- Tool listing and metadata.
+- Resource exposure (`ecommerce://schema`).
+- Product querying and filtering.
+- Customer order retrieval.
+- SQL execution and security guards (blocking DROP/DELETE/INSERT/sensitive tables).
+- LangChain adapter invocation.
+- End-to-end stdio transport communication via `open_mcp_stdio_client`.

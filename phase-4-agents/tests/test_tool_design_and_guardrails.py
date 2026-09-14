@@ -128,9 +128,7 @@ def test_db_query_actionable_error_on_missing_table() -> None:
 def test_add_to_cart_actionable_error_on_missing_product() -> None:
     """Verify add_to_cart returns available products when product is not found."""
     res = add_to_cart.invoke({"product_name": "Antimatter Battery", "quantity": 1})
-    assert (
-        "Catalog Error: Product 'Antimatter Battery' not found in catalog" in res
-    )
+    assert "Catalog Error: Product 'Antimatter Battery' not found in catalog" in res
     assert "Available products are: 'Mars Rover Sensor' ($450.00)" in res
     assert "'Titanium Drill Bit' ($120.00)" in res
 
