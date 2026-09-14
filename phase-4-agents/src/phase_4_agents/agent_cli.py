@@ -407,14 +407,45 @@ def main() -> None:
         default=0.05,
         help="Maximum estimated USD budget before loud failure (default: 0.05).",
     )
+    parser.add_argument(
+        "--use-mcp",
+        action="store_true",
+        help=(
+            "Connect to the Phase 3 Ecommerce MCP Server tools "
+            "(read-only + approval-gated write)."
+        ),
+    )
     args = parser.parse_args()
 
-    toolset_map = {
-        "all": get_all_tools(),
-        "rag": get_rag_tools(),
-        "basic": BASIC_TOOLS,
-    }
-    selected_tools = toolset_map[args.tools]
+    system_prompt = None
+    if args.use_mcp:
+        from phase_4_agents.mcp_client import convert_mcp_to_langchain_tools
+        from phase_4_agents.mcp_server import create_ecommerce_mcp_server
+
+        mcp_srv = create_ecommerce_mcp_server()
+        selected_tools = convert_mcp_to_langchain_tools(mcp_srv)
+        system_prompt = (
+            "You are an intelligent ecommerce assistant connected to the Phase 3 "
+            "database via Model Context Protocol (MCP).\n"
+            "You have access to 3 read-only tools and 1 approval-gated write tool:\n"
+            "1. query_products: Search products by category, price, and stock.\n"
+            "2. get_customer_orders: Look up customer orders.\n"
+            "3. execute_read_only_sql: Run read-only SELECT queries.\n"
+            "4. add_to_cart: Add products to cart (WRITE ACTION - NEEDS APPROVAL).\n\n"
+            "Always prefer read-only tools to inspect products and orders first. "
+            "When instructed to add items to cart, invoke add_to_cart."
+        )
+        print(
+            f"🔌 [MCP INTEGRATION] Connected to Phase 3 MCP Server "
+            f"({len(selected_tools)} tools loaded)."
+        )
+    else:
+        toolset_map = {
+            "all": get_all_tools(),
+            "rag": get_rag_tools(),
+            "basic": BASIC_TOOLS,
+        }
+        selected_tools = toolset_map[args.tools]
 
     # Configure checkpointer
     checkpointer_ctx: Any = None
@@ -444,6 +475,7 @@ def main() -> None:
         agent = build_tool_agent(
             engine=args.engine,
             tools=selected_tools,
+            system_prompt=system_prompt,
             provider=args.provider,
             model_name=args.model,
             checkpointer=active_checkpointer,

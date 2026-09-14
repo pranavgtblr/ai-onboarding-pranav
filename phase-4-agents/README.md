@@ -1149,3 +1149,110 @@ Tests cover:
 - SQL execution and security guards (blocking DROP/DELETE/INSERT/sensitive tables).
 - LangChain adapter invocation.
 - End-to-end stdio transport communication via `open_mcp_stdio_client`.
+
+---
+
+## Task 4.12: Desktop MCP Client, Approval-Gated Write Tool & Capstone Verification
+
+Task 4.12 concludes Phase 4 by integrating our Model Context Protocol (MCP) server with both desktop MCP clients and our production LangGraph agent, introducing a write tool (`add_to_cart`) gated strictly behind human approval, and verifying all four **Phase 4 Done** criteria.
+
+### 1. Read-Only First Posture & Approval-Gated Write Tool
+
+In production AI systems, the default posture is **read-only first**:
+- Models freely inspect schemas, catalog items, and order histories without latency-inducing confirmation dialogs.
+- When an action modifies persistent client records (e.g. adding items to a cart, modifying balances, or placing orders), the graph strictly intercepts execution before tool invocation and routes to `human_approval`.
+
+```
+[User Request: "Add 2 Keychron K2 Keyboards to cart"]
+                        │
+                        ▼
+            [call_model: AIMessage]
+       (tool_calls=[add_to_cart(...)])
+                        │
+                        ▼
+          [route_model_output Router]
+                        │
+       Is tool in CLIENT_DATA_WRITE_TOOLS?
+       ├── YES ──► [human_approval Node] ──► 🛑 PAUSE & PERSIST TO POSTGRES
+       └── NO  ──► [execute_tools Node]
+```
+
+### 2. The 4th Tool: `add_to_cart` (Write Action)
+
+Exposed on the MCP Server (`mcp_server.py`):
+- **Function**: `add_to_cart(product_name: str, quantity: int = 1, customer_id: int = 1) -> str`
+- **Validation**: Resolves canonical product in SQLite catalog and validates active `stock_quantity`. If out of stock, emits an actionable warning.
+- **Persistence**: Inserts into `cart_items` table with `customer_id`, `product_id`, `product_name`, `quantity`, `unit_price`, and `total_price`.
+- **Security & Safety**: Labeled explicitly as a `WRITE ACTION` requiring `HUMAN APPROVAL`. In `rag_tools.py` and `graph_agent.py`, `"add_to_cart"` is registered in `CLIENT_DATA_WRITE_TOOLS`.
+
+### 3. Desktop MCP Client Integration (`claude_desktop_config.json`)
+
+To connect external desktop assistants (Claude Desktop, Cursor, Antigravity) to our Phase 3 knowledge base, use the provided config:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/specification/main/schema/desktop-config-schema.json",
+  "mcpServers": {
+    "ecommerce-kb": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/toobler/Toobler/ai-onboarding-pranav/phase-4-agents",
+        "run",
+        "ecommerce-mcp"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
+```
+
+- **Claude Desktop location**: `~/.config/Claude/claude_desktop_config.json` (Linux) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS).
+- **Cursor location**: `Settings -> Features -> MCP Servers -> Add new MCP server`.
+
+### 4. Running the Agent with MCP via CLI
+
+Use the `--use-mcp` flag to power the agent directly with live MCP tools:
+
+```bash
+# Answering over Phase 3 KB
+uv run python src/phase_4_agents/agent_cli.py --use-mcp --query "What laptops are in stock?"
+
+# Approval-gated write action
+uv run python src/phase_4_agents/agent_cli.py --use-mcp --query "Add 2 Keychron K2 Keyboards to my cart"
+
+# Streaming execution with MCP tools
+uv run python src/phase_4_agents/agent_cli.py --use-mcp --stream --query "Search for keyboards"
+```
+
+---
+
+## Phase 4 Completion Criteria Verification
+
+Phase 4 is complete when the agent satisfies all four capstone requirements:
+
+| # | Capstone Requirement | Implementation & Verification | Test |
+| :- | :--- | :--- | :--- |
+| 1 | **Answers over Phase 3 Knowledge Base** | Agent queries `ecommerce.db` catalog using MCP read tools (`query_products`, `execute_read_only_sql`) and synthesizes factual answers. | `test_capstone_answers_over_phase_3_knowledge_base` |
+| 2 | **Takes Approval-Gated Write Action** | Calling `add_to_cart` routes to `human_approval` and pauses execution before database mutation. | `test_capstone_takes_approval_gated_write_action` |
+| 3 | **Survives Process Restart** | Paused state persists in PostgreSQL checkpointer. Process 1 terminates. Process 2 connects, reloads state, approves, executes write to `cart_items`, and finishes. | `test_capstone_survives_process_restart` |
+| 4 | **Streams Progress** | Emits intermediate real-time events (`step_start`, `tool_decision`, `approval_paused`, `tool_execution`, `final_answer`, `done`) without freezing. | `test_capstone_streams_progress` |
+| ★ | **Unified Capstone Flow** | End-to-end scenario uniting all four criteria in a single multi-turn workflow on Postgres. | `test_capstone_end_to_end_orchestration` |
+
+Run the complete Capstone test suite:
+```bash
+uv run pytest tests/test_phase_4_capstone.py -v
+```
+
+Output:
+```text
+tests/test_phase_4_capstone.py::test_capstone_answers_over_phase_3_knowledge_base PASSED [ 20%]
+tests/test_phase_4_capstone.py::test_capstone_takes_approval_gated_write_action PASSED [ 40%]
+tests/test_phase_4_capstone.py::test_capstone_survives_process_restart PASSED [ 60%]
+tests/test_phase_4_capstone.py::test_capstone_streams_progress PASSED    [ 80%]
+tests/test_phase_4_capstone.py::test_capstone_end_to_end_orchestration PASSED [100%]
+============================== 5 passed in 1.81s ===============================
+```
+

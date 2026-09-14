@@ -127,19 +127,23 @@ def mcp_server(test_db: str) -> MCPServer:
 
 
 @pytest.mark.asyncio
-async def test_mcp_server_lists_all_read_only_tools(mcp_server: MCPServer) -> None:
-    """Verify MCPServer exposes the exact 3 read-only tools with descriptions."""
+async def test_mcp_server_lists_all_tools(mcp_server: MCPServer) -> None:
+    """Verify MCPServer exposes the 3 read-only tools and 1 write action."""
     tools = await mcp_server.list_tools()
     tool_names = [t.name for t in tools]
 
     assert "query_products" in tool_names
     assert "get_customer_orders" in tool_names
     assert "execute_read_only_sql" in tool_names
-    assert len(tool_names) == 3
+    assert "add_to_cart" in tool_names
+    assert len(tool_names) == 4
 
-    for tool in tools:
-        assert tool.description is not None
-        assert "READ-ONLY" in tool.description
+    read_tools = [t for t in tools if "READ-ONLY" in (t.description or "")]
+    assert len(read_tools) == 3
+
+    write_tool = next(t for t in tools if t.name == "add_to_cart")
+    assert "WRITE ACTION" in (write_tool.description or "")
+    assert "HUMAN APPROVAL" in (write_tool.description or "")
 
 
 # =============================================================================
@@ -331,12 +335,13 @@ async def test_execute_read_only_sql_rejects_sensitive_tables(
 def test_convert_mcp_to_langchain_tools(mcp_server: MCPServer) -> None:
     """Verify convert_mcp_to_langchain_tools returns valid LangChain tools."""
     lc_tools = convert_mcp_to_langchain_tools(mcp_server)
-    assert len(lc_tools) == 3
+    assert len(lc_tools) == 4
 
     tool_map = {t.name: t for t in lc_tools}
     assert "query_products" in tool_map
     assert "get_customer_orders" in tool_map
     assert "execute_read_only_sql" in tool_map
+    assert "add_to_cart" in tool_map
 
     # Test sync invocation of query_products via LangChain
     prod_res = tool_map["query_products"].invoke({"category": "Accessories"})
@@ -347,6 +352,48 @@ def test_convert_mcp_to_langchain_tools(mcp_server: MCPServer) -> None:
         {"sql_query": "SELECT name FROM customers"}
     )
     assert "Alice Smith" in sql_res
+
+
+@pytest.mark.asyncio
+async def test_add_to_cart_tool_mutates_database(
+    mcp_server: MCPServer, test_db: str
+) -> None:
+    """Verify add_to_cart tool checks stock and inserts into cart_items."""
+    # 1. Successful addition
+    res = await mcp_server.call_tool(
+        "add_to_cart",
+        {"product_name": "Keychron K2 Keyboard", "quantity": 2, "customer_id": 1},
+    )
+    text = _get_text(res)
+    assert "Successfully added" in text
+    assert "Keychron K2 Keyboard" in text
+
+    # Verify directly in the database
+    conn = sqlite3.connect(test_db)
+    cur = conn.cursor()
+    cur.execute("SELECT quantity, unit_price FROM cart_items WHERE customer_id = 1")
+    row = cur.fetchone()
+    conn.close()
+
+    assert row is not None
+    assert row[0] == 2
+    assert row[1] == 89.00
+
+    # 2. Out of stock rejection
+    res_oos = await mcp_server.call_tool(
+        "add_to_cart",
+        {"product_name": "Sony WH-1000XM5 Headphones", "quantity": 1, "customer_id": 1},
+    )
+    text_oos = _get_text(res_oos)
+    assert "Inventory Warning" in text_oos
+
+    # 3. Product not found
+    res_missing = await mcp_server.call_tool(
+        "add_to_cart",
+        {"product_name": "Nonexistent Gizmo", "quantity": 1, "customer_id": 1},
+    )
+    text_missing = _get_text(res_missing)
+    assert "not found" in text_missing
 
 
 # =============================================================================
@@ -369,6 +416,7 @@ async def test_open_mcp_stdio_client_integration() -> None:
         assert "query_products" in names
         assert "get_customer_orders" in names
         assert "execute_read_only_sql" in names
+        assert "add_to_cart" in names
 
         # 2. List resources
         resources_result = await session.list_resources()

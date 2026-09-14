@@ -44,7 +44,7 @@
   - [x] 3.21 One chatbot that routes across all four sources, answers with citations, and tells the user which source it used
   - [x] 3.22 Run the eval suite across all four routes. Commit the report
 
-- [ ] Phase 4 - Agents             (4.1  - 4.12)
+- [x] Phase 4 - Agents             (4.1  - 4.12)
   - [x] 4.1 Rebuild Phase 2 tool-calling CLI with create_agent, map trace steps to Task 2.6 hand-rolled loop in README
   - [x] 4.2 Provider-agnostic setup: switch between two model providers with a config change only, no code change.
   - [x] 4.3 Convert your Phase 3 router into agent tools - pdf_search, site_search, db_query, web_search - and let the agent choose between them.
@@ -56,6 +56,7 @@
   - [x] 4.9 Stream intermediate steps to a UI so a 20-second run does not look frozen. Reuse the Phase 0 streaming endpoint.
   - [x] 4.10 Tool design pass: tight schemas, unambiguous names, and error messages written for the model to act on. Add an iteration limit and a cost cap. When stuck, fail loudly - never loop.
   - [x] 4.11 Build an MCP server exposing 2 or 3 read-only tools over one of your Phase 3 knowledge bases.
+  - [x] 4.12 Connect MCP server to agent and desktop MCP client, approval-gated write tool, capstone verification (answers over Phase 3 KB, approval-gated write action, survives process restart, streams progress).
 - [ ] Phase 5 - Production         (5.1  - 5.9)
 
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)

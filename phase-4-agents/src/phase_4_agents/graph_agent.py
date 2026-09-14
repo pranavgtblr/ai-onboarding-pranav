@@ -771,11 +771,22 @@ class AgentStreamEvent:
 
 def _parse_stream_update_to_event(
     node_name: str,
-    state_chunk: dict[str, Any],
+    state_chunk: Any,
     step_counter: int,
 ) -> AgentStreamEvent:
     """Convert a LangGraph stream update chunk into an AgentStreamEvent."""
-    messages = state_chunk.get("messages", [])
+    if node_name == "__interrupt__":
+        return AgentStreamEvent(
+            event="approval_paused",
+            node="human_approval",
+            step_number=step_counter,
+            data={
+                "status": "waiting_for_approval",
+                "message": "Execution paused awaiting human approval for write action.",
+            },
+        )
+
+    messages = state_chunk.get("messages", []) if isinstance(state_chunk, dict) else []
     last_msg = messages[-1] if messages else None
 
     if node_name == "call_model":

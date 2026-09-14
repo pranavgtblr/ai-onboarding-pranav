@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/specification/main/schema/desktop-config-schema.json",
+  "mcpServers": {
+    "ecommerce-kb": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/toobler/Toobler/ai-onboarding-pranav/phase-4-agents",
+        "run",
+        "ecommerce-mcp"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}

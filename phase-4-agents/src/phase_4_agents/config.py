@@ -112,6 +112,10 @@ class MockToolChatModel(BaseChatModel):
                 pname = "Oxygen Scrubber Cartridge"
             elif "sensor" in content_str or "rover" in content_str:
                 pname = "Mars Rover Sensor"
+            elif "keychron" in content_str or "keyboard" in content_str:
+                pname = "Keychron K2 Keyboard"
+            elif "macbook" in content_str or "laptop" in content_str:
+                pname = "MacBook Pro 16"
 
             ai_msg = AIMessage(
                 content="",
@@ -124,6 +128,37 @@ class MockToolChatModel(BaseChatModel):
                             "customer_id": 1,
                         },
                         "id": "mock_call_cart",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return ChatResult(generations=[ChatGeneration(message=ai_msg)])
+
+        # 3. Check for MCP Product / Catalog Search
+        prod_keywords = (
+            "catalog",
+            "product",
+            "inventory",
+            "stock",
+            "laptops",
+            "accessories",
+        )
+        if any(w in content_str for w in prod_keywords) and "cart" not in content_str:
+            cat = None
+            if "laptop" in content_str:
+                cat = "Laptops"
+            elif "accessories" in content_str or "keyboard" in content_str:
+                cat = "Accessories"
+            elif "audio" in content_str or "headphone" in content_str:
+                cat = "Audio"
+
+            ai_msg = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "query_products",
+                        "args": {"category": cat} if cat else {},
+                        "id": "mock_call_query_products",
                         "type": "tool_call",
                     }
                 ],

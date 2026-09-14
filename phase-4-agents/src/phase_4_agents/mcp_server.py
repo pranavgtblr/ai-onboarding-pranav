@@ -1,11 +1,10 @@
 """Model Context Protocol (MCP) Server for Phase 3 Ecommerce Knowledge Base.
 
-Exposes 3 read-only tools and a schema resource over the SQLite ecommerce
-database:
-1. `query_products`: Filter catalog products by category, price, and stock.
-2. `get_customer_orders`: Lookup order history and line items for a customer.
-3. `execute_read_only_sql`: Safely execute read-only SELECT queries with security
-   checks and limit enforcement.
+Exposes read-only tools, a schema resource, and an approval-gated write tool:
+1. `query_products` (READ-ONLY): Filter catalog products by category, price, and stock.
+2. `get_customer_orders` (READ-ONLY): Lookup order history and line items for customer.
+3. `execute_read_only_sql` (READ-ONLY): Safely execute read-only SELECT queries.
+4. `add_to_cart` (WRITE ACTION - Approval Gated): Add items to customer shopping cart.
 Resource:
 - `ecommerce://schema`: DDL and table structure for all ecommerce tables.
 """
@@ -392,6 +391,123 @@ def create_ecommerce_mcp_server(
                 f"SQL Execution Error: {exc}. Valid tables: "
                 "'customers', 'products', 'orders', 'order_items', 'appointments'."
             )
+        finally:
+            conn.close()
+
+    # -------------------------------------------------------------------------
+    # Tool 4: Add to Cart (WRITE ACTION - Approval Gated)
+    # -------------------------------------------------------------------------
+    @server.tool(
+        name="add_to_cart",
+        description=(
+            "Add an item to the customer's active shopping cart (WRITE ACTION)."
+            " THIS TOOL MUTATES CLIENT DATA AND REQUIRES EXPLICIT HUMAN"
+            " APPROVAL BEFORE EXECUTION. Use this tool ONLY when the user"
+            " explicitly requests purchasing or adding items."
+        ),
+    )
+    def add_to_cart(
+        product_name: str,
+        quantity: int = 1,
+        customer_id: int = 1,
+    ) -> str:
+        """Add an item to the customer's active shopping cart.
+
+        Args:
+            product_name: Name of the product to purchase.
+            quantity: Number of units to add (default: 1, range: 1 to 100).
+            customer_id: Numeric ID of the authenticated customer (default: 1).
+        """
+        if not resolved_path.exists():
+            return f"Database error: Database file not found at {resolved_path}."
+
+        if quantity < 1 or quantity > 100:
+            return (
+                f"Validation Error: Quantity {quantity} is invalid. "
+                "Must be between 1 and 100 units."
+            )
+
+        conn = get_db_connection(resolved_path)
+        try:
+            cur = conn.cursor()
+
+            # Find product in catalog
+            prod = cur.execute(
+                "SELECT product_id, name, price, stock_quantity FROM products "
+                "WHERE LOWER(name) = LOWER(?) OR LOWER(name) LIKE LOWER(?)",
+                (product_name.strip(), f"%{product_name.strip()}%"),
+            ).fetchone()
+
+            if not prod:
+                available = cur.execute(
+                    "SELECT name, price FROM products LIMIT 5"
+                ).fetchall()
+                items_str = ", ".join(
+                    [f"'{r['name']}' (${r['price']:.2f})" for r in available]
+                )
+                return (
+                    f"Catalog Error: Product '{product_name}' not found in catalog. "
+                    f"Available products include: {items_str}."
+                )
+
+            product_id = prod["product_id"]
+            canonical_name = prod["name"]
+            unit_price = float(prod["price"])
+            stock = int(prod["stock_quantity"])
+
+            if stock < quantity:
+                return (
+                    f"Inventory Warning: Only {stock} unit(s) of '{canonical_name}' in "
+                    f"stock. Cannot add {quantity} units."
+                )
+
+            total_price = unit_price * quantity
+
+            # Ensure cart_items table exists
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cart_items (
+                    cart_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_id INTEGER NOT NULL,
+                    product_id INTEGER NOT NULL,
+                    product_name TEXT NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    unit_price REAL NOT NULL,
+                    total_price REAL NOT NULL,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+
+            cur.execute(
+                """
+                INSERT INTO cart_items (
+                    customer_id, product_id, product_name,
+                    quantity, unit_price, total_price
+                ) VALUES (?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    customer_id,
+                    product_id,
+                    canonical_name,
+                    quantity,
+                    unit_price,
+                    total_price,
+                ),
+            )
+            cart_id = cur.lastrowid
+            conn.commit()
+
+            return (
+                f"Successfully added to cart (Cart ID: {cart_id})!\n"
+                f"• Product: {canonical_name} (ID: {product_id})\n"
+                f"• Quantity: {quantity}\n"
+                f"• Unit Price: ${unit_price:.2f}\n"
+                f"• Total: ${total_price:.2f}\n"
+                f"• Customer ID: {customer_id}"
+            )
+        except Exception as exc:
+            return f"Cart Error: Failed to add item to cart: {exc}"
         finally:
             conn.close()
 
