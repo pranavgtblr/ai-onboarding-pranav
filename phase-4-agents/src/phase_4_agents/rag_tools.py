@@ -389,10 +389,7 @@ def db_query(query: str) -> str:
                 city_match = re.search(r"(?:in|city)\s+([a-zA-Z]+)", q_lower)
                 matched_city = city_match.group(1) if city_match else None
                 if matched_city and matched_city not in ("the", "our", "all", "each"):
-                    sql = (
-                        "SELECT * FROM customers "
-                        "WHERE LOWER(city) LIKE ? LIMIT 10;"
-                    )
+                    sql = "SELECT * FROM customers WHERE LOWER(city) LIKE ? LIMIT 10;"
                     params = (f"%{matched_city}%",)
 
                 elif "count" in q_lower or "how many" in q_lower:

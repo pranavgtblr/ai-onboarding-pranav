@@ -19,6 +19,7 @@ from phase_5_production.output_safety import (
 # PART 1: HTML Escaping & XSS Neutralization Tests
 # =====================================================================
 
+
 def test_escape_html_output_neutralizes_special_characters() -> None:
     """Special characters (&, <, >, ", ') must be converted to HTML entities."""
     raw = '<script>alert("test & verify")</script>'
@@ -71,6 +72,7 @@ def test_render_page_contains_csp_header() -> None:
 # =====================================================================
 # PART 2: SQL Parameterization & Injection Barrier Tests
 # =====================================================================
+
 
 @pytest.fixture
 def mock_db() -> sqlite3.Connection:

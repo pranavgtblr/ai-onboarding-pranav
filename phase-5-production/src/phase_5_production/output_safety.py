@@ -87,12 +87,10 @@ def render_model_output_page(
         rendered_body = escape_html_output(model_output)
         csp_header = (
             '<meta http-equiv="Content-Security-Policy" '
-            'content="default-src \'self\'; script-src \'none\'; '
-            'style-src \'self\' \'unsafe-inline\'; object-src \'none\';">'
+            "content=\"default-src 'self'; script-src 'none'; "
+            "style-src 'self' 'unsafe-inline'; object-src 'none';\">"
         )
-        badge = (
-            '<span class="badge badge-safe">Escaped &amp; Protected (Safe)</span>'
-        )
+        badge = '<span class="badge badge-safe">Escaped &amp; Protected (Safe)</span>'
     else:
         rendered_body = model_output
         csp_header = "<!-- CSP Disabled: Insecure Demonstration Mode -->"
@@ -207,9 +205,7 @@ class SafeQueryExecutor:
                 )
 
         # Ensure parameters are provided if the query contains parameter placeholders
-        has_placeholders = "?" in clean_sql or bool(
-            re.search(r":\w+", clean_sql)
-        )
+        has_placeholders = "?" in clean_sql or bool(re.search(r":\w+", clean_sql))
         if has_placeholders and not params:
             raise UnparameterizedQueryError(
                 "Query contains parameter placeholders but no parameters were supplied."
