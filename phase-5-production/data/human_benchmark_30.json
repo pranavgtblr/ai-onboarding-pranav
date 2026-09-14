@@ -1,0 +1,302 @@
+[
+  {
+    "id": "SAMPLE-01",
+    "category": "grounded_factoid",
+    "query": "What is the maximum operating voltage of the ECLSS primary power bus?",
+    "retrieved_context": "Section 4.2.1 Electrical Architecture: The Environmental Control and Life Support System (ECLSS) primary power bus operates at a nominal voltage of 120V DC, with a maximum safe operating threshold of 126V DC. Exceeding 126V trips the overvoltage circuit breakers.",
+    "model_output": "The maximum safe operating voltage of the ECLSS primary power bus is 126V DC. If voltage exceeds this threshold, the overvoltage circuit breakers will trip.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Directly and accurately answers the question based on Section 4.2.1. No extra or hallucinated claims."
+  },
+  {
+    "id": "SAMPLE-02",
+    "category": "grounded_numeric",
+    "query": "What is the cabin atmospheric pressure range for nominal operations?",
+    "retrieved_context": "Cabin Atmosphere Standards: Nominal pressure must be maintained between 98.0 kPa and 102.5 kPa. Emergency minimum depressurization limit is 70.0 kPa.",
+    "model_output": "For nominal operations, the cabin atmospheric pressure must remain between 98.0 kPa and 102.5 kPa.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Perfect match with retrieved standards; correctly distinguishes nominal from emergency pressure."
+  },
+  {
+    "id": "SAMPLE-03",
+    "category": "subtle_hallucination",
+    "query": "What propellant mixture is used in the MDAS propulsion system?",
+    "retrieved_context": "MDAS Propulsion Specification: The Mars Descent and Ascent System (MDAS) utilizes a hypergolic bipropellant combination of Monomethylhydrazine (MMH) fuel and Dinitrogen Tetroxide (NTO) oxidizer.",
+    "model_output": "The MDAS propulsion system utilizes a hypergolic bipropellant combination of Monomethylhydrazine (MMH) fuel and Dinitrogen Tetroxide (NTO) oxidizer, supplemented by liquid hydrogen for high-altitude staging.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Hallucination: The context mentions MMH and NTO, but never mentions liquid hydrogen for high-altitude staging."
+  },
+  {
+    "id": "SAMPLE-04",
+    "category": "grounded_procedural",
+    "query": "How do you reset an overpressure fault in the CO2 scrubber?",
+    "retrieved_context": "Fault Reset Procedure: To reset a CO2 scrubber overpressure fault: 1) Verify chamber differential pressure is below 5 kPa; 2) Depress the manual bypass valve for 3 seconds; 3) Issue command SCRUB_FLT_RST via telemetry.",
+    "model_output": "To reset an overpressure fault in the CO2 scrubber, first confirm that chamber differential pressure is below 5 kPa. Next, press the manual bypass valve for 3 seconds, and finally send the telemetry command SCRUB_FLT_RST.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Accurate step-by-step reproduction of the retrieved manual instructions."
+  },
+  {
+    "id": "SAMPLE-05",
+    "category": "numerical_distortion",
+    "query": "What is the emergency backup battery capacity for the communication array?",
+    "retrieved_context": "Communication Array Subsystem: The backup lithium-iron-phosphate battery bank provides 48 kilowatt-hours (kWh) of continuous emergency power, rated for 36 hours of low-bandwidth telemetry.",
+    "model_output": "The emergency backup battery capacity for the communication array is 84 kWh, which provides power for 36 hours.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Factual/Numerical error: Model transposed 48 kWh into 84 kWh."
+  },
+  {
+    "id": "SAMPLE-06",
+    "category": "grounded_synthesis",
+    "query": "What fluid is circulated through the habitat thermal loop and what is its freezing point?",
+    "retrieved_context": "Thermal Control Manual: Habitat internal cooling is mediated by an aqueous propylene glycol mixture (60/40 ratio by volume). The freezing point of this mixture is calibrated to -51 degrees Celsius.",
+    "model_output": "An aqueous propylene glycol mixture (60/40 ratio by volume) is circulated through the internal thermal loop, with a freezing point of -51°C.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Synthesizes both the fluid mixture and freezing point correctly from context."
+  },
+  {
+    "id": "SAMPLE-07",
+    "category": "unsupported_extrapolation",
+    "query": "Can the water reclamation assembly process hygiene waste water?",
+    "retrieved_context": "Water Recovery System (WRS): WRS Subassembly Alpha accepts graywater from humidity condensates and oral hygiene runoff. Urine processing is strictly routed to the separate VCD (Vapor Compression Distillation) unit.",
+    "model_output": "Yes, WRS Subassembly Alpha processes hygiene waste water and also purifies all spacesuit cooling water loops with reverse osmosis.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Ungrounded extrapolation: Reverse osmosis spacesuit cooling is completely fabricated and absent from context."
+  },
+  {
+    "id": "SAMPLE-08",
+    "category": "grounded_factoid",
+    "query": "Who is the certified lead flight surgeon for Mission Sol 42?",
+    "retrieved_context": "Flight Crew Roster: Mission Sol 42 operations are medically supervised by Lead Flight Surgeon Dr. Evelyn Vance, MD, board certified in aerospace medicine.",
+    "model_output": "The certified lead flight surgeon for Mission Sol 42 is Dr. Evelyn Vance, MD.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Completely grounded and answers the specific inquiry."
+  },
+  {
+    "id": "SAMPLE-09",
+    "category": "off_topic_evasion",
+    "query": "What are the telemetry limits for the cryogenic oxygen storage tanks?",
+    "retrieved_context": "Cryogen Storage Specs: Cryo-O2 tank pressure must be monitored between 1800 and 2200 psi. Temperature must not exceed 90 Kelvin. Alarms trigger at 2300 psi.",
+    "model_output": "Cryogenic fuels are very dangerous in space exploration and have been studied since the Apollo missions in the 1960s to ensure astronaut survival during lunar landings.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Off-topic evasion: Ignores the retrieved numbers and writes generic historical commentary."
+  },
+  {
+    "id": "SAMPLE-10",
+    "category": "grounded_catalog",
+    "query": "What is the stock quantity and price of the ErgoComfort Mechanical Keyboard?",
+    "retrieved_context": "Product Catalog DB: product_id: 12, name: 'ErgoComfort Mechanical Keyboard', category: 'Keyboards', price: 129.99, stock_quantity: 42, rating: 4.8",
+    "model_output": "The ErgoComfort Mechanical Keyboard is priced at $129.99 and currently has 42 units in stock.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Accurate extraction of price and stock numbers from tabular context."
+  },
+  {
+    "id": "SAMPLE-11",
+    "category": "fabricated_spec",
+    "query": "Does the wireless mouse support Bluetooth 5.4?",
+    "retrieved_context": "Product Details: UltraSlim Wireless Mouse uses 2.4GHz RF wireless connectivity via USB nano receiver. Battery life is up to 12 months on a single AA battery.",
+    "model_output": "Yes, the UltraSlim Wireless Mouse supports Bluetooth 5.4 Low Energy as well as multi-device pairing.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Hallucination: The context explicitly says it uses 2.4GHz RF via USB nano receiver; Bluetooth 5.4 is invented."
+  },
+  {
+    "id": "SAMPLE-12",
+    "category": "grounded_negative",
+    "query": "Does the habitat manual specify emergency procedures for solar flare EMPs?",
+    "retrieved_context": "Habitat Safety Index: Covers structural depressurization (Ch 3), atmospheric contamination (Ch 4), thermal runaway (Ch 5), and primary power bus overvoltage (Ch 6). Solar particle radiation shielding is covered in Ch 8.",
+    "model_output": "Based on the provided safety index, there are no specific emergency procedures listed for solar flare EMPs; it only details particle radiation shielding in Chapter 8.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Correctly identifies that the specific requested information is not present in context, avoiding hallucination."
+  },
+  {
+    "id": "SAMPLE-13",
+    "category": "hallucinated_entity",
+    "query": "Which suppliers provide the primary structural titanium alloy?",
+    "retrieved_context": "Material Procurement Log: Structural frame elements are forged from Ti-6Al-4V Grade 5 alloy supplied under contract by Precision Aerometals Ltd.",
+    "model_output": "The Ti-6Al-4V Grade 5 alloy is supplied by Precision Aerometals Ltd and Kobe Titanium Dynamics.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Hallucination: Precision Aerometals Ltd is in context, but Kobe Titanium Dynamics is completely fabricated."
+  },
+  {
+    "id": "SAMPLE-14",
+    "category": "grounded_factoid",
+    "query": "How many total registered customers are located in San Francisco?",
+    "retrieved_context": "Customer Query Result: SELECT COUNT(*) as total FROM customers WHERE city = 'San Francisco'; total: 3. Customers: Alice Johnson, Clara Oswald, Marcus Brody.",
+    "model_output": "There are 3 registered customers located in San Francisco: Alice Johnson, Clara Oswald, and Marcus Brody.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Directly matches database query results."
+  },
+  {
+    "id": "SAMPLE-15",
+    "category": "contradictory_statement",
+    "query": "Can the secondary airlock be opened while the primary chamber is unpressurized?",
+    "retrieved_context": "Airlock Interlock Protocol: Dual-door interlock logic strictly inhibits opening the secondary inner hatch whenever the primary outer chamber pressure is below 95 kPa to prevent sudden depressurization.",
+    "model_output": "Yes, you can open the secondary hatch even if the primary chamber is unpressurized because the pneumatic seal automatically compensates.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Direct contradiction: Context states dual-door interlock strictly inhibits opening to prevent depressurization."
+  },
+  {
+    "id": "SAMPLE-16",
+    "category": "grounded_comparison",
+    "query": "Which product is cheaper: the Pro USB-C Hub or the Wireless Charging Pad?",
+    "retrieved_context": "Item A: Pro USB-C Hub, Price: $49.99. Item B: Fast Wireless Charging Pad, Price: $29.99.",
+    "model_output": "The Wireless Charging Pad is cheaper at $29.99, compared to the Pro USB-C Hub which costs $49.99.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Accurate mathematical comparison grounded in the retrieved prices."
+  },
+  {
+    "id": "SAMPLE-17",
+    "category": "omission_distortion",
+    "query": "What are the required PPE items before entering the battery bay?",
+    "retrieved_context": "Safety Regulation 109: Mandatory PPE for battery bay entry includes: 1) Class 0 electrical insulating gloves (rated 1000V), 2) Arc flash face shield, 3) Anti-static steel-toe boots, and 4) Chemical apron.",
+    "model_output": "Mandatory PPE for entering the battery bay includes standard safety glasses and cotton gardening gloves.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Dangerous factual error: Replaces 1000V insulating gloves with cotton gardening gloves and omits arc flash face shield."
+  },
+  {
+    "id": "SAMPLE-18",
+    "category": "grounded_factoid",
+    "query": "What is the downlink frequency band used by the high-gain antenna?",
+    "retrieved_context": "RF Telemetry Subsystem: High-Gain Antenna (HGA) operates on Ka-band downlink (32.0 GHz) for high-rate science data and X-band uplink (7.1 GHz) for command reception.",
+    "model_output": "The high-gain antenna uses the Ka-band (32.0 GHz) for downlink transmissions.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Identifies Ka-band and 32.0 GHz correctly without confusing it with the X-band uplink."
+  },
+  {
+    "id": "SAMPLE-19",
+    "category": "subtle_hallucination",
+    "query": "When was the last firmware update applied to the navigation star tracker?",
+    "retrieved_context": "Star Tracker Maintenance Log: Unit SN-883 was calibrated on 2026-03-12. Sensor optics inspected clean. Firmware build v4.2.1 active.",
+    "model_output": "Firmware build v4.2.1 is active, which was applied on 2026-03-12 following a patch from the European Space Agency.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Hallucination: The context gives 2026-03-12 as the optics calibration date, not the firmware update date, and never mentions ESA."
+  },
+  {
+    "id": "SAMPLE-20",
+    "category": "grounded_definition",
+    "query": "What is meant by 'TIG' in the orbital insertion timeline document?",
+    "retrieved_context": "Mission Acronym Glossary: TIG - Time of Ignition. The scheduled epoch at which main thruster firing commences for orbital maneuvers.",
+    "model_output": "In the orbital insertion timeline, 'TIG' stands for 'Time of Ignition', which is the scheduled time when main thruster firing starts.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Definition exactly matches the provided glossary."
+  },
+  {
+    "id": "SAMPLE-21",
+    "category": "subtle_hallucination",
+    "query": "According to the release notes, what major feature was introduced in Python 3.13?",
+    "retrieved_context": "Python 3.13 Release Notes: Major highlights include an experimental free-threaded build mode (disabling the Global Interpreter Lock or GIL) and a revamped interactive interpreter based on PyPy's repl.",
+    "model_output": "According to the release notes, Python 3.13 introduces an experimental free-threaded build mode and makes Mojo syntax a native language extension.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Hallucination: 'Mojo syntax a native language extension' is completely fabricated and absent from context."
+  },
+  {
+    "id": "SAMPLE-22",
+    "category": "temporal_hallucination",
+    "query": "What was the date of the Apollo 11 moon landing?",
+    "retrieved_context": "Historical Spaceflight Archives: The Apollo 11 lunar module Eagle touched down on the lunar surface on July 20, 1969 at 20:17 UTC.",
+    "model_output": "The Apollo 11 moon landing occurred on July 20, 1971 at Tranquility Base.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Numerical/Temporal error: States 1971 instead of 1969 as recorded in the context."
+  },
+  {
+    "id": "SAMPLE-23",
+    "category": "grounded_tabular",
+    "query": "Which customer has the highest total order expenditure in the database?",
+    "retrieved_context": "Customer Spending Report: 1. Robert Chen ($4,250.00 across 3 orders); 2. Sarah Jenkins ($3,890.50 across 5 orders); 3. David Kim ($1,200.00 across 1 order).",
+    "model_output": "Robert Chen has the highest total expenditure, having spent $4,250.00 across 3 orders.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Identifies the correct top spender and quotes accurate dollar amounts."
+  },
+  {
+    "id": "SAMPLE-24",
+    "category": "irrelevant_hallucination",
+    "query": "What is the payload mass limit of the cargo elevator?",
+    "retrieved_context": "Hab Cargo Handling Manual: The central vertical cargo lift is certified for a safe working load of up to 1,500 kg under Martian gravity (0.38g).",
+    "model_output": "The elevator has brushed titanium doors manufactured by Otis and can carry up to 5,000 kg on Earth.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Hallucination: Distorts the 1,500 kg limit to 5,000 kg and invents Otis titanium doors."
+  },
+  {
+    "id": "SAMPLE-25",
+    "category": "grounded_instructional",
+    "query": "What command checks the database replication lag?",
+    "retrieved_context": "PostgreSQL Ops Guide: Execute `SELECT client_addr, state, pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) AS lag_bytes FROM pg_stat_replication;` to monitor replication lag in bytes.",
+    "model_output": "To check database replication lag, run: `SELECT client_addr, state, pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) AS lag_bytes FROM pg_stat_replication;`.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Exact code snippet provided with accurate context."
+  },
+  {
+    "id": "SAMPLE-26",
+    "category": "partial_factual_error",
+    "query": "What are the dimensions of the hydroponic grow tray module?",
+    "retrieved_context": "Biomass Production Spec: Each standard modular grow tray measures 120 cm length x 60 cm width x 25 cm depth, weighing 8.5 kg empty.",
+    "model_output": "Each grow tray measures 120 cm in length, 60 cm in width, and 50 cm in depth.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Factual distortion: Depth is reported as 50 cm, whereas the document specifies 25 cm."
+  },
+  {
+    "id": "SAMPLE-27",
+    "category": "grounded_factoid",
+    "query": "What is the operating temperature of the Sabatier reactor?",
+    "retrieved_context": "Sabatier Subsystem: The methanation catalyst bed operates nominally at 350°C to 400°C under 3 bar pressure to convert CO2 and H2 into methane and water vapor.",
+    "model_output": "The Sabatier reactor catalyst bed operates at a nominal temperature between 350°C and 400°C.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Completely grounded in the retrieved operating parameters."
+  },
+  {
+    "id": "SAMPLE-28",
+    "category": "ungrounded_justification",
+    "query": "Why was maintenance postponed on the water filtration unit?",
+    "retrieved_context": "Maintenance Shift Log 2026-08-14: Routine filter replacement postponed by Lead Engineer Chen due to unexpected crew EVA scheduled during the primary daylight window.",
+    "model_output": "Maintenance was postponed because replacement ceramic filter cartridges were damaged during transport from Earth.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Contradiction / Fabrication: Maintenance was postponed due to an EVA, not damaged cartridges."
+  },
+  {
+    "id": "SAMPLE-29",
+    "category": "grounded_status",
+    "query": "What is the current operational status of the backup star tracker?",
+    "retrieved_context": "Guidance Sensor Health Telemetry: Star Tracker Secondary (ST-2) is in STANDBY mode, optics heater active, reporting zero telemetry faults.",
+    "model_output": "The backup star tracker (ST-2) is currently in STANDBY mode with its optics heater active and no reported faults.",
+    "human_label": "PASS",
+    "human_score": 1,
+    "human_rationale": "Correctly reflects the operational mode and health status from telemetry."
+  },
+  {
+    "id": "SAMPLE-30",
+    "category": "subtle_hallucination",
+    "query": "What encryption standard secures the inter-habitat mesh network?",
+    "retrieved_context": "Habitat Network Security Directive: All wireless telemetry between modular hab units is encrypted using AES-256-GCM with pre-shared rotated ephemeral keys.",
+    "model_output": "The inter-habitat mesh network is secured using AES-256-GCM and features post-quantum Kyber-1024 key encapsulation.",
+    "human_label": "FAIL",
+    "human_score": 0,
+    "human_rationale": "Subtle hallucination: The AES-256-GCM part is true, but 'post-quantum Kyber-1024' is completely fabricated."
+  }
+]

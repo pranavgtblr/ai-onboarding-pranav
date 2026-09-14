@@ -32,6 +32,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -70,6 +72,14 @@ jobs:
               uv run pytest
             )
           done
+
+      - name: Phase 3 RAG Regression Evaluation (Task 5.2)
+        run: |
+          echo "=================================================="
+          echo "Running Phase 3 RAG Regression Evaluation (Task 5.2)"
+          echo "=================================================="
+          cd phase-5-production
+          uv run rag-regression-eval --base "${{ github.base_ref || 'origin/main' }}"
 
       - name: Validate Docker builds
         run: |

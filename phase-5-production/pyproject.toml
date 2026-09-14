@@ -14,6 +14,7 @@ dependencies = [
     "langchain-core>=0.3.0",
     "langgraph>=0.2.0",
     "langsmith>=0.1.0",
+    "phase-3-rag",
     "phase-4-agents",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.0.0",
@@ -22,12 +23,16 @@ dependencies = [
 
 [project.scripts]
 production-tracer = "phase_5_production.telemetry:main"
+rag-regression-eval = "phase_5_production.regression_evaluator:main"
+llm-judge = "phase_5_production.llm_judge:main"
+prompt-injection-demo = "phase_5_production.defended_agent:main"
 
 [build-system]
 requires = ["uv_build>=0.12.8,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
+phase-3-rag = { path = "../phase-3-rag", editable = true }
 phase-4-agents = { path = "../phase-4-agents", editable = true }
 
 [dependency-groups]

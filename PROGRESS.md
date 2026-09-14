@@ -59,6 +59,9 @@
   - [x] 4.12 Connect MCP server to agent and desktop MCP client, approval-gated write tool, capstone verification (answers over Phase 3 KB, approval-gated write action, survives process restart, streams progress).
 - [ ] Phase 5 - Production         (5.1  - 5.9)
   - [x] 5.1 Wire LangSmith or an equivalent into your Phase 4 agent. Every run logs per-step tokens, cost and latency.
+  - [x] 5.2 Move Phase 3 eval suite into CI: runs on every PR touching prompts, chunking parameters, or retrieval settings with quality gates.
+  - [x] 5.3 Add an LLM-as-judge evaluator. Hand-label 30 outputs yourself and report the agreement rate between the judge and your labels.
+  - [x] 5.4 Prompt injection: plant malicious instruction inside corpus doc and scraped page; demonstrate vulnerable obedience; fix architecturally and prove neutralization.
 
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
 
