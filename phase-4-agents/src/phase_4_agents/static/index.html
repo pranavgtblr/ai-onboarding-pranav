@@ -564,27 +564,37 @@
       }
     }
 
+    function escapeHtml(text) {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     function renderStep(eventType, data) {
       const feed = document.getElementById('streamFeed');
       const stepCard = document.createElement('div');
       stepCard.className = `step-card ${eventType}`;
 
-      const nodeName = data.node || 'GRAPH';
+      const nodeName = escapeHtml(data.node || 'GRAPH');
       const stepNumber = data.step || 0;
       const timestamp = (data.timestamp || new Date().toISOString()).split('T')[1].split('.')[0];
 
       let bodyHtml = '';
 
       if (eventType === 'step_start') {
-        bodyHtml = `<div><strong>Initial Query:</strong> ${data.query}</div>`;
+        bodyHtml = `<div><strong>Initial Query:</strong> ${escapeHtml(data.query)}</div>`;
       } else if (eventType === 'tool_decision') {
-        const tools = (data.tools_requested || []).map(t => `<code>${t.name}(${JSON.stringify(t.args)})</code>`).join('<br/>');
+        const tools = (data.tools_requested || []).map(t => `<code>${escapeHtml(t.name)}(${escapeHtml(JSON.stringify(t.args))})</code>`).join('<br/>');
         bodyHtml = `<div><strong>Tools Selected by Model:</strong><div class="code-box" style="margin-top: 0.5rem;">${tools}</div></div>`;
       } else if (eventType === 'tool_execution') {
-        const results = (data.results || []).map(r => r.content).join('\n---\n');
+        const results = (data.results || []).map(r => escapeHtml(r.content)).join('\n---\n');
         bodyHtml = `<div><strong>Tool Execution Output:</strong><div class="code-box" style="margin-top: 0.5rem;">${results}</div></div>`;
       } else if (eventType === 'self_correction') {
-        bodyHtml = `<div><strong>Self-Correction Cycle Triggered (Attempt ${data.rewrite_count}/2):</strong><div style="color: var(--accent-purple); margin-top: 0.25rem;">${data.message}</div></div>`;
+        bodyHtml = `<div><strong>Self-Correction Cycle Triggered (Attempt ${data.rewrite_count}/2):</strong><div style="color: var(--accent-purple); margin-top: 0.25rem;">${escapeHtml(data.message)}</div></div>`;
       } else if (eventType === 'approval_paused') {
         bodyHtml = `
           <div style="color: var(--accent-rose);">
@@ -596,11 +606,11 @@
           </div>
         `;
       } else if (eventType === 'final_answer') {
-        bodyHtml = `<div><strong>Final Synthesized Answer:</strong><div class="code-box" style="margin-top: 0.5rem; color: var(--accent-cyan); font-weight: 500;">${data.content}</div></div>`;
+        bodyHtml = `<div><strong>Final Synthesized Answer:</strong><div class="code-box" style="margin-top: 0.5rem; color: var(--accent-cyan); font-weight: 500;">${escapeHtml(data.content)}</div></div>`;
       } else if (eventType === 'done') {
         bodyHtml = `<div style="color: var(--accent-emerald); font-weight: 500;">🏁 Run completed successfully. Graph reached terminal state.</div>`;
       } else {
-        bodyHtml = `<pre class="code-box">${JSON.stringify(data, null, 2)}</pre>`;
+        bodyHtml = `<pre class="code-box">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
       }
 
       stepCard.innerHTML = `

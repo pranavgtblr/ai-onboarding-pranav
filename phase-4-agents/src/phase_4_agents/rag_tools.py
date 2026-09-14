@@ -373,7 +373,14 @@ def db_query(query: str) -> str:
             )
 
         # Check if query is raw SQL
+        params: tuple[Any, ...] = ()
         if clean_q.upper().startswith("SELECT"):
+            statements = [s.strip() for s in clean_q.split(";") if s.strip()]
+            if len(statements) > 1:
+                return (
+                    "Security Error: Multiple SQL statements are not permitted. "
+                    "Only single read-only SELECT queries are allowed."
+                )
             sql = clean_q
         else:
             q_lower = clean_q.lower()
@@ -383,9 +390,10 @@ def db_query(query: str) -> str:
                 matched_city = city_match.group(1) if city_match else None
                 if matched_city and matched_city not in ("the", "our", "all", "each"):
                     sql = (
-                        f"SELECT * FROM customers "
-                        f"WHERE LOWER(city) LIKE '%{matched_city}%' LIMIT 10;"
+                        "SELECT * FROM customers "
+                        "WHERE LOWER(city) LIKE ? LIMIT 10;"
                     )
+                    params = (f"%{matched_city}%",)
 
                 elif "count" in q_lower or "how many" in q_lower:
                     sql = "SELECT COUNT(*) AS total_customers FROM customers;"
@@ -415,14 +423,16 @@ def db_query(query: str) -> str:
             else:
                 sql = "SELECT * FROM customers LIMIT 5;"
 
-        cursor.execute(sql)
+        cursor.execute(sql, params)
         rows = [dict(row) for row in cursor.fetchall()]
 
         lines = [
             "Database Query Results:",
             f"• Executed SQL: `{sql}`",
-            f"• Rows Returned: {len(rows)}",
         ]
+        if params:
+            lines.append(f"• Query Parameters: `{list(params)}`")
+        lines.append(f"• Rows Returned: {len(rows)}")
         if not rows:
             lines.append("• No matching records found.")
         else:
