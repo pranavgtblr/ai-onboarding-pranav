@@ -45,6 +45,11 @@ jobs:
         run: uv python install 3.10
 
       - name: Run CI on all project phases
+        env:
+          MODEL_PROVIDER: mock
+          GEMINI_API_KEY: mock-gemini-key-for-ci
+          GOOGLE_API_KEY: mock-google-key-for-ci
+          OPENAI_API_KEY: mock-openai-key-for-ci
         run: |
           set -e
           # Find all directories containing pyproject.toml
