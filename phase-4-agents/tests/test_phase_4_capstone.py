@@ -30,6 +30,17 @@ from phase_4_agents.mcp_client import convert_mcp_to_langchain_tools
 from phase_4_agents.mcp_server import create_ecommerce_mcp_server
 
 
+@pytest.fixture(scope="module")
+def postgres_available() -> bool:
+    """Verify if PostgreSQL container is running and accessible."""
+    try:
+        with get_postgres_checkpointer() as checkpointer:
+            checkpointer.setup()
+        return True
+    except Exception:
+        return False
+
+
 @pytest.fixture
 def capstone_db(tmp_path: Any) -> str:
     """Create a temporary SQLite database with Phase 3 schema and sample data."""
@@ -201,9 +212,14 @@ def test_capstone_takes_approval_gated_write_action(
 
 
 def test_capstone_survives_process_restart(
-    mcp_tools: list[Any], capstone_db: str
+    mcp_tools: list[Any],
+    capstone_db: str,
+    postgres_available: bool,
 ) -> None:
     """Requirement 3: State persists across restart and resumes upon approval."""
+    if not postgres_available:
+        pytest.skip("PostgreSQL container on port 5433 not accessible")
+
     thread_id = f"capstone_restart_{uuid.uuid4().hex[:8]}"
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
@@ -330,7 +346,9 @@ def test_capstone_streams_progress(mcp_tools: list[Any]) -> None:
 
 
 def test_capstone_end_to_end_orchestration(
-    mcp_tools: list[Any], capstone_db: str
+    mcp_tools: list[Any],
+    capstone_db: str,
+    postgres_available: bool,
 ) -> None:
     """Unified Capstone Test:
     1. Answers over Phase 3 KB while streaming progress.
@@ -339,6 +357,9 @@ def test_capstone_end_to_end_orchestration(
     4. Process terminates and restarts in fresh connection.
     5. State reloads from Postgres checkpointer, human approves, and write executes.
     """
+    if not postgres_available:
+        pytest.skip("PostgreSQL container on port 5433 not accessible")
+
     thread_id = f"capstone_e2e_{uuid.uuid4().hex[:8]}"
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 

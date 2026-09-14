@@ -43,6 +43,15 @@ class Settings(BaseSettings):
         "postgresql://postgres:postgres@localhost:5433/langgraph?sslmode=disable"
     )
 
+    # LangSmith Observability & Tracing (Task 5.1)
+    langchain_tracing_v2: bool = False
+    langsmith_tracing: bool = False
+    langchain_api_key: str = ""
+    langsmith_api_key: str = ""
+    langchain_project: str = "production-agents"
+    langsmith_project: str = "production-agents"
+    langchain_endpoint: str = "https://api.smith.langchain.com"
+
     @property
     def effective_google_api_key(self) -> str:
         """Return the available Google API key."""

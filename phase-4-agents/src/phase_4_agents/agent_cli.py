@@ -12,6 +12,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
+from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -311,6 +312,7 @@ def run_interactive(agent: Any) -> None:
 
 def main() -> None:
     """CLI entrypoint for tool-calling agent."""
+    load_dotenv()
     parser = argparse.ArgumentParser(
         description="Autonomous Multi-Tool RAG Agent CLI (Task 4.3)"
     )

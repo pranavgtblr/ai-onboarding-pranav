@@ -524,7 +524,7 @@ def configure_langsmith_tracing(
     os.environ["LANGSMITH_TRACING"] = "true"
     os.environ["LANGCHAIN_API_KEY"] = key
     os.environ["LANGCHAIN_PROJECT"] = project_name or os.environ.get(
-        "LANGCHAIN_PROJECT", "phase-5-production"
+        "LANGCHAIN_PROJECT", "production-agents"
     )
 
     if endpoint:
