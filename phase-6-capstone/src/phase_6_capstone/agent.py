@@ -132,18 +132,108 @@ class CapstoneAgent:
         # 4. Generate recommendations with PG's ratings and citations
         citations = [res.to_citation() for res in results]
         state.citations = citations
+        state.final_response = self._synthesize_curator_dialogue(
+            message=message, citations=citations
+        )
+        return state
 
-        lines = ["Here are PG's top recommendations based on your taste:\n"]
-        for idx, cit in enumerate(citations, 1):
-            rating_str = f"({cit.rating}★)" if cit.rating is not None else ""
-            lines.append(
-                f"{idx}. **{cit.title}** ({cit.year}) {rating_str}\n"
-                f'   *PG\'s Take:* "{cit.excerpt}"\n'
-                f"   [View on Letterboxd]({cit.letterboxd_url})"
+    def _synthesize_curator_dialogue(
+        self, message: str, citations: list[MovieCitation]
+    ) -> str:
+        """Synthesizes an authentic, conversational curator response in PG's voice."""
+        if not citations:
+            return (
+                "I couldn't spot any films in my diary directly matching that. "
+                "Give me a bit more to go on—what directors, moods, or "
+                "tropes are you feeling?"
             )
 
-        state.final_response = "\n\n".join(lines)
-        return state
+        m_lower = message.lower()
+
+        if any(
+            k in m_lower
+            for k in [
+                "romcom",
+                "romantic comedy",
+                "rom-com",
+                "comedy",
+                "feel-good",
+                "fun",
+            ]
+        ):
+            intro = (
+                "If you're asking me for a romcom or something feel-good, let me save "
+                "you from the generic algorithm sludge."
+            )
+        elif any(
+            k in m_lower
+            for k in ["horror", "slasher", "spooky", "scary", "creepy", "chilling"]
+        ):
+            intro = (
+                "If you're in the mood for genuine atmosphere and dread—the kind that "
+                "avoids cheap jump scares and actually gets under your skin—these "
+                "immediately come to mind."
+            )
+        elif any(
+            k in m_lower for k in ["sci-fi", "space", "alien", "dune", "cyberpunk"]
+        ):
+            intro = (
+                "Big ideas, meticulous craft, and visuals that demand your full "
+                "attention. Here are the ones from my logs that really stuck with me."
+            )
+        elif any(
+            k in m_lower for k in ["malayalam", "mollywood", "shahi kabir", "sadasivan"]
+        ):
+            intro = (
+                "Malayalam cinema has been delivering some of the absolute tightest, "
+                "most atmospheric filmmaking lately. A couple of these left a huge "
+                "mark on me."
+            )
+        else:
+            intro = (
+                "Let's talk cinema! Based on what you're craving, here's what I'd "
+                "genuinely recommend diving into from my diary."
+            )
+
+        # Talk about top picks conversationally without plain-text bullet listing
+        commentary = []
+        for i, cit in enumerate(citations[:2]):
+            rating_tag = f" (logged it at ★ {cit.rating:.1f})" if cit.rating else ""
+            clean_snippet = cit.excerpt.strip().rstrip(".").strip()
+            clean_snippet = (
+                clean_snippet.replace("&#039;", "'")
+                .replace("&#39;", "'")
+                .replace("&quot;", '"')
+                .replace("&amp;", "&")
+            )
+
+            if clean_snippet and not clean_snippet.startswith("Rated "):
+                take = f'My take on it was: "{clean_snippet}."'
+            else:
+                take = "It's one that really resonated with me."
+
+            if i == 0:
+                commentary.append(
+                    f"First up, definitely check out *{cit.title}* ({cit.year})"
+                    f"{rating_tag}. {take}"
+                )
+            else:
+                commentary.append(
+                    f"Another one worth your time is *{cit.title}* ({cit.year})"
+                    f"{rating_tag}. {take}"
+                )
+
+        paragraphs = [
+            intro,
+            " ".join(commentary),
+            (
+                "I've linked my full review logs and ratings below so you can "
+                "explore them directly on Letterboxd. Have you seen either of "
+                "these yet, or should we explore a different direction?"
+            ),
+        ]
+
+        return "\n\n".join(paragraphs)
 
     async def stream_turn(
         self,

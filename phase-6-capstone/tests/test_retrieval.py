@@ -63,6 +63,16 @@ def sample_catalog() -> list[MovieRecord]:
             genres=["Action", "Comedy"],
             director="Rawson Marshall Thurber",
         ),
+        MovieRecord(
+            movie_id="mov_5",
+            title="Love at First Sight",
+            year=2023,
+            letterboxd_url="https://boxd.it/2eLove",
+            rating=3.5,
+            review_text="Delightful, sweet feel-good romance with genuine charm.",
+            genres=["Comedy", "Romance"],
+            director="Vanessa Caswill",
+        ),
     ]
 
 
@@ -107,3 +117,12 @@ def test_citation_generation(sample_catalog: list[MovieRecord]):
     assert citation.letterboxd_url == "https://boxd.it/2vq7GF"
     assert "Malayalam" in citation.excerpt
     assert citation.citation_label.startswith("[PG Review: Bhoothakaalam")
+
+
+def test_romcom_query_excludes_horror(sample_catalog: list[MovieRecord]):
+    """Verify that asking for a romcom prioritizes romance/comedy and avoids horror."""
+    retriever = HybridMovieRetriever(catalog=sample_catalog)
+    results = retriever.search("Can you recommend a good romcom?", top_k=2)
+    assert len(results) >= 1
+    assert results[0].record.title == "Love at First Sight"
+    assert not any(r.record.title in ["Scream", "Bhoothakaalam"] for r in results)

@@ -21,7 +21,7 @@ export default function App() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: "Hey there! I'm your PG Recommends film curator. I base my suggestions off Pranav's authentic Letterboxd reviews, ratings, and cinematic tastes (spanning atmospheric horror, Coen brothers masterpieces, Malayalam gems, and world cinema), while continuously adapting to what *you* love and hate. What are you in the mood for today?",
+      text: "Hey! Pranav here. Tell me what kind of mood you're in, what you've watched recently, or what genres you want to explore, and I'll dig into my Letterboxd diary to hook you up with something genuinely great. What are you feeling today?",
       citations: []
     }
   ]);
@@ -239,12 +239,12 @@ export default function App() {
             </div>
             <span className="brand-name">
               PG Recommends
-              <span className="brand-badge">Curator AI</span>
+              <span className="brand-badge">Letterboxd Diary</span>
             </span>
           </div>
           <div className="curator-pill">
             <span className="status-dot"></span>
-            <span>Curator: Pranav G (@pranavg)</span>
+            <span>Pranav G (@pranavg)</span>
           </div>
         </div>
 
@@ -276,7 +276,7 @@ export default function App() {
           <div className="pane-header">
             <span className="pane-title">
               <Compass size={17} color="#40bcf4" />
-              Taste Radar & Profiling
+              Taste Radar
             </span>
           </div>
           <div className="taste-radar-body">
@@ -351,10 +351,10 @@ export default function App() {
           <div className="pane-header">
             <span className="pane-title">
               <Sparkles size={17} color="#00e054" />
-              Dialogue with PG's Curation Engine
+              Talking Movies with PG
             </span>
             <span style={{ fontSize: '0.75rem', color: '#677b8c' }}>
-              Multi-Source RAG + Letterboxd Citations
+              Synced with Letterboxd
             </span>
           </div>
 
@@ -382,7 +382,7 @@ export default function App() {
                             </span>
                           </div>
                           <div className="rec-quote">
-                            "{cit.excerpt}"
+                            "{cit.excerpt ? cit.excerpt.replace(/&#039;/g, "'").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&') : ''}"
                           </div>
                           <a 
                             href={cit.letterboxd_url} 
@@ -412,7 +412,7 @@ export default function App() {
               <input
                 type="text"
                 className="chat-input"
-                placeholder="Ask for a movie recommendation, compare films, or talk about taste..."
+                placeholder="Ask me for a movie recommendation, compare films, or talk about what you love..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 disabled={isStreaming}
@@ -461,7 +461,7 @@ export default function App() {
 
             <div className="quick-prompts-section">
               <div className="taste-category-title">
-                Curator Prompts
+                Conversation Starters
               </div>
               {quickPrompts.map((prompt, i) => (
                 <button
