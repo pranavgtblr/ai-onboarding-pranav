@@ -9,7 +9,7 @@ from uuid import uuid4
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -179,10 +179,22 @@ def create_app(
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    # Mount static assets if frontend is built
     dist_path = Path(__file__).parent.parent.parent / "frontend" / "dist"
-    if dist_path.exists():
-        app.mount("/", StaticFiles(directory=dist_path, html=True), name="static")
+    index_file = dist_path / "index.html"
+    assets_dir = dist_path / "assets"
+
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/")
+    async def root():
+        if index_file.exists():
+            return FileResponse(index_file)
+        return {
+            "message": "PG Recommends API is running.",
+            "status": "healthy",
+            "docs": "/docs",
+        }
 
     return app
 
