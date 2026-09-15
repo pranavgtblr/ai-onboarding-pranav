@@ -4,6 +4,7 @@ import pytest
 
 from phase_6_capstone.models import MovieRecord
 from phase_6_capstone.retrieval import HybridMovieRetriever
+from phase_6_capstone.web_search import search_cinema_web
 
 
 @pytest.fixture
@@ -126,3 +127,11 @@ def test_romcom_query_excludes_horror(sample_catalog: list[MovieRecord]):
     assert len(results) >= 1
     assert results[0].record.title == "Love at First Sight"
     assert not any(r.record.title in ["Scream", "Bhoothakaalam"] for r in results)
+
+
+def test_live_internet_cinema_search():
+    """Verify that cinema search queries the internet for film and director info."""
+    results = search_cinema_web("Christopher Nolan director", limit=2)
+    assert len(results) >= 1
+    assert any("Nolan" in r["title"] or "Nolan" in r["snippet"] for r in results)
+    assert "source_url" in results[0]
