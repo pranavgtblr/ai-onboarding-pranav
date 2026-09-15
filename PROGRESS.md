@@ -57,12 +57,22 @@
   - [x] 4.10 Tool design pass: tight schemas, unambiguous names, and error messages written for the model to act on. Add an iteration limit and a cost cap. When stuck, fail loudly - never loop.
   - [x] 4.11 Build an MCP server exposing 2 or 3 read-only tools over one of your Phase 3 knowledge bases.
   - [x] 4.12 Connect MCP server to agent and desktop MCP client, approval-gated write tool, capstone verification (answers over Phase 3 KB, approval-gated write action, survives process restart, streams progress).
-- [ ] Phase 5 - Production         (5.1  - 5.9)
+- [x] Phase 5 - Production         (5.1  - 5.9)
   - [x] 5.1 Wire LangSmith or an equivalent into your Phase 4 agent. Every run logs per-step tokens, cost and latency.
   - [x] 5.2 Move Phase 3 eval suite into CI: runs on every PR touching prompts, chunking parameters, or retrieval settings with quality gates.
   - [x] 5.3 Add an LLM-as-judge evaluator. Hand-label 30 outputs yourself and report the agreement rate between the judge and your labels.
   - [x] 5.4 Prompt injection: plant malicious instruction inside corpus doc and scraped page; demonstrate vulnerable obedience; fix architecturally and prove neutralization.
+  - [x] 5.5 Human-judge calibration & evaluation report (Cohen's Kappa agreement).
+  - [x] 5.6 Output safety: render model output in a page and prove it is escaped. Prove model output cannot reach SQL unparameterised.
+  - [x] 5.7 Cost controls: prompt caching, tiered model routing, per-conversation token budget with alerting.
+  - [x] 5.8 Reliability: automatic fallback to a second provider on outage or rate limit, and graceful degradation when retrieval returns nothing.
+  - [x] 5.9 PII pass: audit what your logs contain and redact anything that should not be there.
 
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
+  - [x] 6.1 Design doc before any code: sources, retrieval strategy, agent graph, state schema, tenant isolation model, eval plan.
+  - [ ] 6.2 Data layer & multi-source retrieval engine: multi-tenant schema, seed catalog, vector/hybrid RRF search, and cited retrieval with tenant isolation.
+  - [ ] 6.3 Stateful agent graph & human escalation: LangGraph StateGraph, persistent Postgres checkpointer, dynamic taste profile learning, and human handoff.
+  - [ ] 6.4 Production hardening, quantitative eval suite, security pentest report & real deployment.
+
 
 
