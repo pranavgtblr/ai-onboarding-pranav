@@ -1,13 +1,22 @@
-# Phase 6 Capstone Design Document: CineMatch AI
+# Phase 6 Capstone Design Document: PG Recommends
 
-## Project Overview: CineMatch AI
-**CineMatch AI** is an enterprise-grade, multi-tenant conversational movie intelligence and recommendation platform. Built for streaming networks, film festivals, and entertainment catalogs, it delivers personalized film recommendations and curated lists by continually evolving a user's taste profile through multi-turn dialogue, grounding every suggestion in multi-source knowledge (editorial reviews, director filmographies, synopses, and structured catalog metadata) with source citations, strict tenant data isolation, and human curator escalation.
+## Project Overview: PG Recommends
+**PG Recommends** is an enterprise-grade, multi-tenant conversational movie intelligence and personalized recommendation platform. Built around a core curator taste profile powered by **PG's real-world Letterboxd reviews and ratings (`reviews.csv`)**, the system acts as an expert film guide. 
+
+It delivers personalized film recommendations and curated lists by combining:
+1. **Curator Taste DNA (PG's Baseline)**: Over 5,000 lines of genuine Letterboxd ratings, reviews, stylistic appreciations, and pet peeves across world cinema, Hollywood, Malayalam, and indie films.
+2. **Dynamic User Taste Profiling**: Continually evolving each user's unique taste profile through multi-turn dialogue, reconciling PG's curated recommendations with the user's personal tastes.
+3. **Multi-Source Knowledge**: Ingesting `reviews.csv` (Letterboxd URIs, ratings, reviews, dates) alongside catalog metadata and upcoming new releases.
+4. **Attributed Citations**: Every recommendation cites PG's actual review, rating, and Letterboxd link (e.g. `[PG Review: Nightmare Alley (2021) ★★★★ | "Del Toro chose monsters in human form..."]`).
+5. **Human Escalation**: Users can escalate to "Ask PG Directly" for tailored human film curation or support.
+6. **Multi-Tenant Security & Production Hardening**: Per-user data isolation, RLS, prompt injection defense, cost routing, log PII redaction, and Docker deployment.
 
 ---
 
 ## 1. Data Sources Architecture
 
-The system unifies unstructured editorial film content with structured relational catalog and user profile data.
+The system unifies unstructured editorial reviews from `reviews.csv` with structured relational catalog and user profile data.
+
 
 ```mermaid
 flowchart LR
