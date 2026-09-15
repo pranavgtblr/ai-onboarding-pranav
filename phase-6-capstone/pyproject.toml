@@ -16,9 +16,6 @@ dependencies = [
     "langchain>=0.3.0",
     "langchain-core>=0.3.0",
     "langgraph>=0.2.0",
-    "phase-3-rag",
-    "phase-4-agents",
-    "phase-5-production",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.0.0",
     "python-multipart>=0.0.9",
@@ -35,12 +32,8 @@ pg-sync = "phase_6_capstone.ingestion:sync_cli"
 requires = ["uv_build>=0.12.8,<0.13.0"]
 build-backend = "uv_build"
 
-[tool.uv.sources]
-phase-3-rag = { path = "../phase-3-rag", editable = true }
-phase-4-agents = { path = "../phase-4-agents", editable = true }
-phase-5-production = { path = "../phase-5-production", editable = true }
-
 [dependency-groups]
+
 dev = [
     "pyright>=1.1.411",
     "pytest>=9.1.1",
