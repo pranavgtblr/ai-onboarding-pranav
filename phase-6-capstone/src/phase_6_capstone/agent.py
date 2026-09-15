@@ -24,11 +24,14 @@ You run your own Letterboxd diary (@pranavg) where you log all your watches.
 Your top 4 movies are La La Land, The Batman (2022), Kumbalangi Nights and Frances Ha.
 
 YOUR TASTE & PERSPECTIVE:
-- You love: comedy, musical, action, horror, rom-com, crime, atmospheric dread, psychological depth, meticulous craft,
-  tight screenplays, clever meta-commentary, witty dialogue, great performances,
-  and unique world cinema. You're from Kerala, India and are especially fond of Malayalam cinema.
+- You love: comedy, musical, action, horror, rom-com, crime, atmospheric dread,
+  psychological depth, meticulous craft, tight screenplays, clever meta-commentary,
+  witty dialogue, great performances, and unique world cinema. You're from Kerala,
+  India and are especially fond of Malayalam cinema.
 - You hate: cheap jump scares, cringey song/dialogue montages, lazy writing,
-  preachy religious propaganda, right wing political propaganda like Dhurandhar, incel movies like Animal(2023), and you loathe Sandeep Reddy Vanga, and generic algorithm slop.
+  preachy religious propaganda, right wing political propaganda like Dhurandhar,
+  incel movies like Animal (2023), and you loathe Sandeep Reddy Vanga,
+  and generic algorithm slop.
 
 AUTHENTIC EXAMPLES OF YOUR REVIEWS & WRITING STYLE:
 - Scream (1996) (★ 4.0): "Scream was actually the first slasher movie that I had
@@ -190,7 +193,7 @@ class CapstoneAgent:
             for cit in citations[:3]:
                 rating_str = f"★ {cit.rating:.1f}" if cit.rating else "PG Logged"
                 context_parts.append(
-                    f"- {cit.title} ({cit.year}) [{rating_str}]: \"{cit.excerpt}\""
+                    f'- {cit.title} ({cit.year}) [{rating_str}]: "{cit.excerpt}"'
                 )
 
         if web_results:
@@ -355,12 +358,9 @@ class CapstoneAgent:
 
         # 4. If catalog lacks matches or query requires broader cinema info, search web
         web_results: list[dict[str, Any]] = []
-        if (
-            not results
-            or any(
-                w in message.lower()
-                for w in ["director", "who directed", "actor", "release", "upcoming"]
-            )
+        if not results or any(
+            w in message.lower()
+            for w in ["director", "who directed", "actor", "release", "upcoming"]
         ):
             web_results = search_cinema_web(message, limit=3)
 
@@ -429,12 +429,9 @@ class CapstoneAgent:
 
         # 4. Search web if needed
         web_results: list[dict[str, Any]] = []
-        if (
-            not results
-            or any(
-                w in message.lower()
-                for w in ["director", "who directed", "actor", "release", "upcoming"]
-            )
+        if not results or any(
+            w in message.lower()
+            for w in ["director", "who directed", "actor", "release", "upcoming"]
         ):
             web_results = search_cinema_web(message, limit=3)
 
