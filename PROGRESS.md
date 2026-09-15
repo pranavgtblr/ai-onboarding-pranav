@@ -70,9 +70,10 @@
 
 - [ ] Phase 6 - Capstone           (6.1  - 6.4)
   - [x] 6.1 Design doc before any code: sources, retrieval strategy, agent graph, state schema, tenant isolation model, eval plan.
-  - [ ] 6.2 Data layer & multi-source retrieval engine: multi-tenant schema, seed catalog, vector/hybrid RRF search, and cited retrieval with tenant isolation.
-  - [ ] 6.3 Stateful agent graph & human escalation: LangGraph StateGraph, persistent Postgres checkpointer, dynamic taste profile learning, and human handoff.
-  - [ ] 6.4 Production hardening, quantitative eval suite, security pentest report & real deployment.
+  - [x] 6.2 Build it. Deploy it somewhere reachable: Multi-source hybrid retrieval over reviews.csv, live Letterboxd RSS syncer, stateful LangGraph agent, human escalation handoff, and frosted-glass React UI.
+  - [ ] 6.3 Comprehensive evaluation suite with quantitative benchmark numbers (Recall@5, NDCG, citation fidelity, taste learning agreement).
+  - [ ] 6.4 Security penetration test report (SECURITY_REPORT.md) & production deployment sign-off.
+
 
 
 

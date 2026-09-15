@@ -1,0 +1,236 @@
+"""Dynamic Taste Learning Engine with Multi-Tenant Scoping."""
+
+import json
+import re
+
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+
+from phase_6_capstone.db import DatabaseManager, UserTasteProfileModel
+
+KNOWN_DIRECTORS = [
+    "Christopher Nolan",
+    "David Fincher",
+    "Denis Villeneuve",
+    "Wes Anderson",
+    "Quentin Tarantino",
+    "Martin Scorsese",
+    "Joel Coen",
+    "Ethan Coen",
+    "Guillermo del Toro",
+    "Stanley Kubrick",
+    "Rahul Sadasivan",
+    "Shahi Kabir",
+    "Wes Craven",
+    "Bong Joon-ho",
+    "Park Chan-wook",
+    "Paul Thomas Anderson",
+    "Hayao Miyazaki",
+]
+
+KNOWN_GENRES = [
+    "Psychological Thriller",
+    "Horror",
+    "Slasher",
+    "Sci-Fi",
+    "Neo-Noir",
+    "Mystery",
+    "Crime",
+    "Drama",
+    "Comedy",
+    "Romance",
+    "Action",
+    "Body Horror",
+    "Documentary",
+    "Cyberpunk",
+]
+
+
+class TasteDelta(BaseModel):
+    """Extracted taste signals from a single conversational turn."""
+
+    liked_directors: list[str] = Field(default_factory=list)
+    disliked_directors: list[str] = Field(default_factory=list)
+    liked_genres: list[str] = Field(default_factory=list)
+    disliked_genres: list[str] = Field(default_factory=list)
+    disliked_elements: list[str] = Field(default_factory=list)
+    mood_tags: list[str] = Field(default_factory=list)
+
+
+class UserTasteProfile(BaseModel):
+    """User taste profile state."""
+
+    tenant_id: str
+    user_id: str
+    liked_directors: list[str] = Field(default_factory=list)
+    disliked_directors: list[str] = Field(default_factory=list)
+    liked_genres: list[str] = Field(default_factory=list)
+    disliked_genres: list[str] = Field(default_factory=list)
+    disliked_elements: list[str] = Field(default_factory=list)
+    mood_tags: list[str] = Field(default_factory=list)
+    taste_notes: str | None = None
+
+
+def extract_taste_signals_from_text(text: str) -> TasteDelta:
+    """Extracts preference signals (directors, genres, tropes) from text."""
+    delta = TasteDelta()
+
+    # Detect negative contexts
+    negative_phrases = [
+        "hate",
+        "dislike",
+        "don't like",
+        "not a fan",
+        "tired of",
+        "cheap",
+    ]
+    sentences = re.split(r"[.!?\n]+", text)
+
+    for sentence in sentences:
+        s_lower = sentence.lower()
+        is_negative = any(neg in s_lower for neg in negative_phrases)
+
+        # Check directors
+        for d in KNOWN_DIRECTORS:
+            d_parts = d.lower().split()
+            last_name = d_parts[-1]
+            if d.lower() in s_lower or (len(last_name) > 4 and last_name in s_lower):
+                if is_negative:
+                    if d not in delta.disliked_directors:
+                        delta.disliked_directors.append(d)
+                else:
+                    if d not in delta.liked_directors:
+                        delta.liked_directors.append(d)
+
+        # Check genres
+        for g in KNOWN_GENRES:
+            if g.lower() in s_lower:
+                if is_negative:
+                    if g not in delta.disliked_genres:
+                        delta.disliked_genres.append(g)
+                else:
+                    if g not in delta.liked_genres:
+                        delta.liked_genres.append(g)
+
+        # Check specific tropes
+        if "jump scare" in s_lower:
+            delta.disliked_elements.append("jump scares")
+        if "gore" in s_lower:
+            delta.disliked_elements.append("gore")
+        if "cringe" in s_lower:
+            delta.disliked_elements.append("cringe dialogue")
+
+        # Mood tags
+        if "moody" in s_lower or "atmospheric" in s_lower:
+            delta.mood_tags.append("atmospheric")
+        if "fast-paced" in s_lower:
+            delta.mood_tags.append("fast-paced")
+
+    return delta
+
+
+class TasteProfileManager:
+    """Manages persistent user taste profiles with strict tenant isolation."""
+
+    def __init__(self, db: DatabaseManager):
+        self.db = db
+
+    async def get_profile(
+        self, tenant_id: str, user_id: str
+    ) -> UserTasteProfile | None:
+        """Fetches profile enforcing strict tenant_id and user_id scoping."""
+        async with self.db.session_factory() as session:
+            stmt = select(UserTasteProfileModel).where(
+                UserTasteProfileModel.tenant_id == tenant_id,
+                UserTasteProfileModel.user_id == user_id,
+            )
+            result = await session.execute(stmt)
+            model = result.scalar_one_or_none()
+            if not model:
+                return None
+
+            return UserTasteProfile(
+                tenant_id=model.tenant_id,
+                user_id=model.user_id,
+                liked_directors=json.loads(model.liked_directors),
+                liked_genres=json.loads(model.liked_genres),
+                disliked_elements=json.loads(model.disliked_elements),
+                mood_tags=json.loads(model.mood_tags),
+                taste_notes=model.taste_notes,
+            )
+
+    async def get_profile_with_verification(
+        self, requesting_tenant_id: str, target_tenant_id: str, user_id: str
+    ) -> UserTasteProfile:
+        """Verifies tenant isolation boundary before returning a profile."""
+        if requesting_tenant_id != target_tenant_id:
+            raise PermissionError(
+                f"Cross-tenant access forbidden: {requesting_tenant_id} "
+                f"cannot access {target_tenant_id}"
+            )
+
+        profile = await self.get_profile(target_tenant_id, user_id)
+        if profile is None:
+            raise KeyError(f"Profile not found for user {user_id}")
+        return profile
+
+    async def update_profile_from_message(
+        self, tenant_id: str, user_id: str, message: str
+    ) -> UserTasteProfile:
+        """Extracts signals and updates the user's persistent taste profile."""
+        delta = extract_taste_signals_from_text(message)
+
+        async with self.db.session_factory() as session:
+            stmt = select(UserTasteProfileModel).where(
+                UserTasteProfileModel.tenant_id == tenant_id,
+                UserTasteProfileModel.user_id == user_id,
+            )
+            result = await session.execute(stmt)
+            model = result.scalar_one_or_none()
+
+            if model is None:
+                liked_directors = delta.liked_directors
+                liked_genres = delta.liked_genres
+                disliked_elements = delta.disliked_elements
+                mood_tags = delta.mood_tags
+
+                model = UserTasteProfileModel(
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    liked_directors=json.dumps(liked_directors),
+                    liked_genres=json.dumps(liked_genres),
+                    disliked_elements=json.dumps(disliked_elements),
+                    mood_tags=json.dumps(mood_tags),
+                    taste_notes=f"Initial preference signals from: {message[:80]}",
+                )
+                session.add(model)
+            else:
+                liked_dirs = set(json.loads(model.liked_directors))
+                liked_dirs.update(delta.liked_directors)
+
+                liked_g = set(json.loads(model.liked_genres))
+                liked_g.update(delta.liked_genres)
+
+                disliked_e = set(json.loads(model.disliked_elements))
+                disliked_e.update(delta.disliked_elements)
+
+                moods = set(json.loads(model.mood_tags))
+                moods.update(delta.mood_tags)
+
+                model.liked_directors = json.dumps(list(liked_dirs))
+                model.liked_genres = json.dumps(list(liked_g))
+                model.disliked_elements = json.dumps(list(disliked_e))
+                model.mood_tags = json.dumps(list(moods))
+
+            await session.commit()
+            await session.refresh(model)
+
+            return UserTasteProfile(
+                tenant_id=model.tenant_id,
+                user_id=model.user_id,
+                liked_directors=json.loads(model.liked_directors),
+                liked_genres=json.loads(model.liked_genres),
+                disliked_elements=json.loads(model.disliked_elements),
+                mood_tags=json.loads(model.mood_tags),
+                taste_notes=model.taste_notes,
+            )

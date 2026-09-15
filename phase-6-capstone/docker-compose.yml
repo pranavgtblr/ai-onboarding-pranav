@@ -1,0 +1,19 @@
+services:
+  pg-recommends:
+    build:
+      context: ..
+      dockerfile: phase-6-capstone/Dockerfile
+    container_name: pg-recommends-app
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - MODEL_PROVIDER=mock
+      - DATABASE_URL=sqlite+aiosqlite:///pg_recommends.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
