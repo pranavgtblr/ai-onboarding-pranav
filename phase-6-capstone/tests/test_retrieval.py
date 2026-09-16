@@ -154,3 +154,43 @@ def test_reputed_critic_reviews_retrieval():
     assert len(reviews_kn) >= 1
     kn_portals = [r.portal_name for r in reviews_kn]
     assert any("Hindu" in p or "Film Companion" in p for p in kn_portals)
+
+
+def test_action_query_excludes_romcom(sample_catalog: list[MovieRecord]):
+    """Verify that asking for an action movie returns action and excludes romcoms."""
+    retriever = HybridMovieRetriever(catalog=sample_catalog)
+    results = retriever.search("suggest an action movie", top_k=3)
+    assert len(results) >= 1
+    assert results[0].record.title == "Red Notice"  # only action film in sample catalog
+    assert not any(r.record.title in ["Love at First Sight", "Scream"] for r in results)
+
+
+def test_retrieval_incorporates_taste_profile(
+    sample_catalog: list[MovieRecord],
+):
+    """Verify that user taste profile boosts favored directors."""
+    from phase_6_capstone.taste_engine import UserTasteProfile
+
+    retriever = HybridMovieRetriever(catalog=sample_catalog)
+    profile = UserTasteProfile(
+        tenant_id="t1",
+        user_id="u1",
+        liked_directors=["Rahul Sadasivan"],
+        disliked_elements=["slasher"],
+    )
+
+    results = retriever.search("horror movie", top_k=2, taste_profile=profile)
+    assert len(results) >= 1
+    assert results[0].record.title == "Bhoothakaalam"
+    assert results[0].record.director == "Rahul Sadasivan"
+
+
+def test_acclaimed_wider_cinema_retrieval():
+    """Verify that wider acclaimed cinema retrieval surfaces world cinema picks."""
+    from phase_6_capstone.acclaimed_cinema import find_acclaimed_wider_cinema
+
+    picks = find_acclaimed_wider_cinema("suggest an action movie", limit=2)
+    assert len(picks) >= 1
+    assert any(p.title in ["The Raid", "John Wick: Chapter 4"] for p in picks)
+    assert picks[0].source_type == "acclaimed_cinema"
+    assert picks[0].source_portal in ["Rotten Tomatoes", "RogerEbert.com"]

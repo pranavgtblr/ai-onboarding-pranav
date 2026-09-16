@@ -123,3 +123,38 @@ async def test_agent_human_escalation_flow(agent_setup):
     assert state.escalation_ticket_id.startswith("TICK-")
     assert "escalat" in state.final_response.lower()
     assert state.escalation_ticket_id in state.final_response
+
+
+@pytest.mark.asyncio
+async def test_agent_recommendations_go_beyond_csv_to_acclaimed_cinema(
+    agent_setup,
+):
+    """Verify that agent recommendations span both diary and wider acclaimed cinema."""
+    agent, db = agent_setup
+    await db.init_models()
+
+    state = await agent.run_turn(
+        tenant_id="tenant_alpha",
+        user_id="user_4",
+        conversation_id="conv_104",
+        message=("Can you suggest an action movie? I want intense martial arts."),
+    )
+
+    assert state.escalation_status is None
+    # Verify citations include acclaimed cinema outside PG's sample catalog
+    has_acclaimed = any(c.source_type == "acclaimed_cinema" for c in state.citations)
+    assert has_acclaimed
+    acclaimed_titles = [
+        c.title for c in state.citations if c.source_type == "acclaimed_cinema"
+    ]
+    assert any(
+        t in ["The Raid", "John Wick: Chapter 4", "Hard Boiled"]
+        for t in acclaimed_titles
+    )
+
+    # Verify conversation mentions action films and does not recommend romcoms
+    assert "action" in state.final_response.lower()
+    assert not any(
+        rc in state.final_response.lower()
+        for rc in ["love at first sight", "frances ha", "romcom"]
+    )

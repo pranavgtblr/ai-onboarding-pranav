@@ -391,18 +391,20 @@ export default function App() {
                 <div className="bubble-content">
                   <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
 
-                  {/* Multi-Source 1: PG's Letterboxd Diary Reviews */}
+                  {/* Multi-Source 1: PG's Letterboxd Diary & Acclaimed Cinema */}
                   {msg.citations && msg.citations.length > 0 && (
                     <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <div className="source-group-title">
-                        <span>PG's Letterboxd Diary</span>
+                        <span>Film Recommendations & Source Citations</span>
                       </div>
                       {msg.citations.map((cit, cIdx) => (
                         <div key={cIdx} className="movie-rec-card">
                           <div className="rec-card-header">
                             <span className="rec-title">{cit.title} ({cit.year})</span>
                             <span className="rec-rating">
-                              {cit.rating ? `★ ${cit.rating}` : 'PG Curated'}
+                              {cit.source_type === 'acclaimed_cinema' 
+                                ? '★ Acclaimed Cinema' 
+                                : (cit.rating ? `★ ${cit.rating} (PG)` : 'PG Logged')}
                             </span>
                           </div>
                           <div className="rec-quote">
@@ -415,7 +417,11 @@ export default function App() {
                             className="rec-link-btn"
                           >
                             <ExternalLink size={12} />
-                            <span>View Review on Letterboxd</span>
+                            <span>
+                              {cit.source_type === 'acclaimed_cinema' 
+                                ? `Explore Reception on ${cit.source_portal || 'Critic Portal'}` 
+                                : 'View Review on Letterboxd'}
+                            </span>
                           </a>
                         </div>
                       ))}

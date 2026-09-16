@@ -229,7 +229,34 @@ KNOWN_CRITIC_REVIEWS: dict[str, list[dict[str, Any]]] = {
             "score_or_consensus": "★ 3.5 / 4.0",
         },
     ],
+    "face/off": [
+        {
+            "portal_name": "RogerEbert.com",
+            "critic_name": "Roger Ebert",
+            "excerpt": (
+                "John Woo uses visual extravagance and pure visceral energy "
+                "to create an inventive, sensational action thriller."
+            ),
+            "review_url": "https://www.rogerebert.com/reviews/faceoff-1997",
+            "score_or_consensus": "★ 3.0 / 4.0",
+        },
+    ],
+    "mad max: fury road": [
+        {
+            "portal_name": "Rotten Tomatoes",
+            "critic_name": "Critical Consensus",
+            "excerpt": (
+                "With exhilarating action and a surprising amount of narrative "
+                "heft, Fury Road brings George Miller's post-apocalyptic franchise "
+                "roaring back to life."
+            ),
+            "review_url": "https://www.rottentomatoes.com/m/mad_max_fury_road",
+            "score_or_consensus": "97% Rotten Tomatoes",
+        },
+    ],
 }
+
+_CRITIC_CACHE: dict[str, list[CriticReviewCitation]] = {}
 
 
 def _clean_wikitext(text: str) -> str:
@@ -318,10 +345,15 @@ def fetch_reputed_critic_reviews(
 
     lower_key = clean_title.lower()
 
+    if lower_key in _CRITIC_CACHE:
+        return _CRITIC_CACHE[lower_key]
+
     # 1. Check verified known records
     for key, items in KNOWN_CRITIC_REVIEWS.items():
         if key in lower_key or lower_key in key:
-            return [CriticReviewCitation(movie_title=title, **item) for item in items]
+            res = [CriticReviewCitation(movie_title=title, **item) for item in items]
+            _CRITIC_CACHE[lower_key] = res
+            return res
 
     # Fast path for automated testing suites
     import os

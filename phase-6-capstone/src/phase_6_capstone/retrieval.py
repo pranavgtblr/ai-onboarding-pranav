@@ -2,6 +2,7 @@
 
 import html
 import re
+from typing import Any
 
 from pydantic import BaseModel
 from rank_bm25 import BM25Okapi
@@ -19,6 +20,8 @@ class MovieCitation(BaseModel):
     letterboxd_url: str
     excerpt: str
     citation_label: str
+    source_type: str = "letterboxd"  # "letterboxd" or "acclaimed_cinema"
+    source_portal: str = "Letterboxd"
 
 
 class SearchResult(BaseModel):
@@ -53,7 +56,77 @@ class SearchResult(BaseModel):
             letterboxd_url=self.record.letterboxd_url,
             excerpt=clean_excerpt,
             citation_label=label,
+            source_type="letterboxd",
+            source_portal="Letterboxd",
         )
+
+
+CINEMA_STOPWORDS = {
+    "suggest",
+    "suggestions",
+    "suggestion",
+    "movie",
+    "movies",
+    "film",
+    "films",
+    "recommend",
+    "recommendation",
+    "recommendations",
+    "show",
+    "give",
+    "please",
+    "some",
+    "good",
+    "best",
+    "great",
+    "any",
+    "top",
+    "what",
+    "which",
+    "want",
+    "like",
+    "watch",
+    "about",
+    "with",
+    "me",
+    "an",
+    "a",
+    "the",
+    "for",
+    "in",
+    "of",
+    "and",
+    "or",
+    "to",
+    "can",
+    "you",
+}
+
+GENRE_SYNONYMS = {
+    "action": "Action",
+    "romcom": "Romance",
+    "rom-com": "Romance",
+    "romantic": "Romance",
+    "romance": "Romance",
+    "comedy": "Comedy",
+    "funny": "Comedy",
+    "horror": "Horror",
+    "slasher": "Horror",
+    "scary": "Horror",
+    "thriller": "Thriller",
+    "suspense": "Thriller",
+    "sci-fi": "Sci-Fi",
+    "scifi": "Sci-Fi",
+    "science fiction": "Sci-Fi",
+    "crime": "Crime",
+    "mystery": "Mystery",
+    "animation": "Animation",
+    "animated": "Animation",
+    "anime": "Animation",
+    "adventure": "Adventure",
+    "fantasy": "Fantasy",
+    "drama": "Drama",
+}
 
 
 def _tokenize(text: str) -> list[str]:
@@ -84,14 +157,14 @@ class HybridMovieRetriever:
         top_k: int = 5,
         min_rating: float | None = None,
         required_genres: list[str] | None = None,
+        taste_profile: Any = None,
     ) -> list[SearchResult]:
-        """Performs hybrid retrieval with optional rating & genre filters."""
+        """Performs hybrid retrieval with stopword & genre filtering."""
         if not self.catalog or not query.strip():
             return []
 
         tokens = _tokenize(query)
         if not tokens or self.bm25 is None:
-            # Fallback to direct substring filtering
             candidates = self.catalog
             if min_rating is not None:
                 candidates = [
@@ -99,34 +172,84 @@ class HybridMovieRetriever:
                 ]
             return [SearchResult(record=c, score=1.0) for c in candidates[:top_k]]
 
-        # BM25 Sparse Scores
-        bm25_scores = self.bm25.get_scores(tokens)
+        # Separate content tokens from stopwords
+        content_tokens = [t for t in tokens if t not in CINEMA_STOPWORDS]
+        active_tokens = content_tokens if content_tokens else tokens
 
-        # Dense / Lexical Overlap Secondary Score
+        # Detect genre intents in query
+        detected_genres = [GENRE_SYNONYMS[t] for t in tokens if t in GENRE_SYNONYMS]
+        all_target_genres = set(detected_genres)
+        if required_genres:
+            all_target_genres.update(required_genres)
+
+        # BM25 Sparse Scores on active tokens
+        bm25_scores = self.bm25.get_scores(active_tokens)
+
         ranked_indices = []
+        query_lower = query.lower()
+
         for idx, rec in enumerate(self.catalog):
-            # Apply hard filters first
+            # Apply hard rating filter if requested
             if min_rating is not None:
                 if rec.rating is None or rec.rating < min_rating:
                     continue
 
+            # Check explicit required_genres filter
             if required_genres:
                 rec_genres = {g.lower() for g in rec.genres}
                 if not any(rg.lower() in rec_genres for rg in required_genres):
                     continue
 
-            score = float(bm25_scores[idx])
+            raw_bm25 = float(bm25_scores[idx])
+            exact_title_match = rec.title.lower() in query_lower
+
+            has_matching_genre = False
+            if all_target_genres:
+                has_matching_genre = any(g in rec.genres for g in all_target_genres)
+
+            # If content tokens were specified, require BM25 overlap, title match,
+            # or genre match
+            if content_tokens:
+                if raw_bm25 <= 0.0 and not exact_title_match and not has_matching_genre:
+                    continue
+
+            score = raw_bm25
+
+            # Genre alignment boosting & strict non-genre exclusion
+            if all_target_genres:
+                if has_matching_genre:
+                    score += 8.0
+                elif not exact_title_match:
+                    # Exclude movies that lack target genre when requested
+                    continue
 
             # Bonus for exact title matches
-            query_lower = query.lower()
-            if rec.title.lower() in query_lower:
+            if exact_title_match:
                 score += 15.0
 
             # Weighting for curator rating
             if rec.rating is not None:
-                score += rec.rating * 0.5
+                score += rec.rating * 0.4
 
-            ranked_indices.append((score, rec))
+            # Taste profile personalization
+            if taste_profile is not None:
+                liked_directors = getattr(taste_profile, "liked_directors", [])
+                if rec.director and any(
+                    ld.lower() in rec.director.lower() for ld in liked_directors
+                ):
+                    score += 4.0
+
+                liked_genres = getattr(taste_profile, "liked_genres", [])
+                if any(lg in rec.genres for lg in liked_genres):
+                    score += 2.0
+
+                disliked_elements = getattr(taste_profile, "disliked_elements", [])
+                review_lower = (rec.review_text or "").lower()
+                if any(de.lower() in review_lower for de in disliked_elements):
+                    score -= 15.0
+
+            if score > 0:
+                ranked_indices.append((score, rec))
 
         # Sort by total fused score descending
         ranked_indices.sort(key=lambda x: x[0], reverse=True)

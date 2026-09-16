@@ -16,6 +16,21 @@ IMG_SRC_PATTERN = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
 GENRE_KEYWORDS = {
+    "Action": [
+        "action",
+        "stunt",
+        "combat",
+        "superhero",
+        "martial arts",
+        "blockbuster",
+        "explosion",
+        "fight",
+        "chase",
+        "shootout",
+        "batman",
+        "mission impossible",
+        "wick",
+    ],
     "Romance": ["romance", "romcom", "romantic", "love story", "chick flick"],
     "Comedy": [
         "comedy",
@@ -39,11 +54,19 @@ GENRE_KEYWORDS = {
     "Thriller": [
         "thriller",
         "suspense",
-        "mystery",
         "neo-noir",
-        "crime",
-        "investigation",
+        "suspenseful",
     ],
+    "Crime": [
+        "crime",
+        "gangster",
+        "heist",
+        "mafia",
+        "underworld",
+        "detective",
+        "police",
+    ],
+    "Mystery": ["mystery", "whodunit", "investigation", "puzzle", "clues"],
     "Sci-Fi": [
         "sci-fi",
         "science fiction",
@@ -52,7 +75,16 @@ GENRE_KEYWORDS = {
         "cyberpunk",
         "futuristic",
     ],
-    "Drama": ["drama", "biopic", "coming-of-age", "emotional", "character study"],
+    "Animation": ["animation", "animated", "anime", "pixar", "ghibli"],
+    "Drama": [
+        "drama",
+        "biopic",
+        "coming-of-age",
+        "emotional",
+        "character study",
+    ],
+    "Adventure": ["adventure", "quest", "journey", "expedition"],
+    "Fantasy": ["fantasy", "magic", "mythology"],
 }
 
 

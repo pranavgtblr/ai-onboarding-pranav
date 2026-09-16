@@ -8,6 +8,7 @@ from uuid import uuid4
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from phase_6_capstone.acclaimed_cinema import find_acclaimed_wider_cinema
 from phase_6_capstone.config import settings
 from phase_6_capstone.critic_reviews import (
     CriticReviewCitation,
@@ -205,16 +206,50 @@ class CapstoneAgent:
         citations: list[MovieCitation],
         critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
+        taste_profile: UserTasteProfile | None = None,
     ) -> list[Any]:
-        """Constructs prompt messages with persona, diary context, and web data."""
+        """Constructs prompt messages with persona, diary, wider cinema, & taste."""
         context_parts = []
 
-        if citations:
+        diary_citations = [c for c in citations if c.source_type == "letterboxd"]
+        wider_citations = [c for c in citations if c.source_type == "acclaimed_cinema"]
+
+        if diary_citations:
             context_parts.append("RELEVANT REVIEWS FROM PG'S LETTERBOXD DIARY:")
-            for cit in citations[:3]:
+            for cit in diary_citations[:3]:
                 rating_str = f"★ {cit.rating:.1f}" if cit.rating else "PG Logged"
                 context_parts.append(
                     f'- {cit.title} ({cit.year}) [{rating_str}]: "{cit.excerpt}"'
+                )
+
+        if wider_citations:
+            context_parts.append(
+                "\nACCLAIMED RECOMMENDATIONS FROM WIDER CINEMA (OUTSIDE DIARY):"
+            )
+            for cit in wider_citations[:3]:
+                context_parts.append(
+                    f'- {cit.title} ({cit.year}) [{cit.source_portal}]: "{cit.excerpt}"'
+                )
+
+        if taste_profile is not None:
+            taste_notes = []
+            if taste_profile.liked_directors:
+                taste_notes.append(
+                    f"Directors they love: {', '.join(taste_profile.liked_directors)}"
+                )
+            if taste_profile.liked_genres:
+                taste_notes.append(
+                    f"Genres they enjoy: {', '.join(taste_profile.liked_genres)}"
+                )
+            if taste_profile.disliked_elements:
+                taste_notes.append(
+                    "Elements/tropes they dislike/avoid: "
+                    f"{', '.join(taste_profile.disliked_elements)}"
+                )
+            if taste_notes:
+                context_parts.append(
+                    "\nUSER'S ACTIVE TASTE PROFILE:\n"
+                    + "\n".join(f"- {note}" for note in taste_notes)
                 )
 
         if critic_citations:
@@ -239,8 +274,10 @@ class CapstoneAgent:
             f"User message: {message}\n\n"
             f"{context_str}\n\n"
             "Now respond as PG directly to the user in your authentic voice. "
-            "Synthesize both your personal Letterboxd diary perspective and the "
-            "reputed critic consensus."
+            "You can draw from both your personal Letterboxd diary and acclaimed "
+            "wider cinema outside your diary that matches their taste. "
+            "Actively honor their taste profile (avoiding what they dislike and "
+            "leaning into what they like) and synthesize reputed critic consensus."
         )
 
         return [
@@ -254,23 +291,30 @@ class CapstoneAgent:
         citations: list[MovieCitation],
         critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
+        taste_profile: UserTasteProfile | None = None,
     ) -> str:
         """Generates conversational dialogue using real LLM with offline fallback."""
         if self.llm is not None:
             try:
+                import asyncio
+
                 messages = self._build_llm_messages(
-                    message, citations, critic_citations, web_results
+                    message,
+                    citations,
+                    critic_citations,
+                    web_results,
+                    taste_profile,
                 )
-                res = await self.llm.ainvoke(messages)
+                res = await asyncio.wait_for(self.llm.ainvoke(messages), timeout=6.0)
                 text = _extract_text(res.content)
                 if text.strip():
                     return text.strip()
             except Exception as e:
-                logger.warning("LLM generation error, falling back to local: %s", e)
+                logger.warning("LLM generation error/429, falling back to local: %s", e)
 
         # Fallback offline generator for CI and offline environments
         return self._offline_dialogue_synthesis(
-            message, citations, critic_citations, web_results
+            message, citations, critic_citations, web_results, taste_profile
         )
 
     def _offline_dialogue_synthesis(
@@ -279,6 +323,7 @@ class CapstoneAgent:
         citations: list[MovieCitation],
         critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
+        taste_profile: UserTasteProfile | None = None,
     ) -> str:
         """Deterministic offline conversational synthesis for test suites."""
         if not citations and not web_results:
@@ -291,6 +336,21 @@ class CapstoneAgent:
         m_lower = message.lower()
 
         if any(
+            k in m_lower
+            for k in [
+                "action",
+                "stunt",
+                "martial arts",
+                "combat",
+                "thrills",
+                "blockbuster",
+            ]
+        ):
+            intro = (
+                "If you're asking for high-octane action and craft, let's skip the "
+                "CGI sludge and talk about movies with real kinetic weight and impact."
+            )
+        elif any(
             k in m_lower
             for k in [
                 "romcom",
@@ -316,13 +376,12 @@ class CapstoneAgent:
             )
         else:
             intro = (
-                "Let's talk cinema! Based on what you're craving, here's what I'd "
-                "genuinely recommend diving into from my diary."
+                "Let's talk cinema! Based on what you're craving and your taste, "
+                "here's what I'd genuinely recommend diving into."
             )
 
         commentary = []
-        for i, cit in enumerate(citations[:2]):
-            rating_tag = f" (logged it at ★ {cit.rating:.1f})" if cit.rating else ""
+        for i, cit in enumerate(citations[:3]):
             clean_snippet = cit.excerpt.strip().rstrip(".").strip()
             clean_snippet = (
                 clean_snippet.replace("&#039;", "'")
@@ -331,10 +390,19 @@ class CapstoneAgent:
                 .replace("&amp;", "&")
             )
 
-            if clean_snippet and not clean_snippet.startswith("Rated "):
-                take = f'My take on it was: "{clean_snippet}."'
+            if cit.source_type == "acclaimed_cinema":
+                rating_tag = f" [{cit.source_portal} Acclaimed]"
+                take = f'Critical consensus celebrates: "{clean_snippet}."'
+                source_intro = (
+                    "Going beyond my personal diary into wider acclaimed cinema"
+                )
             else:
-                take = "It's one that really resonated with me."
+                rating_tag = f" (logged it at ★ {cit.rating:.1f})" if cit.rating else ""
+                source_intro = "From my own Letterboxd diary"
+                if clean_snippet and not clean_snippet.startswith("Rated "):
+                    take = f'My take on it was: "{clean_snippet}."'
+                else:
+                    take = "It's one that really resonated with me."
 
             critic_addon = ""
             for cc in critic_citations:
@@ -350,12 +418,12 @@ class CapstoneAgent:
 
             if i == 0:
                 commentary.append(
-                    f"First up, definitely check out *{cit.title}* ({cit.year})"
+                    f"{source_intro}, definitely check out *{cit.title}* ({cit.year})"
                     f"{rating_tag}. {take}{critic_addon}"
                 )
             else:
                 commentary.append(
-                    f"Another one worth your time is *{cit.title}* ({cit.year})"
+                    f"{source_intro}, another standout is *{cit.title}* ({cit.year})"
                     f"{rating_tag}. {take}{critic_addon}"
                 )
 
@@ -363,9 +431,9 @@ class CapstoneAgent:
             intro,
             " ".join(commentary),
             (
-                "I've linked my full review logs alongside verified critic reviews "
-                "below so you can explore both perspectives. Have you seen either of "
-                "these yet, or should we explore a different direction?"
+                "I've linked my diary logs and verified critic reception cards below "
+                "so you can dig into the reviews and consensus. Have you seen any of "
+                "these yet, or should we explore a different vibe?"
             ),
         ]
 
@@ -398,33 +466,54 @@ class CapstoneAgent:
         )
         state.taste_profile = profile
 
-        # 3. Retrieve relevant movies from PG's reviewed catalog
-        results = self.retriever.search(message, top_k=3)
+        # 3. Retrieve relevant movies from PG's reviewed catalog (with taste profile)
+        results = self.retriever.search(message, top_k=2, taste_profile=profile)
 
         # Cyclic query broadening if 0 matches
         if not results:
             words = [w for w in message.split() if len(w) > 3]
             if words:
                 broad_query = " ".join(words[:3])
-                results = self.retriever.search(broad_query, top_k=3)
+                results = self.retriever.search(
+                    broad_query, top_k=2, taste_profile=profile
+                )
 
-        # 4. If catalog lacks matches or query requires broader cinema info, search web
+        diary_citations = [res.to_citation() for res in results]
+
+        # 4. Retrieve acclaimed wider cinema recommendations matching user taste
+        wider_citations = find_acclaimed_wider_cinema(
+            message, taste_profile=profile, limit=2
+        )
+
+        citations = diary_citations + wider_citations
+        state.citations = citations
+
+        # 5. Search web if needed
         web_results: list[dict[str, Any]] = []
-        if not results or any(
+        if not citations or any(
             w in message.lower()
             for w in ["director", "who directed", "actor", "release", "upcoming"]
         ):
             web_results = search_cinema_web(message, limit=3)
-
         state.web_results = web_results
-        citations = [res.to_citation() for res in results]
-        state.citations = citations
 
-        # 5. Multi-Source Retrieval: Fetch verified critic reviews from reputed portals
+        # 6. Multi-Source Retrieval: Fetch verified critic reviews from reputed portals
         critic_citations: list[CriticReviewCitation] = []
-        for cit in citations[:2]:
-            c_reviews = fetch_reputed_critic_reviews(cit.title, cit.year)
-            critic_citations.extend(c_reviews)
+        for cit in citations[:3]:
+            if cit.source_type == "acclaimed_cinema":
+                critic_citations.append(
+                    CriticReviewCitation(
+                        movie_title=cit.title,
+                        portal_name=cit.source_portal or "Rotten Tomatoes",
+                        critic_name="Critical Consensus",
+                        excerpt=cit.excerpt,
+                        review_url=cit.letterboxd_url,
+                        score_or_consensus="Acclaimed",
+                    )
+                )
+            else:
+                c_reviews = fetch_reputed_critic_reviews(cit.title, cit.year)
+                critic_citations.extend(c_reviews)
         state.critic_citations = critic_citations
 
         state.final_response = await self._generate_dialogue(
@@ -432,6 +521,7 @@ class CapstoneAgent:
             citations=citations,
             critic_citations=critic_citations,
             web_results=web_results,
+            taste_profile=profile,
         )
         return state
 
@@ -481,62 +571,106 @@ class CapstoneAgent:
                 },
             }
 
-        # 3. Retrieve local catalog movies
-        results = self.retriever.search(message, top_k=3)
+        # 3. Retrieve local catalog movies (with taste profile)
+        results = self.retriever.search(message, top_k=2, taste_profile=profile)
         if not results:
             words = [w for w in message.split() if len(w) > 3]
             if words:
                 broad_query = " ".join(words[:3])
-                results = self.retriever.search(broad_query, top_k=3)
+                results = self.retriever.search(
+                    broad_query, top_k=2, taste_profile=profile
+                )
 
-        # 4. Search web if needed
+        diary_citations = [res.to_citation() for res in results]
+
+        # 4. Acclaimed wider cinema recommendations matching user taste
+        wider_citations = find_acclaimed_wider_cinema(
+            message, taste_profile=profile, limit=2
+        )
+
+        citations = diary_citations + wider_citations
+
+        # 5. Search web if needed
         web_results: list[dict[str, Any]] = []
-        if not results or any(
+        if not citations or any(
             w in message.lower()
             for w in ["director", "who directed", "actor", "release", "upcoming"]
         ):
             web_results = search_cinema_web(message, limit=3)
 
-        citations = [res.to_citation() for res in results]
-
-        # 5. Multi-Source: Fetch verified reviews from reputed portals
+        # 6. Multi-Source: Fetch verified reviews from reputed portals
         critic_citations: list[CriticReviewCitation] = []
-        for cit in citations[:2]:
-            c_reviews = fetch_reputed_critic_reviews(cit.title, cit.year)
-            critic_citations.extend(c_reviews)
+        for cit in citations[:3]:
+            if cit.source_type == "acclaimed_cinema":
+                critic_citations.append(
+                    CriticReviewCitation(
+                        movie_title=cit.title,
+                        portal_name=cit.source_portal or "Rotten Tomatoes",
+                        critic_name="Critical Consensus",
+                        excerpt=cit.excerpt,
+                        review_url=cit.letterboxd_url,
+                        score_or_consensus="Acclaimed",
+                    )
+                )
+            else:
+                c_reviews = fetch_reputed_critic_reviews(cit.title, cit.year)
+                critic_citations.extend(c_reviews)
 
-        # 6. Stream LLM tokens directly if LLM is active
+        # 7. Stream LLM tokens directly if LLM is active
+        streamed_any = False
         if self.llm is not None:
             try:
+                import asyncio
+
                 messages = self._build_llm_messages(
-                    message, citations, critic_citations, web_results
+                    message,
+                    citations,
+                    critic_citations,
+                    web_results,
+                    taste_profile=profile,
                 )
-                async for chunk in self.llm.astream(messages):
+
+                async def _get_first_chunk(it: Any) -> Any:
+                    return await it.__anext__()
+
+                iterator = self.llm.astream(messages)
+                first_chunk = await asyncio.wait_for(
+                    _get_first_chunk(iterator), timeout=5.0
+                )
+                first_text = _extract_text(first_chunk.content)
+                if first_text:
+                    streamed_any = True
+                    yield {"event": "token", "data": first_text}
+
+                async for chunk in iterator:
                     token_text = _extract_text(chunk.content)
                     if token_text:
+                        streamed_any = True
                         yield {"event": "token", "data": token_text}
             except Exception as e:
-                logger.warning("Streaming LLM error, falling back to offline: %s", e)
-                fallback_text = self._offline_dialogue_synthesis(
-                    message, citations, critic_citations, web_results
+                logger.warning(
+                    "Streaming LLM rate limit or timeout, falling back: %s", e
                 )
-                for word in fallback_text.split(" "):
-                    yield {"event": "token", "data": word + " "}
-        else:
+
+        if not streamed_any:
             fallback_text = self._offline_dialogue_synthesis(
-                message, citations, critic_citations, web_results
+                message,
+                citations,
+                critic_citations,
+                web_results,
+                taste_profile=profile,
             )
             for word in fallback_text.split(" "):
                 yield {"event": "token", "data": word + " "}
 
-        # 7. Emit citations event (PG's Letterboxd Reviews)
+        # 8. Emit citations event (Letterboxd & Acclaimed Cinema)
         if citations:
             yield {
                 "event": "citations",
                 "data": [c.model_dump() for c in citations],
             }
 
-        # 8. Emit critic citations event (Reputed Online Portals)
+        # 9. Emit critic citations event (Reputed Online Portals)
         if critic_citations:
             yield {
                 "event": "critic_citations",
