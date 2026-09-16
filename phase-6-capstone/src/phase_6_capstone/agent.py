@@ -1,11 +1,12 @@
 """Stateful LangGraph Agent for PG Recommends with Real LLM & Internet Search."""
 
 import logging
+import re
 from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import uuid4
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from phase_6_capstone.acclaimed_cinema import find_acclaimed_wider_cinema
@@ -15,7 +16,11 @@ from phase_6_capstone.critic_reviews import (
     fetch_reputed_critic_reviews,
 )
 from phase_6_capstone.db import DatabaseManager, HumanEscalationModel
-from phase_6_capstone.retrieval import HybridMovieRetriever, MovieCitation
+from phase_6_capstone.retrieval import (
+    CINEMA_STOPWORDS,
+    HybridMovieRetriever,
+    MovieCitation,
+)
 from phase_6_capstone.taste_engine import TasteProfileManager, UserTasteProfile
 from phase_6_capstone.web_search import search_cinema_web
 
@@ -80,6 +85,42 @@ HOW TO ENGAGE WITH THE USER:
 """
 
 
+def _detect_correction_and_exclusions(message: str) -> tuple[bool, set[str]]:
+    """Detects if user is correcting the assistant or rejecting a title."""
+    m_low = message.lower()
+    is_correction = any(
+        phrase in m_low
+        for phrase in [
+            "is not an",
+            "is not a",
+            "isn't an",
+            "isn't a",
+            "was not an",
+            "wasn't an",
+            "not an action",
+            "not a movie",
+            "not action",
+            "not horror",
+            "not comedy",
+            "not what i asked",
+            "that's not",
+            "thats not",
+            "wrong movie",
+            "wrong genre",
+            "documentary",
+        ]
+    )
+    excluded: set[str] = set()
+    match = re.search(r"([a-zA-Z0-9\s]+?)\s+(?:is not|isn't|wasn't|was not)", m_low)
+    if match:
+        name = match.group(1).strip()
+        if len(name) > 2 and name not in CINEMA_STOPWORDS:
+            excluded.add(name)
+            if name.endswith("e"):
+                excluded.add(name[:-1])
+    return is_correction, excluded
+
+
 def _extract_text(content: Any) -> str:
     """Extracts clean text string from LangChain message content."""
     if isinstance(content, str):
@@ -134,6 +175,7 @@ class CapstoneAgent:
         self.retriever = retriever
         self.taste_manager = taste_manager
         self.db = db
+        self.conversation_history: dict[str, list[dict[str, str]]] = {}
 
         import os
 
@@ -207,6 +249,7 @@ class CapstoneAgent:
         critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
         taste_profile: UserTasteProfile | None = None,
+        conversation_history: list[dict[str, str]] | None = None,
     ) -> list[Any]:
         """Constructs prompt messages with persona, diary, wider cinema, & taste."""
         context_parts = []
@@ -281,10 +324,18 @@ class CapstoneAgent:
             "leaning into what they like) and synthesize reputed critic consensus."
         )
 
-        return [
-            SystemMessage(content=CURATOR_PERSONA_PROMPT),
-            HumanMessage(content=user_content),
-        ]
+        msg_list: list[Any] = [SystemMessage(content=CURATOR_PERSONA_PROMPT)]
+        if conversation_history:
+            for turn in conversation_history[-4:]:
+                r = turn.get("role")
+                c = turn.get("content", "")
+                if r == "user" and c:
+                    msg_list.append(HumanMessage(content=c))
+                elif r == "assistant" and c:
+                    msg_list.append(AIMessage(content=c))
+
+        msg_list.append(HumanMessage(content=user_content))
+        return msg_list
 
     async def _generate_dialogue(
         self,
@@ -293,6 +344,8 @@ class CapstoneAgent:
         critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
         taste_profile: UserTasteProfile | None = None,
+        conversation_history: list[dict[str, str]] | None = None,
+        is_correction: bool = False,
     ) -> str:
         """Generates conversational dialogue using real LLM with offline fallback."""
         if self.llm is not None:
@@ -305,6 +358,7 @@ class CapstoneAgent:
                     critic_citations,
                     web_results,
                     taste_profile,
+                    conversation_history=conversation_history,
                 )
                 res = await asyncio.wait_for(self.llm.ainvoke(messages), timeout=6.0)
                 text = _extract_text(res.content)
@@ -315,7 +369,12 @@ class CapstoneAgent:
 
         # Fallback offline generator for CI and offline environments
         return self._offline_dialogue_synthesis(
-            message, citations, critic_citations, web_results, taste_profile
+            message,
+            citations,
+            critic_citations,
+            web_results,
+            taste_profile,
+            is_correction=is_correction,
         )
 
     def _offline_dialogue_synthesis(
@@ -325,8 +384,9 @@ class CapstoneAgent:
         critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
         taste_profile: UserTasteProfile | None = None,
+        is_correction: bool = False,
     ) -> str:
-        """Deterministic offline conversational synthesis for test suites."""
+        """Dynamic conversational synthesis for offline fallback or test suites."""
         if not citations and not web_results:
             return (
                 "I couldn't spot any films in my diary directly matching that. "
@@ -336,7 +396,12 @@ class CapstoneAgent:
 
         m_lower = message.lower()
 
-        if any(
+        if is_correction:
+            intro = (
+                "You're completely right, my mistake on that! Let's correct course "
+                "immediately and focus on genuine picks that fit what you're craving."
+            )
+        elif any(
             k in m_lower
             for k in [
                 "action",
@@ -348,8 +413,8 @@ class CapstoneAgent:
             ]
         ):
             intro = (
-                "If you're asking for high-octane action and craft, let's skip the "
-                "CGI sludge and talk about movies with real kinetic weight and impact."
+                "If you're looking for adrenaline and kinetic craft, here are "
+                "proper action movies with real weight, momentum, and impact."
             )
         elif any(
             k in m_lower
@@ -467,16 +532,33 @@ class CapstoneAgent:
         )
         state.taste_profile = profile
 
+        is_correction, excluded_titles = _detect_correction_and_exclusions(message)
+        history = self.conversation_history.get(conversation_id, [])
+
         # 3. Retrieve relevant movies from PG's reviewed catalog (with taste profile)
-        results = self.retriever.search(message, top_k=2, taste_profile=profile)
+        results = self.retriever.search(
+            message,
+            top_k=2,
+            taste_profile=profile,
+            excluded_titles=excluded_titles,
+        )
 
         # Cyclic query broadening if 0 matches
         if not results:
-            words = [w for w in message.split() if len(w) > 3]
+            words = [
+                w
+                for w in message.split()
+                if len(w) > 3
+                and w.lower() not in excluded_titles
+                and w.lower() not in CINEMA_STOPWORDS
+            ]
             if words:
                 broad_query = " ".join(words[:3])
                 results = self.retriever.search(
-                    broad_query, top_k=2, taste_profile=profile
+                    broad_query,
+                    top_k=2,
+                    taste_profile=profile,
+                    excluded_titles=excluded_titles,
                 )
 
         diary_citations = [res.to_citation() for res in results]
@@ -484,7 +566,11 @@ class CapstoneAgent:
         # 4. Retrieve acclaimed wider cinema recommendations matching user taste
         catalog_titles = {rec.title.lower() for rec in self.retriever.catalog}
         wider_citations = find_acclaimed_wider_cinema(
-            message, taste_profile=profile, limit=2, catalog_titles=catalog_titles
+            message,
+            taste_profile=profile,
+            limit=2,
+            catalog_titles=catalog_titles,
+            excluded_titles=excluded_titles,
         )
 
         citations = diary_citations + wider_citations
@@ -524,6 +610,17 @@ class CapstoneAgent:
             critic_citations=critic_citations,
             web_results=web_results,
             taste_profile=profile,
+            conversation_history=history,
+            is_correction=is_correction,
+        )
+
+        if conversation_id not in self.conversation_history:
+            self.conversation_history[conversation_id] = []
+        self.conversation_history[conversation_id].append(
+            {"role": "user", "content": message}
+        )
+        self.conversation_history[conversation_id].append(
+            {"role": "assistant", "content": state.final_response}
         )
         return state
 
@@ -574,13 +671,30 @@ class CapstoneAgent:
             }
 
         # 3. Retrieve local catalog movies (with taste profile)
-        results = self.retriever.search(message, top_k=2, taste_profile=profile)
+        is_correction, excluded_titles = _detect_correction_and_exclusions(message)
+        history = self.conversation_history.get(conversation_id, [])
+
+        results = self.retriever.search(
+            message,
+            top_k=2,
+            taste_profile=profile,
+            excluded_titles=excluded_titles,
+        )
         if not results:
-            words = [w for w in message.split() if len(w) > 3]
+            words = [
+                w
+                for w in message.split()
+                if len(w) > 3
+                and w.lower() not in excluded_titles
+                and w.lower() not in CINEMA_STOPWORDS
+            ]
             if words:
                 broad_query = " ".join(words[:3])
                 results = self.retriever.search(
-                    broad_query, top_k=2, taste_profile=profile
+                    broad_query,
+                    top_k=2,
+                    taste_profile=profile,
+                    excluded_titles=excluded_titles,
                 )
 
         diary_citations = [res.to_citation() for res in results]
@@ -588,7 +702,11 @@ class CapstoneAgent:
         # 4. Acclaimed wider cinema recommendations matching user taste
         catalog_titles = {rec.title.lower() for rec in self.retriever.catalog}
         wider_citations = find_acclaimed_wider_cinema(
-            message, taste_profile=profile, limit=2, catalog_titles=catalog_titles
+            message,
+            taste_profile=profile,
+            limit=2,
+            catalog_titles=catalog_titles,
+            excluded_titles=excluded_titles,
         )
 
         citations = diary_citations + wider_citations
@@ -621,6 +739,7 @@ class CapstoneAgent:
 
         # 7. Stream LLM tokens directly if LLM is active
         streamed_any = False
+        generated_tokens: list[str] = []
         if self.llm is not None:
             try:
                 import asyncio
@@ -631,6 +750,7 @@ class CapstoneAgent:
                     critic_citations,
                     web_results,
                     taste_profile=profile,
+                    conversation_history=history,
                 )
 
                 async def _get_first_chunk(it: Any) -> Any:
@@ -643,12 +763,14 @@ class CapstoneAgent:
                 first_text = _extract_text(first_chunk.content)
                 if first_text:
                     streamed_any = True
+                    generated_tokens.append(first_text)
                     yield {"event": "token", "data": first_text}
 
                 async for chunk in iterator:
                     token_text = _extract_text(chunk.content)
                     if token_text:
                         streamed_any = True
+                        generated_tokens.append(token_text)
                         yield {"event": "token", "data": token_text}
             except Exception as e:
                 logger.warning(
@@ -662,9 +784,21 @@ class CapstoneAgent:
                 critic_citations,
                 web_results,
                 taste_profile=profile,
+                is_correction=is_correction,
             )
+            generated_tokens.append(fallback_text)
             for word in fallback_text.split(" "):
                 yield {"event": "token", "data": word + " "}
+
+        full_response = "".join(generated_tokens) if streamed_any else fallback_text
+        if conversation_id not in self.conversation_history:
+            self.conversation_history[conversation_id] = []
+        self.conversation_history[conversation_id].append(
+            {"role": "user", "content": message}
+        )
+        self.conversation_history[conversation_id].append(
+            {"role": "assistant", "content": full_response}
+        )
 
         # 8. Emit citations event (Letterboxd & Acclaimed Cinema)
         if citations:

@@ -169,3 +169,37 @@ async def test_agent_recommendations_go_beyond_csv_to_acclaimed_cinema(
         rc in state.final_response.lower()
         for rc in ["love at first sight", "frances ha", "romcom"]
     )
+
+
+@pytest.mark.asyncio
+async def test_agent_handles_genre_correction_and_excludes_rejected_movie(
+    agent_setup,
+):
+    """Verify that agent handles negative feedback and excludes the rejected movie."""
+    agent, db = agent_setup
+    await db.init_models()
+
+    # Turn 1: user asks to explore action
+    state_1 = await agent.run_turn(
+        tenant_id="tenant_alpha",
+        user_id="user_5",
+        conversation_id="conv_105",
+        message="I want to explore action",
+    )
+    assert not any("marwencol" in c.title.lower() for c in state_1.citations)
+
+    # Turn 2: user corrects with negative feedback
+    state_2 = await agent.run_turn(
+        tenant_id="tenant_alpha",
+        user_id="user_5",
+        conversation_id="conv_105",
+        message="marwencole is not an action movie",
+    )
+    # Ensure marwencol is strictly excluded
+    assert not any("marwencol" in c.title.lower() for c in state_2.citations)
+    # Ensure response acknowledges correction and does not repeat paragraph
+    assert (
+        "mistake" in state_2.final_response.lower()
+        or "right" in state_2.final_response.lower()
+    )
+    assert state_2.final_response != state_1.final_response

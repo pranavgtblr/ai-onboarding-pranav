@@ -100,6 +100,26 @@ CINEMA_STOPWORDS = {
     "to",
     "can",
     "you",
+    "explore",
+    "exploring",
+    "look",
+    "looking",
+    "into",
+    "need",
+    "feel",
+    "feeling",
+    "craving",
+    "something",
+    "is",
+    "isn't",
+    "was",
+    "are",
+    "tell",
+    "it",
+    "this",
+    "that",
+    "i",
+    "my",
 }
 
 
@@ -139,6 +159,7 @@ class HybridMovieRetriever:
         min_rating: float | None = None,
         required_genres: list[str] | None = None,
         taste_profile: Any = None,
+        excluded_titles: set[str] | None = None,
     ) -> list[SearchResult]:
         """Performs hybrid retrieval with stopword filtering and pure BM25 scoring."""
         if not self.catalog or not query.strip():
@@ -150,6 +171,15 @@ class HybridMovieRetriever:
             if min_rating is not None:
                 candidates = [
                     c for c in candidates if c.rating and c.rating >= min_rating
+                ]
+            if excluded_titles:
+                candidates = [
+                    c
+                    for c in candidates
+                    if not any(
+                        ex in c.title.lower() or c.title.lower() in ex
+                        for ex in excluded_titles
+                    )
                 ]
             return [SearchResult(record=c, score=1.0) for c in candidates[:top_k]]
 
@@ -164,6 +194,13 @@ class HybridMovieRetriever:
         query_lower = query.lower()
 
         for idx, rec in enumerate(self.catalog):
+            # Exclude rejected/corrected titles
+            if excluded_titles and any(
+                ex in rec.title.lower() or rec.title.lower() in ex
+                for ex in excluded_titles
+            ):
+                continue
+
             # Apply hard rating filter if requested
             if min_rating is not None:
                 if rec.rating is None or rec.rating < min_rating:

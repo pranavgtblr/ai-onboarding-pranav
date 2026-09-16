@@ -101,11 +101,12 @@ def find_acclaimed_wider_cinema(
     taste_profile: Any = None,
     limit: int = 2,
     catalog_titles: set[str] | None = None,
+    excluded_titles: set[str] | None = None,
 ) -> list[MovieCitation]:
     """Dynamically discovers acclaimed wider cinema films outside PG's diary.
 
     Uses real-time search queries across Wikipedia / Rotten Tomatoes reception,
-    evaluating critical consensus from strictly the 7 allowed portals.
+    evaluating critical consensus strictly matching the requested genre.
     """
     clean_query = query.strip()
     if not clean_query:
@@ -193,7 +194,7 @@ def find_acclaimed_wider_cinema(
     citations: list[MovieCitation] = []
 
     try:
-        with httpx.Client(timeout=2.8, headers=headers) as client:
+        with httpx.Client(timeout=3.0, headers=headers) as client:
             resp = client.get(
                 "https://en.wikipedia.org/w/api.php",
                 params={
@@ -210,11 +211,25 @@ def find_acclaimed_wider_cinema(
                     raw_title = item.get("title", "")
                     if any(
                         skip in raw_title
-                        for skip in ["List of", "Category:", "Template:", " awards"]
+                        for skip in [
+                            "List of",
+                            "Category:",
+                            "Template:",
+                            " awards",
+                            "film series",
+                        ]
                     ):
                         continue
 
                     clean_title, year = _extract_year_and_clean_title(raw_title)
+
+                    # Strictly exclude rejected/corrected titles
+                    if excluded_titles:
+                        if any(
+                            ex in clean_title.lower() or clean_title.lower() in ex
+                            for ex in excluded_titles
+                        ):
+                            continue
 
                     # Strictly exclude movies already logged in PG's personal diary
                     if catalog_titles and clean_title.lower() in catalog_titles:
@@ -225,13 +240,13 @@ def find_acclaimed_wider_cinema(
                         f"https://en.wikipedia.org/wiki/{urllib.parse.quote(raw_title)}"
                     )
 
-                    # Extract section for critical reception
                     portal_found = "Rotten Tomatoes"
                     excerpt = snippet
                     if len(excerpt) > 180:
                         excerpt = excerpt[:177] + "..."
 
-                    # Query page extract
+                    # Query page extract to verify true movie genre
+                    ext_text = ""
                     extract_resp = client.get(
                         "https://en.wikipedia.org/w/api.php",
                         params={
@@ -248,12 +263,42 @@ def find_acclaimed_wider_cinema(
                         for _, pdata in pages.items():
                             ext = pdata.get("extract", "")
                             if ext:
+                                ext_text = ext
                                 first_sentence = ext.split(".")[0]
                                 if len(first_sentence) > 30:
                                     excerpt = first_sentence + "."
                                     if len(excerpt) > 180:
                                         excerpt = excerpt[:177] + "..."
                             break
+
+                    combined_text = f"{snippet} {ext_text}".lower()
+
+                    # Guard against non-action documentaries when user asked for action
+                    if "documentary" in combined_text and "documentary" not in tokens:
+                        continue
+
+                    # Genre verification against requested intent
+                    if "action" in tokens and not any(
+                        g in combined_text
+                        for g in [
+                            "action",
+                            "martial arts",
+                            "stunt",
+                            "thriller",
+                            "superhero",
+                        ]
+                    ):
+                        continue
+                    if "horror" in tokens and not any(
+                        g in combined_text
+                        for g in ["horror", "slasher", "spooky", "dread"]
+                    ):
+                        continue
+                    if any(r in tokens for r in ["romance", "romcom"]) and not any(
+                        g in combined_text
+                        for g in ["romance", "romantic", "love", "comedy"]
+                    ):
+                        continue
 
                     film = AcclaimedFilm(
                         title=clean_title,
