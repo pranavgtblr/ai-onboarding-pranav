@@ -102,36 +102,17 @@ CINEMA_STOPWORDS = {
     "you",
 }
 
-GENRE_SYNONYMS = {
-    "action": "Action",
-    "romcom": "Romance",
-    "rom-com": "Romance",
-    "romantic": "Romance",
-    "romance": "Romance",
-    "comedy": "Comedy",
-    "funny": "Comedy",
-    "horror": "Horror",
-    "slasher": "Horror",
-    "scary": "Horror",
-    "thriller": "Thriller",
-    "suspense": "Thriller",
-    "sci-fi": "Sci-Fi",
-    "scifi": "Sci-Fi",
-    "science fiction": "Sci-Fi",
-    "crime": "Crime",
-    "mystery": "Mystery",
-    "animation": "Animation",
-    "animated": "Animation",
-    "anime": "Animation",
-    "adventure": "Adventure",
-    "fantasy": "Fantasy",
-    "drama": "Drama",
-}
-
 
 def _tokenize(text: str) -> list[str]:
-    """Tokenizes text into lowercase alphanumeric tokens."""
-    return [w.lower() for w in re.findall(r"\w+", text) if len(w) > 1]
+    """Tokenizes text into lowercase alphanumeric tokens with query expansion."""
+    raw = [w.lower() for w in re.findall(r"\w+", text) if len(w) > 1]
+    tokens: list[str] = list(raw)
+    for t in raw:
+        if t == "romcom":
+            tokens.extend(["romance", "comedy"])
+        elif t == "scifi":
+            tokens.extend(["sci", "fi", "science"])
+    return tokens
 
 
 class HybridMovieRetriever:
@@ -159,7 +140,7 @@ class HybridMovieRetriever:
         required_genres: list[str] | None = None,
         taste_profile: Any = None,
     ) -> list[SearchResult]:
-        """Performs hybrid retrieval with stopword & genre filtering."""
+        """Performs hybrid retrieval with stopword filtering and pure BM25 scoring."""
         if not self.catalog or not query.strip():
             return []
 
@@ -176,12 +157,6 @@ class HybridMovieRetriever:
         content_tokens = [t for t in tokens if t not in CINEMA_STOPWORDS]
         active_tokens = content_tokens if content_tokens else tokens
 
-        # Detect genre intents in query
-        detected_genres = [GENRE_SYNONYMS[t] for t in tokens if t in GENRE_SYNONYMS]
-        all_target_genres = set(detected_genres)
-        if required_genres:
-            all_target_genres.update(required_genres)
-
         # BM25 Sparse Scores on active tokens
         bm25_scores = self.bm25.get_scores(active_tokens)
 
@@ -196,32 +171,20 @@ class HybridMovieRetriever:
 
             # Check explicit required_genres filter
             if required_genres:
-                rec_genres = {g.lower() for g in rec.genres}
+                rec_genres = {g.lower() for g in (rec.genres + rec.tags)}
                 if not any(rg.lower() in rec_genres for rg in required_genres):
                     continue
 
             raw_bm25 = float(bm25_scores[idx])
             exact_title_match = rec.title.lower() in query_lower
 
-            has_matching_genre = False
-            if all_target_genres:
-                has_matching_genre = any(g in rec.genres for g in all_target_genres)
-
-            # If content tokens were specified, require BM25 overlap, title match,
-            # or genre match
+            # If content tokens were specified, require BM25 overlap or
+            # exact title match
             if content_tokens:
-                if raw_bm25 <= 0.0 and not exact_title_match and not has_matching_genre:
+                if raw_bm25 <= 0.0 and not exact_title_match:
                     continue
 
             score = raw_bm25
-
-            # Genre alignment boosting & strict non-genre exclusion
-            if all_target_genres:
-                if has_matching_genre:
-                    score += 8.0
-                elif not exact_title_match:
-                    # Exclude movies that lack target genre when requested
-                    continue
 
             # Bonus for exact title matches
             if exact_title_match:
@@ -240,7 +203,8 @@ class HybridMovieRetriever:
                     score += 4.0
 
                 liked_genres = getattr(taste_profile, "liked_genres", [])
-                if any(lg in rec.genres for lg in liked_genres):
+                rec_genres = {g.lower() for g in (rec.genres + rec.tags)}
+                if any(lg.lower() in rec_genres for lg in liked_genres):
                     score += 2.0
 
                 disliked_elements = getattr(taste_profile, "disliked_elements", [])

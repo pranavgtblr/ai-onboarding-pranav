@@ -76,12 +76,22 @@ async def test_agent_recommendation_flow_with_citations(agent_setup):
     assert "Bhoothakaalam" in state.final_response
     assert "★" in state.final_response
 
-    # Verify Multi-Source Reputed Critic Citations
+    # Verify Multi-Source Reputed Critic Citations strictly from allowed portals
     assert len(state.critic_citations) >= 1
     assert any(
-        "Hindu" in c.portal_name or "Film Companion" in c.portal_name
+        "Independent" in c.portal_name or "Rotten Tomatoes" in c.portal_name
         for c in state.critic_citations
     )
+    for c in state.critic_citations:
+        assert c.portal_name in [
+            "RogerEbert.com",
+            "Variety",
+            "The Independent",
+            "The New York Times",
+            "The Hollywood Reporter",
+            "The Guardian",
+            "Rotten Tomatoes",
+        ]
 
 
 @pytest.mark.asyncio

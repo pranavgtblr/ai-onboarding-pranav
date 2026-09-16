@@ -255,7 +255,8 @@ class CapstoneAgent:
         if critic_citations:
             context_parts.append(
                 "\nREPUTED CRITIC REVIEWS & CONSENSUS "
-                "(RogerEbert.com, Film Companion, The Hindu, Rotten Tomatoes):"
+                "(RogerEbert.com, Variety, The Independent, The New York Times, "
+                "The Hollywood Reporter, The Guardian, Rotten Tomatoes):"
             )
             for cc in critic_citations[:3]:
                 author = f" by {cc.critic_name}" if cc.critic_name else ""
@@ -481,8 +482,9 @@ class CapstoneAgent:
         diary_citations = [res.to_citation() for res in results]
 
         # 4. Retrieve acclaimed wider cinema recommendations matching user taste
+        catalog_titles = {rec.title.lower() for rec in self.retriever.catalog}
         wider_citations = find_acclaimed_wider_cinema(
-            message, taste_profile=profile, limit=2
+            message, taste_profile=profile, limit=2, catalog_titles=catalog_titles
         )
 
         citations = diary_citations + wider_citations
@@ -584,8 +586,9 @@ class CapstoneAgent:
         diary_citations = [res.to_citation() for res in results]
 
         # 4. Acclaimed wider cinema recommendations matching user taste
+        catalog_titles = {rec.title.lower() for rec in self.retriever.catalog}
         wider_citations = find_acclaimed_wider_cinema(
-            message, taste_profile=profile, limit=2
+            message, taste_profile=profile, limit=2, catalog_titles=catalog_titles
         )
 
         citations = diary_citations + wider_citations

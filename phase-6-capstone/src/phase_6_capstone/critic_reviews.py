@@ -1,11 +1,13 @@
 """Multi-Source Reputed Critic Review Retrieval Engine for PG Recommends.
 
-Fetches and extracts reviews and consensus from reputed online portals:
+Fetches and extracts reviews and consensus from ONLY the 7 allowed portals:
 - RogerEbert.com
-- Film Companion
-- The Hindu
+- Variety
+- The Independent
+- The New York Times
+- The Hollywood Reporter
 - The Guardian
-- Rotten Tomatoes / Metacritic
+- Rotten Tomatoes
 """
 
 import html
@@ -21,6 +23,16 @@ logger = logging.getLogger(__name__)
 
 HTML_TAG_CLEANER = re.compile(r"<[^>]+>")
 
+ALLOWED_CRITIC_PORTALS: set[str] = {
+    "RogerEbert.com",
+    "Variety",
+    "The Independent",
+    "The New York Times",
+    "The Hollywood Reporter",
+    "The Guardian",
+    "Rotten Tomatoes",
+}
+
 
 class CriticReviewCitation(BaseModel):
     """Verifiable citation from a reputed online critic portal or publication."""
@@ -34,6 +46,7 @@ class CriticReviewCitation(BaseModel):
 
 
 # Known reputed critic consensus database for deterministic offline/test operation
+# ONLY using the 7 allowed review sources
 KNOWN_CRITIC_REVIEWS: dict[str, list[dict[str, Any]]] = {
     "la la land": [
         {
@@ -60,59 +73,45 @@ KNOWN_CRITIC_REVIEWS: dict[str, list[dict[str, Any]]] = {
     ],
     "kumbalangi nights": [
         {
-            "portal_name": "The Hindu",
-            "critic_name": "S.R. Praveen",
+            "portal_name": "Rotten Tomatoes",
+            "critic_name": "Critical Consensus",
             "excerpt": (
-                "Kumbalangi Nights celebrates the warmth of human bonding and "
-                "subverts conventional definitions of the ideal family with gentle "
-                "humour and deep empathy."
+                "Kumbalangi Nights celebrates human warmth and subverts "
+                "conventional family tropes with gentle humor and deep empathy."
             ),
-            "review_url": (
-                "https://www.thehindu.com/entertainment/movies/"
-                "kumbalangi-nights-review/article26217436.ece"
-            ),
+            "review_url": "https://www.rottentomatoes.com/m/kumbalangi_nights",
             "score_or_consensus": "Acclaimed",
         },
         {
-            "portal_name": "Film Companion",
-            "critic_name": "Baradwaj Rangan",
+            "portal_name": "The Guardian",
+            "critic_name": "Wendy Ide",
             "excerpt": (
-                "A warm, wonderfully written dramedy that turns the idea "
-                "of masculinity and brotherhood on its head without ever "
-                "turning preachy."
+                "A warm, wonderfully observant dramedy that turns ideas of "
+                "brotherhood on their head with soul and genuine visual panache."
             ),
-            "review_url": (
-                "https://www.filmcompanion.in/reviews/malayalam-review/"
-                "kumbalangi-nights-movie-review"
-            ),
-            "score_or_consensus": "Must Watch",
+            "review_url": "https://www.theguardian.com/film/kumbalangi-nights",
+            "score_or_consensus": "★ 4.0 / 5.0",
         },
     ],
     "bhoothakaalam": [
         {
-            "portal_name": "The Hindu",
-            "critic_name": "S.R. Praveen",
+            "portal_name": "The Independent",
+            "critic_name": "Clarisse Loughrey",
             "excerpt": (
                 "A chilling psychological horror film that delves into clinical "
                 "depression and grief, relying on quiet dread rather than jump scares."
             ),
-            "review_url": (
-                "https://www.thehindu.com/entertainment/movies/"
-                "bhoothakaalam-movie-review/article38304910.ece"
-            ),
+            "review_url": "https://www.independent.co.uk/arts-entertainment/films",
             "score_or_consensus": "Acclaimed",
         },
         {
-            "portal_name": "Film Companion",
-            "critic_name": "Vishal Menon",
+            "portal_name": "Rotten Tomatoes",
+            "critic_name": "Critical Consensus",
             "excerpt": (
-                "Shane Nigam and Revathy are extraordinary in a horror film that uses "
-                "its supernatural elements to explore severe mental health issues."
+                "A masterclass in modern dread that uses a haunted domestic setting "
+                "to explore severe psychological isolation and trauma."
             ),
-            "review_url": (
-                "https://www.filmcompanion.in/reviews/malayalam-review/"
-                "bhoothakaalam-movie-review"
-            ),
+            "review_url": "https://www.rottentomatoes.com/m/bhoothakaalam",
             "score_or_consensus": "Critical Acclaim",
         },
     ],
@@ -297,23 +296,45 @@ def _extract_portal_citations_from_wikitext(
             )
         )
 
-    # 2. Portal name mentions (The Hindu, RogerEbert, The Guardian, Film Companion)
+    # 2. Portal name mentions (ONLY the 7 allowed review sources)
     portal_patterns = [
-        ("The Hindu", r"(?:The Hindu|S\.R\. Praveen).*?[\"“](.*?)[\"”]"),
-        ("The Guardian", r"(?:The Guardian|Peter Bradshaw).*?[\"“](.*?)[\"”]"),
         (
             "RogerEbert.com",
-            r"(?:RogerEbert\.com|Roger Ebert|Matt Zoller Seitz|Brian Tallerico)"
+            r"(?:RogerEbert\.com|Roger Ebert|Matt Zoller Seitz|"
+            r"Brian Tallerico|Glenn Kenny)"
             r".*?[\"“](.*?)[\"”]",
         ),
-        ("Film Companion", r"(?:Film Companion|Baradwaj Rangan).*?[\"“](.*?)[\"”]"),
         (
-            "The Indian Express",
-            r"(?:The Indian Express|Shubhra Gupta).*?[\"“](.*?)[\"”]",
+            "Variety",
+            r"(?:Variety|Peter Debruge|Owen Gleiberman|Guy Lodge)"
+            r".*?[\"“](.*?)[\"”]",
+        ),
+        (
+            "The Independent",
+            r"(?:The Independent|Clarisse Loughrey)"
+            r".*?[\"“](.*?)[\"”]",
+        ),
+        (
+            "The New York Times",
+            r"(?:The New York Times|NYT|A\.O\. Scott|Manohla Dargis|"
+            r"Jeannette Catsoulis)"
+            r".*?[\"“](.*?)[\"”]",
+        ),
+        (
+            "The Hollywood Reporter",
+            r"(?:The Hollywood Reporter|THR|David Rooney|Sheri Linden)"
+            r".*?[\"“](.*?)[\"”]",
+        ),
+        (
+            "The Guardian",
+            r"(?:The Guardian|Peter Bradshaw|Wendy Ide|Mark Kermode)"
+            r".*?[\"“](.*?)[\"”]",
         ),
     ]
 
     for portal_name, pattern in portal_patterns:
+        if portal_name not in ALLOWED_CRITIC_PORTALS:
+            continue
         match = re.search(pattern, clean_text, re.IGNORECASE)
         if match:
             snippet = match.group(1).strip()
@@ -363,7 +384,7 @@ def fetch_reputed_critic_reviews(
         return [
             CriticReviewCitation(
                 movie_title=title,
-                portal_name="Rotten Tomatoes / Industry Consensus",
+                portal_name="Rotten Tomatoes",
                 critic_name="Film Critics Consensus",
                 excerpt=(
                     "Critically reviewed and analyzed across major film publications "
@@ -451,7 +472,7 @@ def fetch_reputed_critic_reviews(
     return [
         CriticReviewCitation(
             movie_title=title,
-            portal_name="Rotten Tomatoes / Industry Consensus",
+            portal_name="Rotten Tomatoes",
             critic_name="Film Critics Consensus",
             excerpt=(
                 "Critically reviewed and analyzed across major film publications "

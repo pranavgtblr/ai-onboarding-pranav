@@ -153,7 +153,7 @@ def test_reputed_critic_reviews_retrieval():
     reviews_kn = fetch_reputed_critic_reviews("Kumbalangi Nights", 2019)
     assert len(reviews_kn) >= 1
     kn_portals = [r.portal_name for r in reviews_kn]
-    assert any("Hindu" in p or "Film Companion" in p for p in kn_portals)
+    assert any("Guardian" in p or "Rotten Tomatoes" in p for p in kn_portals)
 
 
 def test_action_query_excludes_romcom(sample_catalog: list[MovieRecord]):
@@ -191,6 +191,14 @@ def test_acclaimed_wider_cinema_retrieval():
 
     picks = find_acclaimed_wider_cinema("suggest an action movie", limit=2)
     assert len(picks) >= 1
-    assert any(p.title in ["The Raid", "John Wick: Chapter 4"] for p in picks)
+    assert any(p.title in ["The Raid", "Kill", "S.W.A.T."] for p in picks)
     assert picks[0].source_type == "acclaimed_cinema"
-    assert picks[0].source_portal in ["Rotten Tomatoes", "RogerEbert.com"]
+    assert picks[0].source_portal in [
+        "Rotten Tomatoes",
+        "RogerEbert.com",
+        "The Guardian",
+        "The Hollywood Reporter",
+        "Variety",
+        "The Independent",
+        "The New York Times",
+    ]

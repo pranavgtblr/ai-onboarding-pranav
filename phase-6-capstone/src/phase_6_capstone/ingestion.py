@@ -15,78 +15,6 @@ LETTERBOXD_RSS_URL = "https://letterboxd.com/pranavg/rss/"
 IMG_SRC_PATTERN = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
-GENRE_KEYWORDS = {
-    "Action": [
-        "action",
-        "stunt",
-        "combat",
-        "superhero",
-        "martial arts",
-        "blockbuster",
-        "explosion",
-        "fight",
-        "chase",
-        "shootout",
-        "batman",
-        "mission impossible",
-        "wick",
-    ],
-    "Romance": ["romance", "romcom", "romantic", "love story", "chick flick"],
-    "Comedy": [
-        "comedy",
-        "romcom",
-        "hilarious",
-        "humour",
-        "humor",
-        "funny",
-        "satire",
-    ],
-    "Horror": [
-        "horror",
-        "slasher",
-        "spooky",
-        "scary",
-        "chilling",
-        "creepy",
-        "blood",
-        "monster",
-    ],
-    "Thriller": [
-        "thriller",
-        "suspense",
-        "neo-noir",
-        "suspenseful",
-    ],
-    "Crime": [
-        "crime",
-        "gangster",
-        "heist",
-        "mafia",
-        "underworld",
-        "detective",
-        "police",
-    ],
-    "Mystery": ["mystery", "whodunit", "investigation", "puzzle", "clues"],
-    "Sci-Fi": [
-        "sci-fi",
-        "science fiction",
-        "alien",
-        "space",
-        "cyberpunk",
-        "futuristic",
-    ],
-    "Animation": ["animation", "animated", "anime", "pixar", "ghibli"],
-    "Drama": [
-        "drama",
-        "biopic",
-        "coming-of-age",
-        "emotional",
-        "character study",
-    ],
-    "Adventure": ["adventure", "quest", "journey", "expedition"],
-    "Fantasy": ["fantasy", "magic", "mythology"],
-}
-
 
 def _clean_html(text: str) -> str:
     """Removes HTML tags, unescapes entities (multi-pass), and cleans whitespace."""
@@ -103,16 +31,6 @@ def _clean_html(text: str) -> str:
         .replace("&gt;", ">")
     )
     return " ".join(cleaned.split()).strip()
-
-
-def _infer_genres(title: str, review: str, tags: list[str]) -> list[str]:
-    """Infers genre tags from title, review text, and explicit Letterboxd tags."""
-    combined = f"{title} {review} {' '.join(tags)}".lower()
-    inferred = set(tags)
-    for genre, keywords in GENRE_KEYWORDS.items():
-        if any(kw in combined for kw in keywords):
-            inferred.add(genre)
-    return sorted(list(inferred))
 
 
 def parse_reviews_csv(
@@ -172,8 +90,7 @@ def parse_reviews_csv(
         watched_date = (row.get("Watched Date") or row.get("Date") or "").strip()
         tags_raw = (row.get("Tags") or "").strip()
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
-
-        genres = _infer_genres(title, review, tags)
+        genres = list(tags)
         movie_id = f"mov_{abs(hash((title, year, url))) % 100000000}"
 
         records.append(
@@ -259,8 +176,13 @@ def parse_letterboxd_rss_xml(xml_content: str) -> list[MovieRecord]:
         if match:
             poster_url = match.group(1)
 
+        tags = [
+            c.text.strip()
+            for c in item.findall("category")
+            if c.text and c.text.strip()
+        ]
         review_text = _clean_html(desc_raw)
-        genres = _infer_genres(title, review_text, [])
+        genres = list(tags)
         movie_id = f"mov_{abs(hash((title, year, link or guid))) % 100000000}"
 
         records.append(
@@ -275,6 +197,7 @@ def parse_letterboxd_rss_xml(xml_content: str) -> list[MovieRecord]:
                 rewatch=rewatch,
                 poster_url=poster_url,
                 guid=guid,
+                tags=tags,
                 genres=genres,
             )
         )
