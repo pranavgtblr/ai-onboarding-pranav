@@ -201,6 +201,8 @@ class HybridMovieRetriever:
             ):
                 continue
 
+            exact_title_match = rec.title.lower() in query_lower
+
             # Apply hard rating filter if requested
             if min_rating is not None:
                 if rec.rating is None or rec.rating < min_rating:
@@ -213,15 +215,15 @@ class HybridMovieRetriever:
                     continue
 
             raw_bm25 = float(bm25_scores[idx])
-            exact_title_match = rec.title.lower() in query_lower
+            matched_count = sum(1 for t in active_tokens if t in self.corpus[idx])
 
-            # If content tokens were specified, require BM25 overlap or
-            # exact title match
+            # If content tokens were specified, require token presence
+            # or exact title match
             if content_tokens:
-                if raw_bm25 <= 0.0 and not exact_title_match:
+                if matched_count == 0 and not exact_title_match and raw_bm25 <= 0.0:
                     continue
 
-            score = raw_bm25
+            score = max(raw_bm25, 0.0) + (matched_count * 2.0)
 
             # Bonus for exact title matches
             if exact_title_match:

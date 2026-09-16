@@ -117,6 +117,32 @@ KNOWN_CRITIC_REVIEWS: dict[str, list[dict[str, Any]]] = {
             "score_or_consensus": "Critical Acclaim",
         },
     ],
+    "animal": [
+        {
+            "portal_name": "The Guardian",
+            "critic_name": "Cath Clarke",
+            "excerpt": (
+                "A sprawling, violent, and misogynistic family revenge drama "
+                "that pushes toxic masculinity to absurd extremes."
+            ),
+            "review_url": (
+                "https://www.theguardian.com/film/2023/dec/01/"
+                "animal-review-ranbir-kapoor-sandeep-reddy-vanga"
+            ),
+            "score_or_consensus": "★ 1.0 / 5.0",
+        },
+        {
+            "portal_name": "Rotten Tomatoes",
+            "critic_name": "Critical Consensus",
+            "excerpt": (
+                "Animal divided critics sharply, with many condemning its "
+                "graphic violence, bloated runtime, and overt misogyny despite "
+                "praise for Ranbir Kapoor's commitment."
+            ),
+            "review_url": "https://www.rottentomatoes.com/m/animal_2023",
+            "score_or_consensus": "31% Rotten",
+        },
+    ],
     "the batman": [
         {
             "portal_name": "RogerEbert.com",
