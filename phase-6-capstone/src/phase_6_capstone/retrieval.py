@@ -120,50 +120,11 @@ class HybridMovieRetriever:
             # Bonus for exact title matches
             query_lower = query.lower()
             if rec.title.lower() in query_lower:
-                score += 25.0
+                score += 15.0
 
-            # Genre-aware intent matching
-            rec_genres_lower = {g.lower() for g in rec.genres}
-
-            # Romcom / Comedy / Romance intent
-            romcom_keywords = [
-                "romcom",
-                "romantic comedy",
-                "rom-com",
-                "comedy",
-                "romance",
-                "feel-good",
-                "fun",
-            ]
-            if any(k in query_lower for k in romcom_keywords):
-                if any(g in rec_genres_lower for g in ["romance", "comedy"]):
-                    score += 25.0
-                if "horror" in rec_genres_lower and not any(
-                    k in query_lower for k in ["horror", "slasher"]
-                ):
-                    score -= 40.0
-
-            # Horror / Slasher intent
-            horror_keywords = ["horror", "slasher", "spooky", "scary", "creepy"]
-            if any(k in query_lower for k in horror_keywords):
-                if "horror" in rec_genres_lower:
-                    score += 25.0
-
-            # Sci-Fi intent
-            scifi_keywords = [
-                "sci-fi",
-                "science fiction",
-                "space",
-                "alien",
-                "cyberpunk",
-            ]
-            if any(k in query_lower for k in scifi_keywords):
-                if "sci-fi" in rec_genres_lower:
-                    score += 25.0
-
-            # Bonus for high curator ratings
+            # Weighting for curator rating
             if rec.rating is not None:
-                score += rec.rating * 1.5
+                score += rec.rating * 0.5
 
             ranked_indices.append((score, rec))
 

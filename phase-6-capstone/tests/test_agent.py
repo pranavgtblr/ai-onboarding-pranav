@@ -76,6 +76,13 @@ async def test_agent_recommendation_flow_with_citations(agent_setup):
     assert "Bhoothakaalam" in state.final_response
     assert "★" in state.final_response
 
+    # Verify Multi-Source Reputed Critic Citations
+    assert len(state.critic_citations) >= 1
+    assert any(
+        "Hindu" in c.portal_name or "Film Companion" in c.portal_name
+        for c in state.critic_citations
+    )
+
 
 @pytest.mark.asyncio
 async def test_agent_taste_profile_learning(agent_setup):

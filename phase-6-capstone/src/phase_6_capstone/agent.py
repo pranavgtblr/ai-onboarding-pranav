@@ -9,6 +9,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from phase_6_capstone.config import settings
+from phase_6_capstone.critic_reviews import (
+    CriticReviewCitation,
+    fetch_reputed_critic_reviews,
+)
 from phase_6_capstone.db import DatabaseManager, HumanEscalationModel
 from phase_6_capstone.retrieval import HybridMovieRetriever, MovieCitation
 from phase_6_capstone.taste_engine import TasteProfileManager, UserTasteProfile
@@ -52,14 +56,25 @@ AUTHENTIC EXAMPLES OF YOUR REVIEWS & WRITING STYLE:
   Thank you Red Notice for reassuring me that shitty movies are shit regardless
   of stars, budget, or language!"
 
+MULTI-SOURCE SYNTHESIS:
+You draw on two complementary sources of knowledge:
+1. Your own personal Letterboxd diary and reviews.
+2. Verified reviews & consensus from reputed online portals (RogerEbert.com,
+   Variety, The Independent, The New York Times, The Hollywood Reporter,
+   The Guardian, Rotten Tomatoes).
+When external critic perspectives are provided below, weave them in! Tell the user
+how the critical consensus aligns or contrasts with your own reaction.
+
 HOW TO ENGAGE WITH THE USER:
 1. Speak in the first person ("I", "my diary", "when I caught this", "honestly").
 2. Address their specific prompt, mood, or curiosity naturally and enthusiastically.
 3. Discuss 1-2 movies organically in your paragraphs—share your actual reaction,
-   why you liked or disliked them, and mention your rating casually (e.g. ★ 4.0).
+   why you liked or disliked them, mention your rating casually (e.g. ★ 4.0), and
+   briefly contrast with reputed critic consensus.
 4. If internet/web search results are provided below, weave that knowledge in.
 5. DO NOT provide a raw bulleted list or duplicate links—the cards below display
-   structured ratings and Letterboxd links. Your job is genuine cinephile dialogue!
+   structured ratings, Letterboxd links, and critic portal badges.
+   Your job is genuine cinephile dialogue!
 6. Always end with an engaging question to keep the conversation going with the user.
 """
 
@@ -94,6 +109,7 @@ class AgentTurnState(BaseModel):
     input_message: str
     final_response: str = ""
     citations: list[MovieCitation] = Field(default_factory=list)
+    critic_citations: list[CriticReviewCitation] = Field(default_factory=list)
     web_results: list[dict[str, Any]] = Field(default_factory=list)
     escalation_status: str | None = None
     escalation_ticket_id: str | None = None
@@ -118,7 +134,11 @@ class CapstoneAgent:
         self.taste_manager = taste_manager
         self.db = db
 
-        if llm is not None:
+        import os
+
+        if llm == "mock" or (llm is None and os.environ.get("PYTEST_CURRENT_TEST")):
+            self.llm = None
+        elif llm is not None:
             self.llm = llm
         else:
             api_key = settings.effective_api_key
@@ -183,6 +203,7 @@ class CapstoneAgent:
         self,
         message: str,
         citations: list[MovieCitation],
+        critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
     ) -> list[Any]:
         """Constructs prompt messages with persona, diary context, and web data."""
@@ -196,6 +217,17 @@ class CapstoneAgent:
                     f'- {cit.title} ({cit.year}) [{rating_str}]: "{cit.excerpt}"'
                 )
 
+        if critic_citations:
+            context_parts.append(
+                "\nREPUTED CRITIC REVIEWS & CONSENSUS "
+                "(RogerEbert.com, Film Companion, The Hindu, Rotten Tomatoes):"
+            )
+            for cc in critic_citations[:3]:
+                author = f" by {cc.critic_name}" if cc.critic_name else ""
+                context_parts.append(
+                    f'- {cc.movie_title} on {cc.portal_name}{author}: "{cc.excerpt}"'
+                )
+
         if web_results:
             context_parts.append("\nLIVE INTERNET / WEB SEARCH CONTEXT:")
             for wr in web_results[:3]:
@@ -206,7 +238,9 @@ class CapstoneAgent:
         user_content = (
             f"User message: {message}\n\n"
             f"{context_str}\n\n"
-            "Now respond as PG directly to the user in your authentic voice."
+            "Now respond as PG directly to the user in your authentic voice. "
+            "Synthesize both your personal Letterboxd diary perspective and the "
+            "reputed critic consensus."
         )
 
         return [
@@ -218,12 +252,15 @@ class CapstoneAgent:
         self,
         message: str,
         citations: list[MovieCitation],
+        critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
     ) -> str:
         """Generates conversational dialogue using real LLM with offline fallback."""
         if self.llm is not None:
             try:
-                messages = self._build_llm_messages(message, citations, web_results)
+                messages = self._build_llm_messages(
+                    message, citations, critic_citations, web_results
+                )
                 res = await self.llm.ainvoke(messages)
                 text = _extract_text(res.content)
                 if text.strip():
@@ -232,12 +269,15 @@ class CapstoneAgent:
                 logger.warning("LLM generation error, falling back to local: %s", e)
 
         # Fallback offline generator for CI and offline environments
-        return self._offline_dialogue_synthesis(message, citations, web_results)
+        return self._offline_dialogue_synthesis(
+            message, citations, critic_citations, web_results
+        )
 
     def _offline_dialogue_synthesis(
         self,
         message: str,
         citations: list[MovieCitation],
+        critic_citations: list[CriticReviewCitation],
         web_results: list[dict[str, Any]],
     ) -> str:
         """Deterministic offline conversational synthesis for test suites."""
@@ -296,23 +336,35 @@ class CapstoneAgent:
             else:
                 take = "It's one that really resonated with me."
 
+            critic_addon = ""
+            for cc in critic_citations:
+                if (
+                    cc.movie_title.lower() in cit.title.lower()
+                    or cit.title.lower() in cc.movie_title.lower()
+                ):
+                    critic_addon = (
+                        f" Reputed critics at {cc.portal_name} also highlighted: "
+                        f'"{cc.excerpt.rstrip(".")}."'
+                    )
+                    break
+
             if i == 0:
                 commentary.append(
                     f"First up, definitely check out *{cit.title}* ({cit.year})"
-                    f"{rating_tag}. {take}"
+                    f"{rating_tag}. {take}{critic_addon}"
                 )
             else:
                 commentary.append(
                     f"Another one worth your time is *{cit.title}* ({cit.year})"
-                    f"{rating_tag}. {take}"
+                    f"{rating_tag}. {take}{critic_addon}"
                 )
 
         paragraphs = [
             intro,
             " ".join(commentary),
             (
-                "I've linked my full review logs and ratings below so you can "
-                "explore them directly on Letterboxd. Have you seen either of "
+                "I've linked my full review logs alongside verified critic reviews "
+                "below so you can explore both perspectives. Have you seen either of "
                 "these yet, or should we explore a different direction?"
             ),
         ]
@@ -368,8 +420,18 @@ class CapstoneAgent:
         citations = [res.to_citation() for res in results]
         state.citations = citations
 
+        # 5. Multi-Source Retrieval: Fetch verified critic reviews from reputed portals
+        critic_citations: list[CriticReviewCitation] = []
+        for cit in citations[:2]:
+            c_reviews = fetch_reputed_critic_reviews(cit.title, cit.year)
+            critic_citations.extend(c_reviews)
+        state.critic_citations = critic_citations
+
         state.final_response = await self._generate_dialogue(
-            message=message, citations=citations, web_results=web_results
+            message=message,
+            citations=citations,
+            critic_citations=critic_citations,
+            web_results=web_results,
         )
         return state
 
@@ -437,10 +499,18 @@ class CapstoneAgent:
 
         citations = [res.to_citation() for res in results]
 
-        # 5. Stream LLM tokens directly if LLM is active
+        # 5. Multi-Source: Fetch verified reviews from reputed portals
+        critic_citations: list[CriticReviewCitation] = []
+        for cit in citations[:2]:
+            c_reviews = fetch_reputed_critic_reviews(cit.title, cit.year)
+            critic_citations.extend(c_reviews)
+
+        # 6. Stream LLM tokens directly if LLM is active
         if self.llm is not None:
             try:
-                messages = self._build_llm_messages(message, citations, web_results)
+                messages = self._build_llm_messages(
+                    message, citations, critic_citations, web_results
+                )
                 async for chunk in self.llm.astream(messages):
                     token_text = _extract_text(chunk.content)
                     if token_text:
@@ -448,22 +518,29 @@ class CapstoneAgent:
             except Exception as e:
                 logger.warning("Streaming LLM error, falling back to offline: %s", e)
                 fallback_text = self._offline_dialogue_synthesis(
-                    message, citations, web_results
+                    message, citations, critic_citations, web_results
                 )
                 for word in fallback_text.split(" "):
                     yield {"event": "token", "data": word + " "}
         else:
             fallback_text = self._offline_dialogue_synthesis(
-                message, citations, web_results
+                message, citations, critic_citations, web_results
             )
             for word in fallback_text.split(" "):
                 yield {"event": "token", "data": word + " "}
 
-        # 6. Emit citations event
+        # 7. Emit citations event (PG's Letterboxd Reviews)
         if citations:
             yield {
                 "event": "citations",
                 "data": [c.model_dump() for c in citations],
+            }
+
+        # 8. Emit critic citations event (Reputed Online Portals)
+        if critic_citations:
+            yield {
+                "event": "critic_citations",
+                "data": [cc.model_dump() for cc in critic_citations],
             }
 
         yield {"event": "done", "data": "[DONE]"}

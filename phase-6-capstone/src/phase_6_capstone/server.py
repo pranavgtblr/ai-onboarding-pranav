@@ -44,6 +44,7 @@ class EscalateRequest(BaseModel):
 def create_app(
     db: DatabaseManager | None = None,
     initial_catalog: list[MovieRecord] | None = None,
+    agent: CapstoneAgent | None = None,
 ) -> FastAPI:
     """Application factory for PG Recommends FastAPI backend."""
     db_manager = db or DatabaseManager(settings.database_url)
@@ -56,7 +57,7 @@ def create_app(
 
     retriever = HybridMovieRetriever(list(movie_store.values()))
     taste_manager = TasteProfileManager(db_manager)
-    agent = CapstoneAgent(
+    curator_agent = agent or CapstoneAgent(
         retriever=retriever,
         taste_manager=taste_manager,
         db=db_manager,
@@ -131,7 +132,7 @@ def create_app(
     @app.post("/api/chat/stream")
     async def chat_stream(req: ChatStreamRequest):
         async def event_generator() -> AsyncGenerator[str, None]:
-            async for chunk in agent.stream_turn(
+            async for chunk in curator_agent.stream_turn(
                 tenant_id=req.tenant_id,
                 user_id=req.user_id,
                 conversation_id=req.conversation_id,

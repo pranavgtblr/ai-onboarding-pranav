@@ -135,3 +135,22 @@ def test_live_internet_cinema_search():
     assert len(results) >= 1
     assert any("Nolan" in r["title"] or "Nolan" in r["snippet"] for r in results)
     assert "source_url" in results[0]
+
+
+def test_reputed_critic_reviews_retrieval():
+    """Verify multi-source retrieval of reputed critic reviews and consensus."""
+    from phase_6_capstone.critic_reviews import fetch_reputed_critic_reviews
+
+    # Test retrieval for a classic like La La Land
+    reviews_lalaland = fetch_reputed_critic_reviews("La La Land", 2016)
+    assert len(reviews_lalaland) >= 1
+    portals = [r.portal_name for r in reviews_lalaland]
+    assert any("Rotten Tomatoes" in p or "RogerEbert" in p for p in portals)
+    assert reviews_lalaland[0].excerpt
+    assert reviews_lalaland[0].review_url.startswith("http")
+
+    # Test retrieval for Malayalam masterpiece Kumbalangi Nights
+    reviews_kn = fetch_reputed_critic_reviews("Kumbalangi Nights", 2019)
+    assert len(reviews_kn) >= 1
+    kn_portals = [r.portal_name for r in reviews_kn]
+    assert any("Hindu" in p or "Film Companion" in p for p in kn_portals)

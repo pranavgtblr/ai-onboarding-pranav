@@ -98,6 +98,7 @@ export default function App() {
       const decoder = new TextDecoder('utf-8');
       let streamedText = '';
       let citations = [];
+      let criticCitations = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -122,6 +123,7 @@ export default function App() {
                     role: 'assistant',
                     text: streamedText,
                     citations: citations,
+                    criticCitations: criticCitations,
                     isStreaming: true
                   };
                   return updated;
@@ -134,6 +136,20 @@ export default function App() {
                     role: 'assistant',
                     text: streamedText,
                     citations: citations,
+                    criticCitations: criticCitations,
+                    isStreaming: true
+                  };
+                  return updated;
+                });
+              } else if (eventData.event === 'critic_citations') {
+                criticCitations = eventData.data;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1] = {
+                    role: 'assistant',
+                    text: streamedText,
+                    citations: citations,
+                    criticCitations: criticCitations,
                     isStreaming: true
                   };
                   return updated;
@@ -155,7 +171,12 @@ export default function App() {
 
       setMessages(prev => {
         const updated = [...prev];
-        updated[updated.length - 1].isStreaming = false;
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          isStreaming: false,
+          citations: citations,
+          criticCitations: criticCitations
+        };
         return updated;
       });
     } catch (err) {
@@ -370,9 +391,12 @@ export default function App() {
                 <div className="bubble-content">
                   <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
 
-                  {/* Render Verified Movie Recommendation Cards */}
+                  {/* Multi-Source 1: PG's Letterboxd Diary Reviews */}
                   {msg.citations && msg.citations.length > 0 && (
                     <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div className="source-group-title">
+                        <span>PG's Letterboxd Diary</span>
+                      </div>
                       {msg.citations.map((cit, cIdx) => (
                         <div key={cIdx} className="movie-rec-card">
                           <div className="rec-card-header">
@@ -392,6 +416,37 @@ export default function App() {
                           >
                             <ExternalLink size={12} />
                             <span>View Review on Letterboxd</span>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Multi-Source 2: Reputed Online Critic Reviews & Portals */}
+                  {msg.criticCitations && msg.criticCitations.length > 0 && (
+                    <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div className="source-group-title critic-source-title">
+                        <span>Reputed Online Critic Portals & Web Sources</span>
+                      </div>
+                      {msg.criticCitations.map((crit, crIdx) => (
+                        <div key={crIdx} className="critic-rec-card">
+                          <div className="rec-card-header">
+                            <span className="critic-portal-badge">{crit.portal_name}</span>
+                            {crit.critic_name && (
+                              <span className="critic-author">{crit.critic_name}</span>
+                            )}
+                          </div>
+                          <div className="rec-quote">
+                            "{crit.excerpt ? crit.excerpt.replace(/&#039;/g, "'").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&') : ''}"
+                          </div>
+                          <a 
+                            href={crit.review_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="critic-link-btn"
+                          >
+                            <ExternalLink size={12} />
+                            <span>Read on {crit.portal_name}</span>
                           </a>
                         </div>
                       ))}
