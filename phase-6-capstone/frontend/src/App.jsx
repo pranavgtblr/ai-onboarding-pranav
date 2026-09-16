@@ -38,6 +38,7 @@ export default function App() {
   const [isEscalateOpen, setIsEscalateOpen] = useState(false);
   const [escalateReason, setEscalateReason] = useState('');
   const [escalationTicket, setEscalationTicket] = useState(null);
+  const [mobileTab, setMobileTab] = useState('chat'); // 'chat' | 'taste' | 'diary'
 
   const messagesEndRef = useRef(null);
 
@@ -277,7 +278,8 @@ export default function App() {
             title="Sync latest reviews from letterboxd.com/pranavg/rss/"
           >
             <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
-            <span>{isSyncing ? "Syncing..." : "Sync Letterboxd"}</span>
+            <span className="btn-label-desktop">{isSyncing ? "Syncing..." : "Sync Letterboxd"}</span>
+            <span className="btn-label-mobile">{isSyncing ? "Sync..." : "Sync"}</span>
           </button>
 
           <button 
@@ -285,15 +287,44 @@ export default function App() {
             onClick={() => setIsEscalateOpen(true)}
           >
             <MessageSquareShare size={15} />
-            <span>Ask PG Directly</span>
+            <span className="btn-label-desktop">Ask PG Directly</span>
+            <span className="btn-label-mobile">Ask PG</span>
           </button>
         </div>
       </header>
 
+      {/* Mobile Tab Segmented Switcher (visible on mobile / small screens) */}
+      <nav className="mobile-nav-bar" aria-label="Mobile View Navigation">
+        <button 
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'chat' ? 'active' : ''}`}
+          onClick={() => setMobileTab('chat')}
+        >
+          <Sparkles size={14} />
+          <span>Chat</span>
+        </button>
+        <button 
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'taste' ? 'active' : ''}`}
+          onClick={() => setMobileTab('taste')}
+        >
+          <Compass size={14} />
+          <span>Taste Radar</span>
+        </button>
+        <button 
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'diary' ? 'active' : ''}`}
+          onClick={() => setMobileTab('diary')}
+        >
+          <Film size={14} />
+          <span>PG's Diary</span>
+        </button>
+      </nav>
+
       {/* Main 3-Column Glass Layout */}
       <main className="main-layout">
         {/* Left Column: Taste Radar */}
-        <aside className="sidebar-left glass-pane">
+        <aside className={`sidebar-left glass-pane ${mobileTab === 'taste' ? 'mobile-visible' : ''}`}>
           <div className="pane-header">
             <span className="pane-title">
               <Compass size={17} color="#40bcf4" />
@@ -368,7 +399,7 @@ export default function App() {
         </aside>
 
         {/* Center Stage: Chat Feed */}
-        <section className="chat-container glass-pane">
+        <section className={`chat-container glass-pane ${mobileTab === 'chat' ? 'mobile-visible' : ''}`}>
           <div className="pane-header">
             <span className="pane-title">
               <Sparkles size={17} color="#00e054" />
@@ -381,15 +412,40 @@ export default function App() {
 
           <div className="chat-history">
             {messages.map((msg, idx) => (
-              <div key={idx} className={`chat-bubble ${msg.role}`}>
+              <div 
+                key={idx} 
+                className={`chat-bubble ${msg.role} ${msg.isStreaming && !msg.text ? 'is-thinking' : ''}`}
+              >
                 {msg.role === 'assistant' && (
                   <div className="curator-tagline">
                     <UserCheck size={13} />
                     <span>PG's Take</span>
+                    {msg.isStreaming && (
+                      <span className="live-thinking-indicator">
+                        <span className="live-pulse"></span>
+                        {msg.text ? 'Streaming' : 'Consulting diary...'}
+                      </span>
+                    )}
                   </div>
                 )}
                 <div className="bubble-content">
-                  <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
+                  {msg.isStreaming && !msg.text ? (
+                    <div className="thinking-container">
+                      <div className="thinking-dots">
+                        <span className="thinking-dot dot-1"></span>
+                        <span className="thinking-dot dot-2"></span>
+                        <span className="thinking-dot dot-3"></span>
+                      </div>
+                      <span className="thinking-label">
+                        Consulting Letterboxd diary, ratings & critic reviews...
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ whiteSpace: 'pre-line' }}>
+                      {msg.text}
+                      {msg.isStreaming && <span className="streaming-cursor"></span>}
+                    </div>
+                  )}
 
                   {/* Multi-Source 1: PG's Letterboxd Diary & Acclaimed Cinema */}
                   {msg.citations && msg.citations.length > 0 && (
@@ -490,7 +546,7 @@ export default function App() {
         </section>
 
         {/* Right Sidebar: Recent Letterboxd Watches & Starter Chips */}
-        <aside className="sidebar-right glass-pane">
+        <aside className={`sidebar-right glass-pane ${mobileTab === 'diary' ? 'mobile-visible' : ''}`}>
           <div className="pane-header">
             <span className="pane-title">
               <Film size={17} color="#00e054" />
@@ -506,7 +562,10 @@ export default function App() {
               <div 
                 key={i} 
                 className="movie-mini-card"
-                onClick={() => handleSend(`Tell me your full thoughts on ${movie.title} (${movie.year})`)}
+                onClick={() => {
+                  handleSend(`Tell me your full thoughts on ${movie.title} (${movie.year})`);
+                  setMobileTab('chat');
+                }}
               >
                 <div className="mini-card-title">
                   <span>{movie.title}</span>
@@ -528,7 +587,10 @@ export default function App() {
                 <button
                   key={i}
                   className="quick-chip"
-                  onClick={() => handleSend(prompt)}
+                  onClick={() => {
+                    handleSend(prompt);
+                    setMobileTab('chat');
+                  }}
                   disabled={isStreaming}
                 >
                   "{prompt}"
