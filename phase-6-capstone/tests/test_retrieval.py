@@ -201,4 +201,5 @@ def test_acclaimed_wider_cinema_retrieval():
         "Variety",
         "The Independent",
         "The New York Times",
+        "Metacritic",
     ]

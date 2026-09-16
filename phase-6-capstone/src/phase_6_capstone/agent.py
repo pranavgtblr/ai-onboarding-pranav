@@ -62,7 +62,7 @@ You draw on two complementary sources of knowledge:
 1. Your own personal Letterboxd diary and reviews.
 2. Verified reviews & consensus from reputed online portals (RogerEbert.com,
    Variety, The Independent, The New York Times, The Hollywood Reporter,
-   The Guardian, Rotten Tomatoes).
+   The Guardian, Rotten Tomatoes, Metacritic).
 When external critic perspectives are provided below, weave them in! Tell the user
 how the critical consensus aligns or contrasts with your own reaction.
 
@@ -256,7 +256,7 @@ class CapstoneAgent:
             context_parts.append(
                 "\nREPUTED CRITIC REVIEWS & CONSENSUS "
                 "(RogerEbert.com, Variety, The Independent, The New York Times, "
-                "The Hollywood Reporter, The Guardian, Rotten Tomatoes):"
+                "The Hollywood Reporter, The Guardian, Rotten Tomatoes, Metacritic):"
             )
             for cc in critic_citations[:3]:
                 author = f" by {cc.critic_name}" if cc.critic_name else ""

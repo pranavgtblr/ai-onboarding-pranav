@@ -91,6 +91,7 @@ async def test_agent_recommendation_flow_with_citations(agent_setup):
             "The Hollywood Reporter",
             "The Guardian",
             "Rotten Tomatoes",
+            "Metacritic",
         ]
 
 

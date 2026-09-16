@@ -1,7 +1,7 @@
 """Dynamic Acclaimed Wider Cinema Registry & Retrieval for PG Recommends.
 
 Discovers acclaimed cinema outside PG's personal Letterboxd diary in real time,
-synthesizing critical consensus and reception strictly from the 7 allowed review
+synthesizing critical consensus and reception from allowed reliable review
 sources:
 - RogerEbert.com
 - Variety
@@ -10,6 +10,7 @@ sources:
 - The Hollywood Reporter
 - The Guardian
 - Rotten Tomatoes
+- Metacritic
 """
 
 import html

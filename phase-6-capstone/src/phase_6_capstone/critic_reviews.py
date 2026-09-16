@@ -1,6 +1,6 @@
 """Multi-Source Reputed Critic Review Retrieval Engine for PG Recommends.
 
-Fetches and extracts reviews and consensus from ONLY the 7 allowed portals:
+Fetches and extracts reviews and consensus from the allowed reliable portals:
 - RogerEbert.com
 - Variety
 - The Independent
@@ -8,6 +8,7 @@ Fetches and extracts reviews and consensus from ONLY the 7 allowed portals:
 - The Hollywood Reporter
 - The Guardian
 - Rotten Tomatoes
+- Metacritic
 """
 
 import html
@@ -31,6 +32,7 @@ ALLOWED_CRITIC_PORTALS: set[str] = {
     "The Hollywood Reporter",
     "The Guardian",
     "Rotten Tomatoes",
+    "Metacritic",
 }
 
 
@@ -329,6 +331,10 @@ def _extract_portal_citations_from_wikitext(
             "The Guardian",
             r"(?:The Guardian|Peter Bradshaw|Wendy Ide|Mark Kermode)"
             r".*?[\"“](.*?)[\"”]",
+        ),
+        (
+            "Metacritic",
+            r"(?:Metacritic|Metascore).*?[\"“](.*?)[\"”]",
         ),
     ]
 
