@@ -71,8 +71,8 @@
 - [x] Phase 6 - Capstone           (6.1  - 6.4)
   - [x] 6.1 Design doc before any code: sources, retrieval strategy, agent graph, state schema, tenant isolation model, eval plan.
   - [x] 6.2 Build it. Deploy it somewhere reachable: Multi-source hybrid retrieval over reviews.csv, live Letterboxd RSS syncer, stateful LangGraph agent, human escalation handoff, and frosted-glass React UI.
-  - [x] 6.3 Comprehensive evaluation suite with quantitative benchmark numbers (Recall@5, NDCG, citation fidelity, taste learning agreement).
-  - [x] 6.4 Security penetration test report (SECURITY_REPORT.md) & production deployment sign-off.
+  - [x] 6.3 Ship the eval report and the security test report alongside it (reports/EVALUATION_REPORT.md and SECURITY_REPORT.md).
+  - [x] 6.4 Demo it, plus a written walkthrough of one thing that failed and how you diagnosed it (FAILURE_WALKTHROUGH.md).
 
 
 

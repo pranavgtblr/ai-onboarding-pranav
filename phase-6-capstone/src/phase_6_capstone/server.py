@@ -1,10 +1,13 @@
 """FastAPI Streaming Server and API Gateway for PG Recommends."""
 
 import json
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
+
+logger = logging.getLogger(__name__)
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -132,14 +135,21 @@ def create_app(
     @app.post("/api/chat/stream")
     async def chat_stream(req: ChatStreamRequest):
         async def event_generator() -> AsyncGenerator[str, None]:
-            async for chunk in curator_agent.stream_turn(
-                tenant_id=req.tenant_id,
-                user_id=req.user_id,
-                conversation_id=req.conversation_id,
-                message=req.message,
-            ):
-                payload = json.dumps(chunk)
-                yield f"data: {payload}\n\n"
+            try:
+                async for chunk in curator_agent.stream_turn(
+                    tenant_id=req.tenant_id,
+                    user_id=req.user_id,
+                    conversation_id=req.conversation_id,
+                    message=req.message,
+                ):
+                    payload = json.dumps(chunk)
+                    yield f"data: {payload}\n\n"
+            except Exception as exc:
+                logger.error("Unhandled error in stream_turn: %s", exc, exc_info=True)
+                error_payload = json.dumps({"event": "error", "data": str(exc)})
+                yield f"data: {error_payload}\n\n"
+                done_payload = json.dumps({"event": "done", "data": "[DONE]"})
+                yield f"data: {done_payload}\n\n"
 
         return StreamingResponse(
             event_generator(),

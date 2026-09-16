@@ -25,6 +25,4 @@ RUN uv sync --no-dev
 # Copy built frontend from Stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-EXPOSE 8000
-
-CMD ["uv", "run", "uvicorn", "phase_6_capstone.server:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uv run uvicorn phase_6_capstone.server:create_app --factory --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,9 +1,10 @@
 """Stateful LangGraph Agent for PG Recommends with Real LLM & Internet Search."""
 
+import json
 import logging
 import re
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -141,128 +142,143 @@ You must detect the user's intent and respond with the appropriate conversationa
 """
 
 
-def _detect_correction_and_exclusions(message: str) -> tuple[bool, set[str]]:
-    """Detects if user is correcting the assistant or rejecting a title."""
-    m_low = message.lower()
-    is_correction = any(
-        phrase in m_low
-        for phrase in [
-            "is not an",
-            "is not a",
-            "isn't an",
-            "isn't a",
-            "was not an",
-            "wasn't an",
-            "not an action",
-            "not a movie",
-            "not action",
-            "not horror",
-            "not comedy",
-            "not what i asked",
-            "that's not",
-            "thats not",
-            "wrong movie",
-            "wrong genre",
-            "documentary",
-        ]
-    )
-    excluded: set[str] = set()
-    match = re.search(r"([a-zA-Z0-9\s]+?)\s+(?:is not|isn't|wasn't|was not)", m_low)
-    if match:
-        name = match.group(1).strip()
-        if len(name) > 2 and name not in CINEMA_STOPWORDS:
-            excluded.add(name)
-            if name.endswith("e"):
-                excluded.add(name[:-1])
-    return is_correction, excluded
+# ---------------------------------------------------------------------------
+# Intent Classification
+# ---------------------------------------------------------------------------
+
+INTENT_CLASSIFIER_PROMPT = """You are a precise intent classifier for a conversational film-recommendation chatbot.
+
+Analyse the CURRENT USER MESSAGE together with the CONVERSATION HISTORY (last 2 turns)
+and return a single JSON object — nothing else.
+
+JSON schema:
+{
+  "intent": one of ["single_movie_query", "discovery", "correction", "debate", "escalation", "chitchat"],
+  "movie_title": string or null,   // the specific film being discussed, if any
+  "movie_year":  integer or null,  // year extracted from message, if any
+  "correction_note": string or null, // what was wrong in the prior recommendation, if this is a correction
+  "rejected_titles": [string]      // list of film titles the user is explicitly rejecting / saying are wrong picks
+}
+
+INTENT DEFINITIONS:
+- "single_movie_query": The user is asking specifically about ONE named film
+  (e.g. "What about Joker?", "Thoughts on Animal (2023)?", "Did you like Hereditary?",
+   "Why did you give that 1 star?", "Is Barbie good?").
+- "discovery": The user wants mood-based or genre-based recommendations
+  (e.g. "I want feel-good movies", "suggest action films", "something like La La Land").
+- "correction": The user is telling the assistant that a prior suggestion was WRONG —
+  wrong genre, wrong vibe, doesn't fit the ask, or they explicitly say the suggestion is
+  not what they wanted (e.g. "Joker is not feel-good", "that's dark, not fun",
+  "I asked for action, not drama", "that wasn't what I meant"). Corrections almost always
+  reference something said in the PREVIOUS assistant turn.
+- "debate": The user disagrees with PG's opinion about a film and wants to discuss it.
+- "escalation": The user wants to speak to the real human PG / escalate.
+- "chitchat": General conversation not about a specific film or recommendation.
+
+RULES:
+- If the user names a film AND also says it is wrong/not what they wanted, classify as
+  "correction" and put that film in rejected_titles.
+- If the user says "what about X?" or "did you like X?", it is "single_movie_query" even
+  if X is a film the assistant just mentioned.
+- movie_title and movie_year should only be set for "single_movie_query" or "debate".
+- Always return raw JSON only — no markdown, no explanation."""
 
 
-def _detect_target_movie_query(
+class IntentClassification(BaseModel):
+    """Structured result of the LLM intent classifier."""
+
+    intent: Literal[
+        "single_movie_query", "discovery", "correction", "debate", "escalation", "chitchat"
+    ] = "discovery"
+    movie_title: str | None = None
+    movie_year: int | None = None
+    correction_note: str | None = None
+    rejected_titles: list[str] = Field(default_factory=list)
+
+
+def _resolve_catalog_movie(
+    title: str | None, year: int | None, catalog: list[MovieRecord]
+) -> tuple[MovieRecord | None, str | None]:
+    """Match a title (and optional year) against the local catalog."""
+    if not title:
+        return None, None
+    t_low = title.lower().strip()
+    # Exact match with year
+    if year:
+        for rec in catalog:
+            if rec.title.lower() == t_low and rec.year == year:
+                return rec, rec.title
+    # Exact match without year
+    for rec in catalog:
+        if rec.title.lower() == t_low:
+            return rec, rec.title
+    # Partial match
+    for rec in catalog:
+        if t_low in rec.title.lower() or rec.title.lower() in t_low:
+            return rec, rec.title
+    return None, title
+
+
+def _heuristic_intent_fallback(
     message: str, catalog: list[MovieRecord]
-) -> tuple[bool, MovieRecord | None, str | None]:
-    """Detects if user is asking about a specific movie rather than recommendations."""
-    m = message.strip().rstrip("?.,!").strip()
-    m_low = m.lower()
+) -> IntentClassification:
+    """Regex-based fallback used when the LLM classifier is unavailable."""
+    m_low = message.lower().strip().rstrip("?.,!")
 
-    # If message contains recommendation/discovery keywords without direct query
-    # prefix, it is a recommendation request
-    discovery_triggers = [
-        "recommend",
-        "suggest",
-        "movies like",
-        "films like",
-        "top movies",
-        "best movies",
-        "explore",
-        "looking for",
-        "something like",
-        "give me",
-        "show me",
+    # Escalation
+    escalation_phrases = [
+        "escalate to pg", "talk to pg", "speak to pg", "ask pg directly",
+        "human curator", "real human", "festival curation", "urgent request", "customer service",
     ]
-    if any(dt in m_low for dt in discovery_triggers) and not any(
-        m_low.startswith(p)
-        for p in ["what about", "thoughts on", "have you seen", "what do you think"]
-    ):
-        return False, None, None
+    if any(p in m_low for p in escalation_phrases):
+        return IntentClassification(intent="escalation")
 
-    # 1. Year pattern in message: e.g. 'Animal (2023)' or 'What about animal (2023)?'
-    ym = re.search(r"([a-zA-Z0-9\s:,'-]+?)\s*\(((?:19|20)\d{2})\)", m)
-    if ym:
-        t_cand, y_cand = ym.group(1).strip().lower(), int(ym.group(2))
-        t_clean = re.sub(
-            r"^(?:what about|how about|thoughts on|what do you think of|"
-            r"have you seen|have you watched|did you see|did you watch|"
-            r"did you like|tell me about)\s+",
-            "",
-            t_cand,
-        ).strip()
-        for rec in catalog:
-            if (
-                rec.title.lower() == t_clean
-                or t_clean in rec.title.lower()
-                or rec.title.lower() in t_clean
-            ) and rec.year == y_cand:
-                return True, rec, rec.title
-        for rec in catalog:
-            if rec.title.lower() == t_clean or t_clean == rec.title.lower():
-                return True, rec, rec.title
-        return True, None, t_clean
+    # Correction — broad set of patterns
+    correction_phrases = [
+        "is not", "isn't", "was not", "wasn't", "not what i asked",
+        "that's not", "thats not", "wrong movie", "wrong genre", "not feel-good",
+        "not an action", "not a comedy", "not horror", "not what i wanted",
+        "doesn't fit", "does not fit", "that's dark", "too dark",
+    ]
+    if any(p in m_low for p in correction_phrases):
+        excluded: list[str] = []
+        match = re.search(r"([a-zA-Z0-9\s]+?)\s+(?:is not|isn't|wasn't|was not)", m_low)
+        if match:
+            name = match.group(1).strip()
+            if len(name) > 2 and name not in CINEMA_STOPWORDS:
+                excluded.append(name)
+        return IntentClassification(intent="correction", rejected_titles=excluded)
 
-    # 2. Explicit inquiry phrasing
-    inquiry_patterns = [
+    # Single-movie inquiry patterns
+    inquiry_prefixes = [
         r"^(?:what about|how about)\s+(.+)",
         r"^(?:what do you think of|what did you think of)\s+(.+)",
         r"^(?:thoughts on|your thoughts on)\s+(.+)",
         r"^(?:have you seen|have you watched|did you see|did you watch)\s+(.+)",
         r"^(?:did you like|do you like)\s+(.+)",
         r"^(?:how is|how was)\s+(.+)",
-        r"^(?:tell me about|review of|review for|rating for|what did you rate)\s+(.+)",
-        r"^(?:why did you (?:give|rate))\s+(.+)",
+        r"^(?:tell me about|review of|rating for|what did you rate)\s+(.+)",
     ]
-    for pat in inquiry_patterns:
+    for pat in inquiry_prefixes:
         mat = re.search(pat, m_low)
         if mat:
-            cand = mat.group(1).strip()
-            cand_clean = re.sub(r"\s*\(((?:19|20)\d{2})\)", "", cand).strip()
-            for rec in catalog:
-                if rec.title.lower() == cand_clean:
-                    return True, rec, rec.title
-            for rec in catalog:
-                if len(cand_clean) >= 3 and (
-                    cand_clean == rec.title.lower()
-                    or rec.title.lower().startswith(cand_clean)
-                ):
-                    return True, rec, rec.title
-            return True, None, cand_clean
+            cand = re.sub(r"\s*\(((?:19|20)\d{2})\)", "", mat.group(1)).strip()
+            ym = re.search(r"\(((?:19|20)\d{2})\)", mat.group(1))
+            year = int(ym.group(1)) if ym else None
+            return IntentClassification(
+                intent="single_movie_query", movie_title=cand, movie_year=year
+            )
 
-    # 3. Direct title-only query: e.g. 'Animal', 'The Batman', 'Inception'
-    words = m.split()
-    if len(words) <= 4:
-        for rec in catalog:
-            if rec.title.lower() == m_low:
-                return True, rec, rec.title
+    # Year-annotated title anywhere: e.g. 'Animal (2023)'
+    ym2 = re.search(r"([a-zA-Z0-9\s:,'-]+?)\s*\(((?:19|20)\d{2})\)", message)
+    if ym2:
+        return IntentClassification(
+            intent="single_movie_query",
+            movie_title=ym2.group(1).strip(),
+            movie_year=int(ym2.group(2)),
+        )
 
-    return False, None, None
+    return IntentClassification(intent="discovery")
 
 
 def _extract_text(content: Any) -> str:
@@ -284,6 +300,22 @@ def _extract_text(content: Any) -> str:
                     parts.append(text_val)
         return "".join(parts)
     return str(content) if content else ""
+
+
+# Strings that are known to be generic fallback placeholders and should never
+# be shown to the user as actual critic commentary.
+_GENERIC_CRITIC_PHRASES: tuple[str, ...] = (
+    "critically reviewed and analyzed across major film publications",
+    "verified listing",
+    "aggregator portals",
+)
+
+
+def _is_generic_critic_excerpt(excerpt: str) -> bool:
+    """Returns True when the critic excerpt is a meaningless fallback placeholder."""
+    lower = excerpt.lower()
+    return any(phrase in lower for phrase in _GENERIC_CRITIC_PHRASES)
+
 
 
 class AgentTurnState(BaseModel):
@@ -345,20 +377,74 @@ class CapstoneAgent:
                 self.llm = None
 
     def is_escalation_intent(self, message: str) -> bool:
-        """Determines if the message requires escalation to human curator (PG)."""
+        """Determines if the message requires escalation (heuristic fast-path)."""
         lower = message.lower()
         triggers = [
-            "escalate to pg",
-            "talk to pg",
-            "speak to pg",
-            "ask pg directly",
-            "human curator",
-            "real human",
-            "festival curation",
-            "urgent request",
-            "customer service",
+            "escalate to pg", "talk to pg", "speak to pg", "ask pg directly",
+            "human curator", "real human", "festival curation",
+            "urgent request", "customer service",
         ]
         return any(trig in lower for trig in triggers)
+
+    async def _classify_intent(
+        self,
+        message: str,
+        history: list[dict[str, str]],
+        catalog: list[MovieRecord],
+    ) -> IntentClassification:
+        """Classifies user intent via a fast structured LLM call.
+
+        Falls back to regex heuristics when no LLM is available so that the
+        agent can still operate in offline / test environments.
+        """
+        # Fast-path heuristic for escalation (avoids LLM cost)
+        if self.is_escalation_intent(message):
+            return IntentClassification(intent="escalation")
+
+        if self.llm is None:
+            return _heuristic_intent_fallback(message, catalog)
+
+        # Build a lightweight classifier call — temperature=0, tiny context window
+        recent_turns = history[-4:]  # last 2 user+assistant pairs
+        history_text = ""
+        for turn in recent_turns:
+            role = "User" if turn.get("role") == "user" else "Assistant"
+            history_text += f"{role}: {turn.get('content', '')[:300]}\n"
+
+        classifier_user = (
+            f"CONVERSATION HISTORY (last 2 turns):\n{history_text}\n"
+            f"CURRENT USER MESSAGE: {message}\n\n"
+            "Return the JSON intent object now."
+        )
+
+        try:
+            import asyncio
+
+            # Use a low-temperature variant of the same LLM for structured output
+            from langchain_google_genai import ChatGoogleGenerativeAI
+
+            classifier_llm = ChatGoogleGenerativeAI(
+                model=self.llm.model,
+                google_api_key=self.llm.google_api_key,
+                temperature=0,
+            )
+            resp = await asyncio.wait_for(
+                classifier_llm.ainvoke(
+                    [
+                        SystemMessage(content=INTENT_CLASSIFIER_PROMPT),
+                        HumanMessage(content=classifier_user),
+                    ]
+                ),
+                timeout=4.0,
+            )
+            raw = _extract_text(resp.content).strip()
+            # Strip markdown fences if present
+            raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
+            data = json.loads(raw)
+            return IntentClassification(**data)
+        except Exception as err:
+            logger.warning("Intent classifier failed, using heuristic fallback: %s", err)
+            return _heuristic_intent_fallback(message, catalog)
 
     async def _handle_escalation(self, state: AgentTurnState) -> AgentTurnState:
         """Creates a formal human escalation ticket in PostgreSQL."""
@@ -613,10 +699,11 @@ class CapstoneAgent:
 
             critic_part = ""
             for cc in critic_citations:
+                # Only include critic excerpts that are real, not the generic fallback
                 if (
                     cc.movie_title.lower() in target_movie.title.lower()
                     or target_movie.title.lower() in cc.movie_title.lower()
-                ):
+                ) and not _is_generic_critic_excerpt(cc.excerpt):
                     critic_part = (
                         f" Reputed critics at {cc.portal_name} also pointed out: "
                         f'"{cc.excerpt.rstrip(".")}."'
@@ -675,10 +762,11 @@ class CapstoneAgent:
             critic_part = ""
             if critic_citations:
                 cc = critic_citations[0]
-                critic_part = (
-                    f" Looking at reputed critic consensus from {cc.portal_name}: "
-                    f'"{cc.excerpt.rstrip(".")}."'
-                )
+                if not _is_generic_critic_excerpt(cc.excerpt):
+                    critic_part = (
+                        f" Looking at reputed critic consensus from {cc.portal_name}: "
+                        f'"{cc.excerpt.rstrip(".")}."'
+                    )
             elif web_results:
                 wr = web_results[0]
                 critic_part = (
@@ -699,67 +787,41 @@ class CapstoneAgent:
             ]
             return "\n\n".join(paragraphs)
 
-        if not citations and not web_results:
-            return (
-                "I couldn't spot any films in my diary directly matching that. "
-                "Give me a bit more to go on—what directors, moods, or "
-                "tropes are you feeling?"
-            )
+        # Filter out low-rated diary entries from discovery responses
+        # (never recommend something PG rated ≤ 2.5 in a discovery context)
+        good_citations = [
+            c for c in citations
+            if c.source_type != "letterboxd" or (c.rating is not None and c.rating >= 2.5)
+        ]
 
-        m_lower = message.lower()
+        if not good_citations and not web_results:
+            return (
+                "Nothing in my diary is jumping out as a strong match for that right "
+                "now. Give me a bit more to go on—what directors, moods, or "
+                "specific vibes are you after?"
+            )
 
         if is_correction:
             intro = (
-                "You're completely right, my mistake on that! Let's correct course "
-                "immediately and focus on genuine picks that fit what you're craving."
-            )
-        elif any(
-            k in m_lower
-            for k in [
-                "action",
-                "stunt",
-                "martial arts",
-                "combat",
-                "thrills",
-                "blockbuster",
-            ]
-        ):
-            intro = (
-                "If you're looking for adrenaline and kinetic craft, here are "
-                "proper action movies with real weight, momentum, and impact."
-            )
-        elif any(
-            k in m_lower
-            for k in [
-                "romcom",
-                "romantic comedy",
-                "rom-com",
-                "comedy",
-                "feel-good",
-                "fun",
-            ]
-        ):
-            intro = (
-                "If you're asking me for a romcom or something feel-good, let me save "
-                "you from the generic algorithm sludge."
-            )
-        elif any(
-            k in m_lower
-            for k in ["horror", "slasher", "spooky", "scary", "creepy", "chilling"]
-        ):
-            intro = (
-                "If you're in the mood for genuine atmosphere and dread—the kind that "
-                "avoids cheap jump scares and actually gets under your skin—these "
-                "immediately come to mind."
+                "You're right, my bad. Let me think of something that actually fits."
             )
         else:
-            intro = (
-                "Let's talk cinema! Based on what you're craving and your taste, "
-                "here's what I'd genuinely recommend diving into."
-            )
+            # Derive a natural opener from the top citation rather than hardcoded genre text
+            top = good_citations[0] if good_citations else None
+            if top and top.source_type == "letterboxd" and top.rating and top.rating >= 4.0:
+                intro = (
+                    f"*{top.title}* is the first thing that comes to mind honestly."
+                )
+            elif top and top.source_type == "acclaimed_cinema":
+                intro = (
+                    f"Something from outside my diary that fits perfectly is "
+                    f"*{top.title}*."
+                )
+            else:
+                intro = "Here's what I'd genuinely point you towards."
 
         commentary = []
-        for i, cit in enumerate(citations[:3]):
+        for i, cit in enumerate(good_citations[:3]):
             clean_snippet = cit.excerpt.strip().rstrip(".").strip()
             clean_snippet = (
                 clean_snippet.replace("&#039;", "'")
@@ -769,58 +831,45 @@ class CapstoneAgent:
             )
 
             if cit.source_type == "acclaimed_cinema":
-                rating_tag = f" [{cit.source_portal} Acclaimed]"
-                take = f'Critical consensus celebrates: "{clean_snippet}."'
-                source_intro = (
-                    "Going beyond my personal diary into wider acclaimed cinema"
-                )
-            else:
-                rating_tag = f" (logged it at ★ {cit.rating:.1f})" if cit.rating else ""
-                source_intro = "From my own Letterboxd diary"
-                if clean_snippet and not clean_snippet.startswith("Rated "):
-                    take = f'My take on it was: "{clean_snippet}."'
+                rating_tag = f" [{cit.source_portal}]"
+                # For acclaimed cinema use the excerpt only if it's a real description
+                if clean_snippet and len(clean_snippet) > 40 and not clean_snippet.startswith("The ") or len(clean_snippet) > 80:
+                    take = f'"{clean_snippet}."'
                 else:
-                    take = "It's one that really resonated with me."
+                    take = "Critically acclaimed and widely celebrated."
+                source_note = "Beyond my diary"
+            else:
+                rating_tag = f" (★ {cit.rating:.1f})" if cit.rating else ""
+                source_note = "In my diary"
+                if clean_snippet and not clean_snippet.startswith("Rated "):
+                    take = f'"{clean_snippet}."'
+                else:
+                    take = "It really resonated with me."
 
             critic_addon = ""
             for cc in critic_citations:
                 if (
                     cc.movie_title.lower() in cit.title.lower()
                     or cit.title.lower() in cc.movie_title.lower()
-                ):
+                ) and not _is_generic_critic_excerpt(cc.excerpt):
                     critic_addon = (
-                        f" Reputed critics at {cc.portal_name} also highlighted: "
+                        f" {cc.portal_name} wrote: "
                         f'"{cc.excerpt.rstrip(".")}."'
                     )
                     break
 
-            rec_verb = (
-                "definitely check out"
-                if (cit.rating or 4.0) >= 3.5
-                else "take a look at"
-            )
             if i == 0:
                 commentary.append(
-                    f"{source_intro}, {rec_verb} *{cit.title}* ({cit.year})"
-                    f"{rating_tag}. {take}{critic_addon}"
+                    f"*{cit.title}* ({cit.year}){rating_tag} — {take}{critic_addon}"
                 )
             else:
                 commentary.append(
-                    f"{source_intro}, another standout is *{cit.title}* ({cit.year})"
-                    f"{rating_tag}. {take}{critic_addon}"
+                    f"{source_note}, *{cit.title}* ({cit.year}){rating_tag} — {take}{critic_addon}"
                 )
 
-        paragraphs = [
-            intro,
-            " ".join(commentary),
-            (
-                "I've linked my diary logs and verified critic reception cards below "
-                "so you can dig into the reviews and consensus. Have you seen any of "
-                "these yet, or should we explore a different vibe?"
-            ),
-        ]
-
-        return "\n\n".join(paragraphs)
+        body = "  \n".join(commentary)
+        closing = "Have you seen any of these, or should we dig into a different direction?"
+        return f"{intro}\n\n{body}\n\n{closing}"
 
     async def run_turn(
         self,
@@ -849,13 +898,21 @@ class CapstoneAgent:
         )
         state.taste_profile = profile
 
-        is_correction, excluded_titles = _detect_correction_and_exclusions(message)
         history = self.conversation_history.get(conversation_id, [])
 
-        # Check for targeted single-movie inquiry vs recommendation request
-        is_target, target_rec, target_title = _detect_target_movie_query(
-            message, self.retriever.catalog
-        )
+        # LLM-powered intent classification (falls back to regex offline)
+        intent_cls = await self._classify_intent(message, history, self.retriever.catalog)
+        is_correction = intent_cls.intent == "correction"
+        excluded_titles: set[str] = {
+            t.lower() for t in intent_cls.rejected_titles
+        }
+        is_target = intent_cls.intent in ("single_movie_query", "debate")
+        target_rec: MovieRecord | None = None
+        target_title: str | None = None
+        if is_target:
+            target_rec, target_title = _resolve_catalog_movie(
+                intent_cls.movie_title, intent_cls.movie_year, self.retriever.catalog
+            )
 
         if is_target:
             citations = (
@@ -1037,13 +1094,18 @@ class CapstoneAgent:
                 },
             }
 
-        # 3. Retrieve local catalog movies (with taste profile)
-        is_correction, excluded_titles = _detect_correction_and_exclusions(message)
+        # 3. Classify intent & retrieve
         history = self.conversation_history.get(conversation_id, [])
-
-        is_target, target_rec, target_title = _detect_target_movie_query(
-            message, self.retriever.catalog
-        )
+        intent_cls = await self._classify_intent(message, history, self.retriever.catalog)
+        is_correction = intent_cls.intent == "correction"
+        excluded_titles: set[str] = {t.lower() for t in intent_cls.rejected_titles}
+        is_target = intent_cls.intent in ("single_movie_query", "debate")
+        target_rec: MovieRecord | None = None
+        target_title: str | None = None
+        if is_target:
+            target_rec, target_title = _resolve_catalog_movie(
+                intent_cls.movie_title, intent_cls.movie_year, self.retriever.catalog
+            )
 
         if is_target:
             citations = (
@@ -1130,6 +1192,7 @@ class CapstoneAgent:
         # 7. Stream LLM tokens directly if LLM is active
         streamed_any = False
         generated_tokens: list[str] = []
+        fallback_text = ""  # Always initialised to avoid NameError in any branch
         if self.llm is not None:
             try:
                 import asyncio
@@ -1149,24 +1212,60 @@ class CapstoneAgent:
                     return await it.__anext__()
 
                 iterator = self.llm.astream(messages)
-                first_chunk = await asyncio.wait_for(
-                    _get_first_chunk(iterator), timeout=5.0
-                )
-                first_text = _extract_text(first_chunk.content)
-                if first_text:
-                    streamed_any = True
-                    generated_tokens.append(first_text)
-                    yield {"event": "token", "data": first_text}
-
-                async for chunk in iterator:
-                    token_text = _extract_text(chunk.content)
-                    if token_text:
+                try:
+                    first_chunk = await asyncio.wait_for(
+                        _get_first_chunk(iterator), timeout=5.0
+                    )
+                    first_text = _extract_text(first_chunk.content)
+                    if first_text:
                         streamed_any = True
-                        generated_tokens.append(token_text)
-                        yield {"event": "token", "data": token_text}
+                        generated_tokens.append(first_text)
+                        yield {"event": "token", "data": first_text}
+
+                    async for chunk in iterator:
+                        try:
+                            token_text = _extract_text(chunk.content)
+                        except Exception as chunk_err:
+                            # Gemini can raise "model output must contain either output
+                            # text or tool calls" on empty/filtered chunks — skip them.
+                            logger.debug("Skipping bad chunk: %s", chunk_err)
+                            continue
+                        if token_text:
+                            streamed_any = True
+                            generated_tokens.append(token_text)
+                            yield {"event": "token", "data": token_text}
+                except Exception as stream_err:
+                    err_str = str(stream_err).lower()
+                    is_quota = any(
+                        kw in err_str
+                        for kw in [
+                            "quota", "resource_exhausted", "429",
+                            "rate limit", "ratelimit", "too many requests",
+                            "model output must contain",
+                        ]
+                    )
+                    logger.warning(
+                        "LLM stream error (quota=%s), falling back: %s",
+                        is_quota,
+                        stream_err,
+                    )
+                    streamed_any = False
+                    generated_tokens.clear()
+                    if is_quota:
+                        # Surface an honest, human-readable message instead of
+                        # producing robotic offline synthesis.
+                        quota_msg = (
+                            "Hey, my AI brain seems to be momentarily overloaded — "
+                            "hit my usage limit for right now. Give it a minute and "
+                            "try again? I promise I'll have a proper answer for you."
+                        )
+                        generated_tokens.append(quota_msg)
+                        for word in quota_msg.split(" "):
+                            yield {"event": "token", "data": word + " "}
+                        streamed_any = True  # mark as handled, skip offline synthesis
             except Exception as e:
                 logger.warning(
-                    "Streaming LLM rate limit or timeout, falling back: %s", e
+                    "Streaming LLM setup error, falling back: %s", e
                 )
 
         if not streamed_any:
@@ -1201,11 +1300,15 @@ class CapstoneAgent:
                 "data": [c.model_dump() for c in citations],
             }
 
-        # 9. Emit critic citations event (Reputed Online Portals)
-        if critic_citations:
+        # 9. Emit critic citations event — filter out generic placeholder excerpts
+        real_critic_citations = [
+            cc for cc in critic_citations
+            if not _is_generic_critic_excerpt(cc.excerpt)
+        ]
+        if real_critic_citations:
             yield {
                 "event": "critic_citations",
-                "data": [cc.model_dump() for cc in critic_citations],
+                "data": [cc.model_dump() for cc in real_critic_citations],
             }
 
         yield {"event": "done", "data": "[DONE]"}
