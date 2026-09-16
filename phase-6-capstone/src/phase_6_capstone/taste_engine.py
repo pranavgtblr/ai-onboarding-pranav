@@ -19,6 +19,10 @@ KNOWN_DIRECTORS = [
     "Ethan Coen",
     "Guillermo del Toro",
     "Stanley Kubrick",
+    "Ridley Scott",
+    "Steven Spielberg",
+    "James Cameron",
+    "Greta Gerwig",
     "Rahul Sadasivan",
     "Shahi Kabir",
     "Wes Craven",
@@ -75,19 +79,30 @@ def extract_taste_signals_from_text(text: str) -> TasteDelta:
     """Extracts preference signals (directors, genres, tropes) from text."""
     delta = TasteDelta()
 
-    # Detect negative contexts
     negative_phrases = [
         "hate",
         "dislike",
         "don't like",
+        "dont like",
+        "cannot stand",
+        "can't stand",
         "not a fan",
         "tired of",
         "cheap",
+        "avoid",
     ]
-    sentences = re.split(r"[.!?\n]+", text)
 
-    for sentence in sentences:
-        s_lower = sentence.lower()
+    # Split into clauses (respecting contrastive conjunctions like 'but', 'however')
+    clauses = re.split(
+        r"[.!?\n]+|,\s*but\s+|\s+but\s+|\s+however\s+|\s+although\s+|\s+except\s+",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    for clause in clauses:
+        s_lower = clause.lower().strip()
+        if not s_lower:
+            continue
         is_negative = any(neg in s_lower for neg in negative_phrases)
 
         # Check directors
@@ -117,8 +132,12 @@ def extract_taste_signals_from_text(text: str) -> TasteDelta:
             delta.disliked_elements.append("jump scares")
         if "gore" in s_lower:
             delta.disliked_elements.append("gore")
-        if "cringe" in s_lower:
-            delta.disliked_elements.append("cringe dialogue")
+        if "cringe" in s_lower or "dialogue" in s_lower:
+            delta.disliked_elements.append("dialogue")
+        if "propaganda" in s_lower:
+            delta.disliked_elements.append("propaganda")
+        if is_negative and "romance" in s_lower:
+            delta.disliked_elements.append("romance")
 
         # Mood tags
         if "moody" in s_lower or "atmospheric" in s_lower:
