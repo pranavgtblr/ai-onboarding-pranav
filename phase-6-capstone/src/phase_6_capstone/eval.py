@@ -106,9 +106,7 @@ TASTE_LEARNING_SAMPLES: list[dict[str, Any]] = [
         "expected_dislikes": ["jump scare", "dialogue"],
     },
     {
-        "message": (
-            "Give me some great neo-noir crime mysteries by Martin Scorsese."
-        ),
+        "message": ("Give me some great neo-noir crime mysteries by Martin Scorsese."),
         "expected_directors": ["Martin Scorsese"],
         "expected_genres": ["Neo-Noir", "Crime"],
         "expected_dislikes": [],
@@ -123,9 +121,7 @@ TASTE_LEARNING_SAMPLES: list[dict[str, Any]] = [
         "expected_dislikes": ["propaganda", "romance"],
     },
     {
-        "message": (
-            "I enjoy sci-fi by Ridley Scott and Stanley Kubrick."
-        ),
+        "message": ("I enjoy sci-fi by Ridley Scott and Stanley Kubrick."),
         "expected_directors": ["Ridley Scott", "Stanley Kubrick"],
         "expected_genres": ["Sci-Fi"],
         "expected_dislikes": [],

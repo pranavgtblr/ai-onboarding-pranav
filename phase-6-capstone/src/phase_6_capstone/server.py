@@ -7,8 +7,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 
-logger = logging.getLogger(__name__)
-
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +25,8 @@ from phase_6_capstone.ingestion import (
 from phase_6_capstone.models import MovieRecord
 from phase_6_capstone.retrieval import HybridMovieRetriever
 from phase_6_capstone.taste_engine import TasteProfileManager
+
+logger = logging.getLogger(__name__)
 
 
 class ChatStreamRequest(BaseModel):
