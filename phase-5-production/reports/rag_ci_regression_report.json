@@ -1,10 +1,22 @@
 {
-  "timestamp": "2026-09-14T09:04:35Z",
-  "triggered_by_files": [],
+  "timestamp": "2026-09-17T10:14:32Z",
+  "triggered_by_files": [
+    "phase-6-capstone/src/phase_6_capstone/db.py",
+    "phase-6-capstone/src/phase_6_capstone/ingestion.py",
+    "phase-6-capstone/src/phase_6_capstone/posters.py",
+    "phase-6-capstone/src/phase_6_capstone/server.py",
+    "phase-6-capstone/src/phase_6_capstone/taste_engine.py"
+  ],
   "detected_categories": {
     "prompts": [],
     "chunking": [],
-    "retrieval": []
+    "retrieval": [
+      "phase-6-capstone/src/phase_6_capstone/db.py",
+      "phase-6-capstone/src/phase_6_capstone/ingestion.py",
+      "phase-6-capstone/src/phase_6_capstone/posters.py",
+      "phase-6-capstone/src/phase_6_capstone/server.py",
+      "phase-6-capstone/src/phase_6_capstone/taste_engine.py"
+    ]
   },
   "thresholds": {
     "min_hit_at_5": 0.95,
@@ -19,7 +31,7 @@
     "hit_at_k": 1.0,
     "recall_at_k": 0.9875,
     "context_precision": 0.975,
-    "duration_ms": 238.19863500102656,
+    "duration_ms": 225.76463199948194,
     "hit_threshold_met": true,
     "recall_threshold_met": true,
     "precision_threshold_met": true
@@ -29,7 +41,7 @@
     "routing_accuracy": 0.95,
     "execution_success_rate": 1.0,
     "citation_compliance_rate": 1.0,
-    "duration_ms": 11.855683998874156,
+    "duration_ms": 8.742387000893359,
     "routing_threshold_met": true,
     "execution_threshold_met": true
   },

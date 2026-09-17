@@ -29,9 +29,7 @@ def fetch_tmdb_poster(
 ) -> tuple[str, str] | None:
     """Dynamically queries TMDB Search API for official movie poster and backdrop."""
     key = (
-        api_key
-        or getattr(settings, "tmdb_api_key", None)
-        or os.getenv("TMDB_API_KEY")
+        api_key or getattr(settings, "tmdb_api_key", None) or os.getenv("TMDB_API_KEY")
     )
     if not key or key.startswith("your_"):
         return None
@@ -54,11 +52,7 @@ def fetch_tmdb_poster(
             if not p_path:
                 return None
             poster = f"https://image.tmdb.org/t/p/w500{p_path}"
-            backdrop = (
-                f"https://image.tmdb.org/t/p/w1280{b_path}"
-                if b_path
-                else poster
-            )
+            backdrop = f"https://image.tmdb.org/t/p/w1280{b_path}" if b_path else poster
             return poster, backdrop
     except Exception as e:
         logger.debug("TMDB search failed for %s: %s", title, e)
@@ -111,12 +105,8 @@ def generate_cinematic_placeholder(
     """Dynamically generates modern cinematic placeholder cards for the given film."""
     encoded_title = urllib.parse.quote(title)
     year_str = str(year) if year else "Cinema"
-    poster_url = (
-        f"https://placehold.co/400x600/141a20/00e054?text={encoded_title}+{year_str}&font=montserrat"
-    )
-    backdrop_url = (
-        f"https://placehold.co/1280x720/0c0f12/40bcf4?text={encoded_title}&font=montserrat"
-    )
+    poster_url = f"https://placehold.co/400x600/141a20/00e054?text={encoded_title}+{year_str}&font=montserrat"
+    backdrop_url = f"https://placehold.co/1280x720/0c0f12/40bcf4?text={encoded_title}&font=montserrat"
     return poster_url, backdrop_url
 
 

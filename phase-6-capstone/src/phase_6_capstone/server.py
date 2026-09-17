@@ -334,6 +334,7 @@ def create_app(
         # 1. Fast sub-10ms Semantic Query Cache Check
         cached_entry = await query_cache.get(req.message)
         if cached_entry:
+
             async def cached_event_generator() -> AsyncGenerator[str, None]:
                 yield f"data: {json.dumps({'event': 'cache_hit', 'data': True})}\n\n"
                 citations = cached_entry.get("citations", [])

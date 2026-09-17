@@ -40,9 +40,7 @@ class UserModel(Base):
     )
     email: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(256))
-    letterboxd_handle: Mapped[str | None] = mapped_column(
-        String(64), nullable=True
-    )
+    letterboxd_handle: Mapped[str | None] = mapped_column(String(64), nullable=True)
     taste_match_pct: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

@@ -333,7 +333,7 @@ async def ingest_user_letterboxd_feed(
 
     rss_url = f"https://letterboxd.com/{username.strip()}/rss/"
     try:
-        records = await fetch_live_letterboxd_feed(rss_url=rss_url)
+        records = await fetch_live_letterboxd_feed(url=rss_url)
     except Exception:
         records = []
 

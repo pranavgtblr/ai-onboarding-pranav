@@ -225,12 +225,14 @@ def sync_movies_to_store(
 
 
 async def fetch_live_letterboxd_feed(
-    url: str = LETTERBOXD_RSS_URL,
+    url: str | None = None,
+    rss_url: str | None = None,
 ) -> list[MovieRecord]:
     """Asynchronously fetches and parses the live Letterboxd RSS feed."""
+    target_url = url or rss_url or LETTERBOXD_RSS_URL
     headers = {"User-Agent": "PGRecommends/1.0 (Mozilla/5.0)"}
     async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.get(url, headers=headers)
+        response = await client.get(target_url, headers=headers)
         response.raise_for_status()
         return parse_letterboxd_rss_xml(response.text)
 
