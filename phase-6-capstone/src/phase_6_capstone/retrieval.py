@@ -52,7 +52,9 @@ class SearchResult(BaseModel):
             f"{self.record.star_display}]"
         )
         poster, backdrop = resolve_movie_poster(
-            self.record.title, self.record.year
+            self.record.title,
+            self.record.year,
+            letterboxd_url=self.record.letterboxd_url,
         )
         return MovieCitation(
             movie_id=self.record.movie_id,

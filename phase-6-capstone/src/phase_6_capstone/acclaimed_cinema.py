@@ -60,7 +60,9 @@ class AcclaimedFilm(BaseModel):
         )
         from phase_6_capstone.posters import resolve_movie_poster
 
-        poster, backdrop = resolve_movie_poster(self.title, self.year)
+        poster, backdrop = resolve_movie_poster(
+            self.title, self.year, letterboxd_url=self.review_url
+        )
         return MovieCitation(
             movie_id=movie_id,
             title=self.title,

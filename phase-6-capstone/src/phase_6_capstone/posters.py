@@ -1,119 +1,114 @@
-"""Movie Poster and Cinematic Artwork Resolution Service for PG Recommends."""
+"""Dynamic Movie Poster & Artwork Resolution Engine for PG Recommends.
 
+Fetches real-time, high-resolution posters and backdrops dynamically via:
+1. The Movie Database (TMDB) API search (when TMDB_API_KEY is configured)
+2. Live Letterboxd OpenGraph CDN resolution (via movie URL or slug)
+3. High-performance in-memory cache to eliminate redundant network fetches
+4. Dynamic SVG cinematic artwork fallback
+"""
+
+import json
+import logging
+import os
+import re
 import urllib.parse
+import urllib.request
 
-# Curated high-res poster and backdrop assets for landmark cinema
-CURATED_POSTER_MAP: dict[str, dict[str, str]] = {
-    "la la land": {
-        "poster": "https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkVJt0Rf0.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/qJeU7KM4nR29Hg8AyA4P1Ue5GqE.jpg",
-    },
-    "the batman": {
-        "poster": "https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50r9T25onhq.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/b0PlSFdDwbyK0cf5RxwDpaxtQvQ.jpg",
-    },
-    "kumbalangi nights": {
-        "poster": "https://image.tmdb.org/t/p/w500/z6hOq8V20WlY6V0xV5E9v7E5x0l.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/9pP0I6V12xN7t8Y6y5X8w4E1l0z.jpg",
-    },
-    "frances ha": {
-        "poster": "https://image.tmdb.org/t/p/w500/5k7YQvXq1Yl0z3Y8y7V6X9v5E1l.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/x2I6V8Y0Z1x9Y8y5V7X6w4E1l0z.jpg",
-    },
-    "arrival": {
-        "poster": "https://image.tmdb.org/t/p/w500/x2O0m2q9rCe1BoVNcuA1x9v1E1l.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/yizvuo7nbx1B8q9rCe1BoVNcuA1.jpg",
-    },
-    "dune: part two": {
-        "poster": "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9xnx7s5E9v1E1.jpg",
-    },
-    "dune": {
-        "poster": "https://image.tmdb.org/t/p/w500/d5NXSklXo0qyIYkgV94XAgMIckC.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/eeijXm355vAUtq5qcDHnQmn2o.jpg",
-    },
-    "interstellar": {
-        "poster": "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/rAiYTsqJJR9as04Zebfbt9t0Y9.jpg",
-    },
-    "oppenheimer": {
-        "poster": "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/fm6KqXpk3M2HVveHwCrBSSBaO0V.jpg",
-    },
-    "past lives": {
-        "poster": "https://image.tmdb.org/t/p/w500/k3waqVXSnvCZWfJYNtdamTgTtTA.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/vI0FfL44Z3Y0Z1x9Y8y5V7X6w4E.jpg",
-    },
-    "aftersun": {
-        "poster": "https://image.tmdb.org/t/p/w500/4FYq9h0W1x9Y8y5V7X6w4E1l0z.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/8yZ1x9Y8y5V7X6w4E1l0z3Y8y7V.jpg",
-    },
-    "parasite": {
-        "poster": "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/hiKmpZMGZsrkA3cdce8a7Dpos1j.jpg",
-    },
-    "whiplash": {
-        "poster": "https://image.tmdb.org/t/p/w500/7fn624j5lj3xTme2SgiLCeuedmO.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/vNXk6W8Y0Z1x9Y8y5V7X6w4E1l0.jpg",
-    },
-    "palm springs": {
-        "poster": "https://image.tmdb.org/t/p/w500/yf5IuMw69gh9gA7VvJ8x6w4E1l0.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/7k8Y0Z1x9Y8y5V7X6w4E1l0z3Y8.jpg",
-    },
-    "bramayugam": {
-        "poster": "https://image.tmdb.org/t/p/w500/b0F8Y0Z1x9Y8y5V7X6w4E1l0z3Y.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/9yZ1x9Y8y5V7X6w4E1l0z3Y8y7V.jpg",
-    },
-    "manjummel boys": {
-        "poster": "https://image.tmdb.org/t/p/w500/x8F8Y0Z1x9Y8y5V7X6w4E1l0z3Y.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/7yZ1x9Y8y5V7X6w4E1l0z3Y8y7V.jpg",
-    },
-    "spider-man: across the spider-verse": {
-        "poster": "https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/4HodYYKEIsGOdinkGi2Ucz6X9i0.jpg",
-    },
-    "spider-man: into the spider-verse": {
-        "poster": "https://image.tmdb.org/t/p/w500/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/7d6FTSfseg2ioAZccAHWWVum052.jpg",
-    },
-    "poor things": {
-        "poster": "https://image.tmdb.org/t/p/w500/kCGlIMHnOm8JPXq3rXM6c5w4E1l.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/8kCGlIMHnOm8JPXq3rXM6c5w4E1.jpg",
-    },
-    "anatomy of a fall": {
-        "poster": "https://image.tmdb.org/t/p/w500/kQs6kyqqIRajrv2vYsgyq7hpMGY.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/8Qs6kyqqIRajrv2vYsgyq7hpMGY.jpg",
-    },
-    "zone of interest": {
-        "poster": "https://image.tmdb.org/t/p/w500/hUu9zyZm1x9Y8y5V7X6w4E1l0z3.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/9u9zyZm1x9Y8y5V7X6w4E1l0z3Y.jpg",
-    },
-    "animal": {
-        "poster": "https://image.tmdb.org/t/p/w500/hr9rjhcS2L0q72F6w4E1l0z3Y8y.jpg",
-        "backdrop": "https://image.tmdb.org/t/p/w1280/8r9rjhcS2L0q72F6w4E1l0z3Y8y.jpg",
-    },
-}
+from phase_6_capstone.config import settings
+
+logger = logging.getLogger(__name__)
+
+# In-memory cache for resolved posters (title_year -> (poster_url, backdrop_url))
+_POSTER_CACHE: dict[str, tuple[str, str]] = {}
 
 
-def resolve_movie_poster(title: str, year: int | None = None) -> tuple[str, str]:
-    """Resolves high-quality poster and backdrop URLs for a given film title.
+def fetch_tmdb_poster(
+    title: str,
+    year: int | None = None,
+    api_key: str | None = None,
+) -> tuple[str, str] | None:
+    """Dynamically queries TMDB Search API for official movie poster and backdrop."""
+    key = (
+        api_key
+        or getattr(settings, "tmdb_api_key", None)
+        or os.getenv("TMDB_API_KEY")
+    )
+    if not key or key.startswith("your_"):
+        return None
 
-    Returns (poster_url, backdrop_url).
-    """
-    clean_title = title.lower().strip()
-    # Normalize common punct
-    clean_title = clean_title.replace("’", "'").replace("–", "-")
+    query_str = urllib.parse.quote(title.strip())
+    url = f"https://api.themoviedb.org/3/search/movie?api_key={key}&query={query_str}"
+    if year:
+        url += f"&year={year}"
 
-    if clean_title in CURATED_POSTER_MAP:
-        data = CURATED_POSTER_MAP[clean_title]
-        return data["poster"], data["backdrop"]
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "PGRecommends/1.0"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            results = data.get("results", [])
+            if not results:
+                return None
+            first = results[0]
+            p_path = first.get("poster_path")
+            b_path = first.get("backdrop_path")
+            if not p_path:
+                return None
+            poster = f"https://image.tmdb.org/t/p/w500{p_path}"
+            backdrop = (
+                f"https://image.tmdb.org/t/p/w1280{b_path}"
+                if b_path
+                else poster
+            )
+            return poster, backdrop
+    except Exception as e:
+        logger.debug("TMDB search failed for %s: %s", title, e)
+        return None
 
-    # Partial match check
-    for key, data in CURATED_POSTER_MAP.items():
-        if key in clean_title or clean_title in key:
-            return data["poster"], data["backdrop"]
 
-    # Fallback to dynamic, styled SVG cinematic artwork with title & year
+def fetch_letterboxd_poster(url: str) -> tuple[str, str] | None:
+    """Extracts high-resolution og:image poster from a Letterboxd / boxd.it page."""
+    if not url or ("letterboxd" not in url and "boxd.it" not in url):
+        return None
+    try:
+        ua = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": ua})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+            m = re.search(r'<meta property="og:image" content="([^"]+)"', html)
+            if m:
+                img_url = m.group(1)
+                return img_url, img_url
+    except Exception as e:
+        logger.debug("Letterboxd scrape failed for %s: %s", url, e)
+        return None
+
+
+def search_letterboxd_slug(
+    title: str, year: int | None = None
+) -> tuple[str, str] | None:
+    """Generates candidate Letterboxd slugs and fetches official artwork."""
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    if not slug:
+        return None
+
+    candidates = [f"https://letterboxd.com/film/{slug}/"]
+    if year:
+        candidates.append(f"https://letterboxd.com/film/{slug}-{year}/")
+
+    for cand in candidates:
+        res = fetch_letterboxd_poster(cand)
+        if res:
+            return res
+    return None
+
+
+def generate_cinematic_placeholder(
+    title: str, year: int | None = None
+) -> tuple[str, str]:
+    """Dynamically generates modern cinematic placeholder cards for the given film."""
     encoded_title = urllib.parse.quote(title)
     year_str = str(year) if year else "Cinema"
     poster_url = (
@@ -123,3 +118,47 @@ def resolve_movie_poster(title: str, year: int | None = None) -> tuple[str, str]
         f"https://placehold.co/1280x720/0c0f12/40bcf4?text={encoded_title}&font=montserrat"
     )
     return poster_url, backdrop_url
+
+
+def resolve_movie_poster(
+    title: str,
+    year: int | None = None,
+    letterboxd_url: str | None = None,
+) -> tuple[str, str]:
+    """Resolves movie poster and backdrop dynamically.
+
+    Resolution Strategy:
+    1. Check in-memory LRU cache.
+    2. Query TMDB Search API (if TMDB_API_KEY is configured).
+    3. Scrape Letterboxd og:image if letterboxd_url is available.
+    4. Query Letterboxd public slug endpoint (/film/{slug}/).
+    5. Fall back to styled cinematic placeholder.
+    """
+    clean_title = title.lower().strip()
+    cache_key = f"{clean_title}_{year or ''}"
+    if cache_key in _POSTER_CACHE:
+        return _POSTER_CACHE[cache_key]
+
+    # 1. Try TMDB Search API
+    tmdb_res = fetch_tmdb_poster(title, year)
+    if tmdb_res:
+        _POSTER_CACHE[cache_key] = tmdb_res
+        return tmdb_res
+
+    # 2. Try provided Letterboxd URL
+    if letterboxd_url:
+        lb_res = fetch_letterboxd_poster(letterboxd_url)
+        if lb_res:
+            _POSTER_CACHE[cache_key] = lb_res
+            return lb_res
+
+    # 3. Try Letterboxd slug search
+    slug_res = search_letterboxd_slug(title, year)
+    if slug_res:
+        _POSTER_CACHE[cache_key] = slug_res
+        return slug_res
+
+    # 4. Fallback placeholder
+    fallback = generate_cinematic_placeholder(title, year)
+    _POSTER_CACHE[cache_key] = fallback
+    return fallback

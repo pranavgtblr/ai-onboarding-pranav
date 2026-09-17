@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     model_name: str = "gemini-3.5-flash-lite"
     gemini_api_key: str | None = None
     google_api_key: str | None = None
+    tmdb_api_key: str | None = None
     letterboxd_rss_url: str = "https://letterboxd.com/pranavg/rss/"
 
     model_config = SettingsConfigDict(

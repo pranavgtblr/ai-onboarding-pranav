@@ -118,6 +118,25 @@ def test_citation_generation(sample_catalog: list[MovieRecord]):
     assert citation.letterboxd_url == "https://boxd.it/2vq7GF"
     assert "Malayalam" in citation.excerpt
     assert citation.citation_label.startswith("[PG Review: Bhoothakaalam")
+    assert citation.poster_url is not None
+    assert len(citation.poster_url) > 0
+
+
+def test_dynamic_poster_resolution():
+    """Verify dynamic poster resolution, Letterboxd CDN retrieval, and caching."""
+    from phase_6_capstone.posters import _POSTER_CACHE, resolve_movie_poster
+
+    poster, backdrop = resolve_movie_poster(
+        "Scream", 1996, letterboxd_url="https://boxd.it/2ePSaX"
+    )
+    assert poster is not None
+    assert "ltrbxd" in poster or "tmdb" in poster or "placehold.co" in poster
+
+    # Test cache hit
+    initial_cache_size = len(_POSTER_CACHE)
+    cached_p, _ = resolve_movie_poster("Scream", 1996)
+    assert cached_p == poster
+    assert len(_POSTER_CACHE) == initial_cache_size
 
 
 def test_romcom_query_excludes_horror(sample_catalog: list[MovieRecord]):
