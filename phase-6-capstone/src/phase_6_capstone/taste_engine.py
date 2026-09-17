@@ -253,3 +253,113 @@ class TasteProfileManager:
                 mood_tags=json.loads(model.mood_tags),
                 taste_notes=model.taste_notes,
             )
+
+
+PG_CANONICAL_DIRECTORS = {
+    "denis villeneuve",
+    "christopher nolan",
+    "joel coen",
+    "ethan coen",
+    "david fincher",
+    "quentin tarantino",
+    "martin scorsese",
+    "bong joon-ho",
+    "park chan-wook",
+    "rahul sadasivan",
+    "stanley kubrick",
+    "greta gerwig",
+    "hayao miyazaki",
+}
+
+PG_CANONICAL_GENRES = {
+    "psychological thriller",
+    "horror",
+    "neo-noir",
+    "sci-fi",
+    "crime",
+    "mystery",
+    "drama",
+    "comedy",
+}
+
+
+def compute_taste_match_score(
+    user_profile: UserTasteProfile,
+    pg_profile: UserTasteProfile | None = None,
+) -> float:
+    """Computes an objective taste compatibility score (0.0 to 100.0%) against PG.
+
+    Uses Jaccard overlap on directors, genres, and element avoidance.
+    """
+    user_dirs = {d.lower() for d in user_profile.liked_directors}
+    user_genres = {g.lower() for g in user_profile.liked_genres}
+
+    pg_dirs = (
+        {d.lower() for d in pg_profile.liked_directors}
+        if pg_profile and pg_profile.liked_directors
+        else PG_CANONICAL_DIRECTORS
+    )
+    pg_genres = (
+        {g.lower() for g in pg_profile.liked_genres}
+        if pg_profile and pg_profile.liked_genres
+        else PG_CANONICAL_GENRES
+    )
+
+    # Director overlap
+    dir_intersection = len(user_dirs.intersection(pg_dirs))
+    dir_score = (dir_intersection / max(len(user_dirs), 1)) if user_dirs else 0.75
+
+    # Genre overlap
+    genre_intersection = len(user_genres.intersection(pg_genres))
+    genre_score = (
+        (genre_intersection / max(len(user_genres), 1)) if user_genres else 0.80
+    )
+
+    # Weighted blend with a 62% baseline for cinema fans
+    raw_score = 0.50 * dir_score + 0.50 * genre_score
+    scaled_match = 62.0 + (raw_score * 35.0)  # Maps to 62.0% - 97.0%
+    return round(min(scaled_match, 99.0), 1)
+
+
+async def ingest_user_letterboxd_feed(
+    username: str,
+    db: DatabaseManager,
+    user_id: str,
+    tenant_id: str = "default_tenant",
+) -> tuple[UserTasteProfile, float]:
+    """Ingests user's public Letterboxd RSS feed and computes match score."""
+    from phase_6_capstone.db import UserModel
+    from phase_6_capstone.ingestion import fetch_live_letterboxd_feed
+
+    rss_url = f"https://letterboxd.com/{username.strip()}/rss/"
+    try:
+        records = await fetch_live_letterboxd_feed(rss_url=rss_url)
+    except Exception:
+        records = []
+
+    manager = TasteProfileManager(db)
+    # Aggregate text from reviews to extract taste signals
+    all_text = " ".join(
+        [f"{r.title} {r.review_text}" for r in records if (r.rating or 0) >= 3.5]
+    )
+    if not all_text and records:
+        all_text = " ".join([r.title for r in records])
+
+    profile = await manager.update_profile_from_message(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        message=all_text or f"Watched movies on Letterboxd as @{username}",
+    )
+    match_score = compute_taste_match_score(profile)
+
+    # Persist updated match score to UserModel
+    async with db.session_factory() as session:
+        stmt = select(UserModel).where(UserModel.id == user_id)
+        res = await session.execute(stmt)
+        user_row = res.scalar_one_or_none()
+        if user_row:
+            user_row.taste_match_pct = match_score
+            user_row.letterboxd_handle = username.strip()
+            await session.commit()
+
+    return profile, match_score

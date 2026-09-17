@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from rank_bm25 import BM25Okapi
 
 from phase_6_capstone.models import MovieRecord
+from phase_6_capstone.posters import resolve_movie_poster
 
 
 class MovieCitation(BaseModel):
@@ -22,6 +23,8 @@ class MovieCitation(BaseModel):
     citation_label: str
     source_type: str = "letterboxd"  # "letterboxd" or "acclaimed_cinema"
     source_portal: str = "Letterboxd"
+    poster_url: str | None = None
+    backdrop_url: str | None = None
 
 
 class SearchResult(BaseModel):
@@ -48,6 +51,9 @@ class SearchResult(BaseModel):
             f"[PG Review: {self.record.title} ({self.record.year}) "
             f"{self.record.star_display}]"
         )
+        poster, backdrop = resolve_movie_poster(
+            self.record.title, self.record.year
+        )
         return MovieCitation(
             movie_id=self.record.movie_id,
             title=self.record.title,
@@ -58,6 +64,8 @@ class SearchResult(BaseModel):
             citation_label=label,
             source_type="letterboxd",
             source_portal="Letterboxd",
+            poster_url=poster,
+            backdrop_url=backdrop,
         )
 
 

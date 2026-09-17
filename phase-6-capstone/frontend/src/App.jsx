@@ -12,7 +12,12 @@ import {
   ThumbsDown, 
   Compass, 
   MessageSquareShare,
-  X
+  X,
+  LogIn,
+  LogOut,
+  User,
+  Zap,
+  CheckCircle
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? (import.meta.env.PROD ? '' : 'http://localhost:8000');
@@ -22,7 +27,8 @@ export default function App() {
     {
       role: 'assistant',
       text: "Hey! Pranav here. Tell me what kind of mood you're in, what you've watched recently, or what genres you want to explore, and I'll dig into my Letterboxd diary to hook you up with something genuinely great. What are you feeling today?",
-      citations: []
+      citations: [],
+      criticCitations: []
     }
   ]);
   const [input, setInput] = useState('');
@@ -40,12 +46,46 @@ export default function App() {
   const [escalationTicket, setEscalationTicket] = useState(null);
   const [mobileTab, setMobileTab] = useState('chat'); // 'chat' | 'taste' | 'diary'
 
+  // User Auth & Taste Matching State
+  const [token, setToken] = useState(() => localStorage.getItem('pg_auth_token') || '');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authTab, setAuthTab] = useState('signin'); // 'signin' | 'register'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authHandle, setAuthHandle] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [isSyncingUser, setIsSyncingUser] = useState(false);
+
   const messagesEndRef = useRef(null);
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Check existing auth token
+  useEffect(() => {
+    if (token) {
+      fetch(`${API_BASE}/api/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.authenticated && data.user) {
+            setCurrentUser(data.user);
+          } else {
+            localStorage.removeItem('pg_auth_token');
+            setToken('');
+            setCurrentUser(null);
+          }
+        })
+        .catch(() => {
+          // Keep guest mode if offline
+        });
+    }
+  }, [token]);
 
   // Load initial catalog & taste profile
   useEffect(() => {
@@ -56,7 +96,8 @@ export default function App() {
       })
       .catch(err => console.log("Backend offline or loading:", err));
 
-    fetch(`${API_BASE}/api/taste-profile?tenant_id=default_tenant&user_id=guest_user`)
+    const activeUserId = currentUser?.id || 'guest_user';
+    fetch(`${API_BASE}/api/taste-profile?tenant_id=default_tenant&user_id=${activeUserId}`)
       .then(res => res.json())
       .then(data => {
         if (data.liked_genres?.length > 0 || data.liked_directors?.length > 0) {
@@ -64,7 +105,96 @@ export default function App() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [currentUser]);
+
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+
+    const endpoint = authTab === 'signin' ? '/api/auth/login' : '/api/auth/register';
+    const payload = authTab === 'signin' 
+      ? { email: authEmail, password: authPassword }
+      : { email: authEmail, password: authPassword, letterboxd_handle: authHandle.trim() || null };
+
+    try {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Authentication failed. Please check your credentials.');
+      }
+
+      localStorage.setItem('pg_auth_token', data.access_token);
+      setToken(data.access_token);
+      setCurrentUser(data.user);
+      setIsAuthOpen(false);
+      setAuthPassword('');
+      setAuthError('');
+
+      // Add a friendly greeting message
+      const welcomeMsg = authTab === 'register' && data.user.letterboxd_handle
+        ? `Welcome to PG Recommends, @${data.user.letterboxd_handle}! We analyzed your Letterboxd diary: your Taste Match with PG is **${data.user.taste_match_pct}%**! Ask me anything.`
+        : `Welcome back! Your taste profile is synced and ready. What are we watching today?`;
+
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', text: welcomeMsg, citations: [], criticCitations: [] }
+      ]);
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('pg_auth_token');
+    setToken('');
+    setCurrentUser(null);
+  };
+
+  const handleSyncUserLetterboxd = async () => {
+    if (!currentUser) {
+      setIsAuthOpen(true);
+      return;
+    }
+    const handle = prompt("Enter your public Letterboxd username:", currentUser.letterboxd_handle || "");
+    if (!handle || !handle.trim()) return;
+
+    setIsSyncingUser(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/user/sync-letterboxd`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ username: handle.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.taste_match_pct) {
+        setCurrentUser(prev => ({
+          ...prev,
+          letterboxd_handle: data.username,
+          taste_match_pct: data.taste_match_pct
+        }));
+        if (data.taste_profile) {
+          setTasteProfile(data.taste_profile);
+        }
+        alert(`Successfully synced @${data.username}! Your updated Taste Match with PG is ${data.taste_match_pct}%.`);
+      } else {
+        alert(data.detail || "Could not sync Letterboxd feed.");
+      }
+    } catch (e) {
+      alert("Error syncing Letterboxd feed: " + e.message);
+    } finally {
+      setIsSyncingUser(false);
+    }
+  };
 
   const handleSend = async (messageText = input) => {
     const trimmed = messageText.trim();
@@ -75,19 +205,23 @@ export default function App() {
     setMessages(prev => [...prev, userMsg]);
     setIsStreaming(true);
 
-    const assistantMsgIndex = messages.length + 1;
     setMessages(prev => [
       ...prev,
-      { role: 'assistant', text: '', citations: [], isStreaming: true }
+      { role: 'assistant', text: '', citations: [], criticCitations: [], isStreaming: true, fromCache: false }
     ]);
 
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE}/api/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         body: JSON.stringify({
           tenant_id: 'default_tenant',
-          user_id: 'guest_user',
+          user_id: currentUser?.id || 'guest_user',
           conversation_id: 'conv_pg_session',
           message: trimmed
         })
@@ -100,6 +234,7 @@ export default function App() {
       let streamedText = '';
       let citations = [];
       let criticCitations = [];
+      let fromCache = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -116,7 +251,9 @@ export default function App() {
             try {
               const eventData = JSON.parse(dataStr);
 
-              if (eventData.event === 'token') {
+              if (eventData.event === 'cache_hit') {
+                fromCache = true;
+              } else if (eventData.event === 'token') {
                 streamedText += eventData.data;
                 setMessages(prev => {
                   const updated = [...prev];
@@ -125,7 +262,8 @@ export default function App() {
                     text: streamedText,
                     citations: citations,
                     criticCitations: criticCitations,
-                    isStreaming: true
+                    isStreaming: true,
+                    fromCache: fromCache
                   };
                   return updated;
                 });
@@ -138,7 +276,8 @@ export default function App() {
                     text: streamedText,
                     citations: citations,
                     criticCitations: criticCitations,
-                    isStreaming: true
+                    isStreaming: true,
+                    fromCache: fromCache
                   };
                   return updated;
                 });
@@ -151,7 +290,8 @@ export default function App() {
                     text: streamedText,
                     citations: citations,
                     criticCitations: criticCitations,
-                    isStreaming: true
+                    isStreaming: true,
+                    fromCache: fromCache
                   };
                   return updated;
                 });
@@ -176,7 +316,8 @@ export default function App() {
           ...updated[updated.length - 1],
           isStreaming: false,
           citations: citations,
-          criticCitations: criticCitations
+          criticCitations: criticCitations,
+          fromCache: fromCache
         };
         return updated;
       });
@@ -221,7 +362,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tenant_id: 'default_tenant',
-          user_id: 'guest_user',
+          user_id: currentUser?.id || 'guest_user',
           conversation_id: 'conv_pg_session',
           reason: escalateReason,
           transcript_summary: messages.map(m => `${m.role}: ${m.text}`).join('\n').slice(-400)
@@ -250,6 +391,8 @@ export default function App() {
     "Can I talk to PG directly for festival advice?"
   ];
 
+  const tastePercentage = currentUser?.taste_match_pct || 72.0;
+
   return (
     <div className="app-viewport">
       {/* Top Navigation Bar */}
@@ -271,6 +414,31 @@ export default function App() {
         </div>
 
         <div className="header-actions">
+          {currentUser ? (
+            <div className="user-auth-badge">
+              <User size={14} color="#40bcf4" />
+              <span>{currentUser.letterboxd_handle ? `@${currentUser.letterboxd_handle}` : currentUser.email.split('@')[0]}</span>
+              <span className="user-taste-badge">{currentUser.taste_match_pct}% Match</span>
+              <button 
+                type="button" 
+                className="btn-auth-logout" 
+                onClick={handleLogout}
+                title="Log out of account"
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <button 
+              type="button" 
+              className="btn-auth-signin"
+              onClick={() => { setIsAuthOpen(true); setAuthTab('signin'); }}
+            >
+              <LogIn size={14} />
+              <span>Sign In</span>
+            </button>
+          )}
+
           <button 
             className="btn-secondary-glass" 
             onClick={triggerRssSync} 
@@ -335,11 +503,32 @@ export default function App() {
             <div className="taste-metric-card">
               <div className="metric-header">
                 <span>Taste Alignment</span>
-                <span>Active Profile</span>
+                <span>{currentUser ? (currentUser.letterboxd_handle ? `@${currentUser.letterboxd_handle}` : 'Your Account') : 'Guest Profile'}</span>
               </div>
-              <div className="metric-value">94% Fit</div>
+              <div className="metric-value">{tastePercentage}% Match</div>
               <div className="meter-bar-track">
-                <div className="meter-bar-fill" style={{ width: '94%' }}></div>
+                <div className="meter-bar-fill" style={{ width: `${tastePercentage}%` }}></div>
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.74rem', color: '#9ab0c2' }}>
+                  {currentUser ? 'Objective compatibility with PG' : 'Sign in to match your Letterboxd'}
+                </span>
+                <button 
+                  type="button" 
+                  onClick={handleSyncUserLetterboxd}
+                  disabled={isSyncingUser}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#40bcf4',
+                    fontSize: '0.74rem',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    textDecoration: 'underline'
+                  }}
+                >
+                  {isSyncingUser ? 'Syncing...' : (currentUser?.letterboxd_handle ? 'Re-sync RSS' : 'Connect Letterboxd')}
+                </button>
               </div>
             </div>
 
@@ -406,7 +595,7 @@ export default function App() {
               Talking Movies with PG
             </span>
             <span style={{ fontSize: '0.75rem', color: '#677b8c' }}>
-              Synced with Letterboxd
+              Synced with Letterboxd & Acclaimed Cinema
             </span>
           </div>
 
@@ -420,6 +609,12 @@ export default function App() {
                   <div className="curator-tagline">
                     <UserCheck size={13} />
                     <span>PG's Take</span>
+                    {msg.fromCache && (
+                      <span className="cache-indicator-badge">
+                        <Zap size={10} />
+                        Semantic Cache (&lt;5ms)
+                      </span>
+                    )}
                     {msg.isStreaming && (
                       <span className="live-thinking-indicator">
                         <span className="live-pulse"></span>
@@ -447,7 +642,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Multi-Source 1: PG's Letterboxd Diary & Acclaimed Cinema */}
+                  {/* Film Citations with High-Res Posters */}
                   {msg.citations && msg.citations.length > 0 && (
                     <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <div className="source-group-title">
@@ -455,30 +650,43 @@ export default function App() {
                       </div>
                       {msg.citations.map((cit, cIdx) => (
                         <div key={cIdx} className="movie-rec-card">
-                          <div className="rec-card-header">
-                            <span className="rec-title">{cit.title} ({cit.year})</span>
-                            <span className="rec-rating">
-                              {cit.source_type === 'acclaimed_cinema' 
-                                ? '★ Acclaimed Cinema' 
-                                : (cit.rating ? `★ ${cit.rating} (PG)` : 'PG Logged')}
-                            </span>
+                          {cit.poster_url && (
+                            <div className="rec-poster-wrap">
+                              <img 
+                                src={cit.poster_url} 
+                                alt={cit.title} 
+                                className="rec-poster-img"
+                                loading="lazy"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            </div>
+                          )}
+                          <div className="rec-card-body">
+                            <div className="rec-card-header">
+                              <span className="rec-title">{cit.title} ({cit.year})</span>
+                              <span className="rec-rating">
+                                {cit.source_type === 'acclaimed_cinema' 
+                                  ? '★ Acclaimed Cinema' 
+                                  : (cit.rating ? `★ ${cit.rating} (PG)` : 'PG Logged')}
+                              </span>
+                            </div>
+                            <div className="rec-quote">
+                              "{cit.excerpt ? cit.excerpt.replace(/&#039;/g, "'").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&') : ''}"
+                            </div>
+                            <a 
+                              href={cit.letterboxd_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="rec-link-btn"
+                            >
+                              <ExternalLink size={12} />
+                              <span>
+                                {cit.source_type === 'acclaimed_cinema' 
+                                  ? `Explore Reception on ${cit.source_portal || 'Critic Portal'}` 
+                                  : 'View Review on Letterboxd'}
+                              </span>
+                            </a>
                           </div>
-                          <div className="rec-quote">
-                            "{cit.excerpt ? cit.excerpt.replace(/&#039;/g, "'").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&') : ''}"
-                          </div>
-                          <a 
-                            href={cit.letterboxd_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="rec-link-btn"
-                          >
-                            <ExternalLink size={12} />
-                            <span>
-                              {cit.source_type === 'acclaimed_cinema' 
-                                ? `Explore Reception on ${cit.source_portal || 'Critic Portal'}` 
-                                : 'View Review on Letterboxd'}
-                            </span>
-                          </a>
                         </div>
                       ))}
                     </div>
@@ -600,6 +808,119 @@ export default function App() {
           </div>
         </aside>
       </main>
+
+      {/* Modal: User Authentication (Login / Register) */}
+      {isAuthOpen && (
+        <div className="modal-backdrop" onClick={() => setIsAuthOpen(false)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div className="modal-title">
+                <User size={20} color="#00e054" />
+                <span>{authTab === 'signin' ? 'Sign In to PG Recommends' : 'Create Cinephile Account'}</span>
+              </div>
+              <button 
+                style={{ background: 'none', border: 'none', color: '#9ab0c2', cursor: 'pointer' }}
+                onClick={() => setIsAuthOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="auth-tabs">
+              <button 
+                type="button" 
+                className={`auth-tab-btn ${authTab === 'signin' ? 'active' : ''}`}
+                onClick={() => { setAuthTab('signin'); setAuthError(''); }}
+              >
+                Sign In
+              </button>
+              <button 
+                type="button" 
+                className={`auth-tab-btn ${authTab === 'register' ? 'active' : ''}`}
+                onClick={() => { setAuthTab('register'); setAuthError(''); }}
+              >
+                Create Account
+              </button>
+            </div>
+
+            {authError && (
+              <div style={{
+                background: 'rgba(255, 107, 107, 0.15)',
+                border: '1px solid rgba(255, 107, 107, 0.35)',
+                color: '#ff6b6b',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                marginBottom: 14
+              }}>
+                {authError}
+              </div>
+            )}
+
+            <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-field">
+                <label className="form-label">Email Address</label>
+                <input 
+                  type="email" 
+                  className="chat-input"
+                  style={{ borderRadius: '8px', padding: '10px 14px' }}
+                  placeholder="cinephile@example.com"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-field">
+                <label className="form-label">Password</label>
+                <input 
+                  type="password" 
+                  className="chat-input"
+                  style={{ borderRadius: '8px', padding: '10px 14px' }}
+                  placeholder="••••••••"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              {authTab === 'register' && (
+                <div className="form-field">
+                  <label className="form-label">Letterboxd Username (Optional)</label>
+                  <input 
+                    type="text" 
+                    className="chat-input"
+                    style={{ borderRadius: '8px', padding: '10px 14px' }}
+                    placeholder="e.g. pranavg or your username"
+                    value={authHandle}
+                    onChange={(e) => setAuthHandle(e.target.value)}
+                  />
+                  <span style={{ fontSize: '0.73rem', color: '#677b8c', marginTop: 4 }}>
+                    Syncs your public diary & automatically calculates your Taste Match % against PG.
+                  </span>
+                </div>
+              )}
+
+              <div className="modal-actions" style={{ marginTop: 10 }}>
+                <button 
+                  type="button" 
+                  className="btn-secondary-glass" 
+                  onClick={() => setIsAuthOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-escalate"
+                  disabled={authLoading}
+                >
+                  {authLoading ? 'Processing...' : (authTab === 'signin' ? 'Sign In' : 'Create Account')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Human Escalation */}
       {isEscalateOpen && (

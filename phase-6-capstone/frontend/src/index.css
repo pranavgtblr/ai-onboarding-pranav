@@ -1150,3 +1150,153 @@ body {
   }
 }
 
+/* ==========================================================================
+   POSTER ARTWORK & CINEMATIC DISPLAY ENHANCEMENTS
+   ========================================================================== */
+.movie-rec-card {
+  margin-top: 12px;
+  background: rgba(12, 16, 20, 0.75);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: row;
+  gap: 14px;
+  align-items: flex-start;
+  transition: var(--transition-fast);
+}
+
+.movie-rec-card:hover {
+  border-color: var(--lb-green);
+  background: rgba(15, 20, 25, 0.88);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.rec-poster-wrap {
+  flex-shrink: 0;
+  width: 68px;
+  height: 102px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #14181c;
+}
+
+.rec-poster-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rec-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ==========================================================================
+   AUTHENTICATION & USER PROFILE CONTROLS
+   ========================================================================== */
+.user-auth-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
+.user-taste-badge {
+  color: var(--lb-green);
+  font-weight: 700;
+  background: rgba(0, 224, 84, 0.12);
+  border: 1px solid rgba(0, 224, 84, 0.25);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+}
+
+.btn-auth-signin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, rgba(0, 224, 84, 0.2), rgba(64, 188, 244, 0.2));
+  border: 1px solid rgba(0, 224, 84, 0.4);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-auth-signin:hover {
+  background: linear-gradient(135deg, rgba(0, 224, 84, 0.35), rgba(64, 188, 244, 0.35));
+  border-color: var(--lb-green);
+  box-shadow: 0 0 12px rgba(0, 224, 84, 0.3);
+}
+
+.btn-auth-logout {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  padding: 0 4px;
+}
+
+.btn-auth-logout:hover {
+  color: #ff6b6b;
+}
+
+.auth-tabs {
+  display: flex;
+  background: rgba(12, 15, 18, 0.6);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.auth-tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.auth-tab-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.cache-indicator-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(64, 188, 244, 0.15);
+  border: 1px solid rgba(64, 188, 244, 0.3);
+  color: var(--lb-blue);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+

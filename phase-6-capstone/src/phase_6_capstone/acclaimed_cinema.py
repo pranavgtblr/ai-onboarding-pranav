@@ -58,6 +58,9 @@ class AcclaimedFilm(BaseModel):
         label = (
             f"[Acclaimed Cinema: {self.title} ({self.year}) - {self.rating_or_score}]"
         )
+        from phase_6_capstone.posters import resolve_movie_poster
+
+        poster, backdrop = resolve_movie_poster(self.title, self.year)
         return MovieCitation(
             movie_id=movie_id,
             title=self.title,
@@ -68,6 +71,8 @@ class AcclaimedFilm(BaseModel):
             citation_label=label,
             source_type="acclaimed_cinema",
             source_portal=portal,
+            poster_url=poster,
+            backdrop_url=backdrop,
         )
 
 

@@ -5,6 +5,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     DateTime,
+    Float,
     Integer,
     String,
     Text,
@@ -27,6 +28,22 @@ class TenantModel(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), default="default_tenant", index=True
+    )
+    email: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    letterboxd_handle: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    taste_match_pct: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -57,6 +74,21 @@ class HumanEscalationModel(Base):
     transcript_summary: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class SemanticCacheModel(Base):
+    __tablename__ = "semantic_query_cache"
+
+    query_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    query_text: Mapped[str] = mapped_column(Text)
+    cached_response: Mapped[str] = mapped_column(Text)
+    cached_citations: Mapped[str] = mapped_column(Text, default="[]")
+    cached_critic_citations: Mapped[str] = mapped_column(Text, default="[]")
+    hit_count: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
 
 class DatabaseManager:
