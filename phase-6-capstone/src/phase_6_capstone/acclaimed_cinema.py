@@ -28,6 +28,7 @@ from phase_6_capstone.retrieval import (
     CINEMA_STOPWORDS,
     MovieCitation,
     _tokenize,
+    clean_sentence_boundary,
 )
 
 logger = logging.getLogger(__name__)
@@ -248,9 +249,7 @@ def find_acclaimed_wider_cinema(
                     )
 
                     portal_found = "Rotten Tomatoes"
-                    excerpt = snippet
-                    if len(excerpt) > 180:
-                        excerpt = excerpt[:177] + "..."
+                    excerpt = clean_sentence_boundary(snippet, max_len=240)
 
                     # Query page extract to verify true movie genre
                     ext_text = ""
@@ -271,11 +270,9 @@ def find_acclaimed_wider_cinema(
                             ext = pdata.get("extract", "")
                             if ext:
                                 ext_text = ext
-                                first_sentence = ext.split(".")[0]
-                                if len(first_sentence) > 30:
-                                    excerpt = first_sentence + "."
-                                    if len(excerpt) > 180:
-                                        excerpt = excerpt[:177] + "..."
+                                clean_ext = clean_sentence_boundary(ext, max_len=240)
+                                if len(clean_ext) > 30:
+                                    excerpt = clean_ext
                             break
 
                     combined_text = f"{snippet} {ext_text}".lower()

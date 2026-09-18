@@ -20,6 +20,8 @@ from typing import Any
 import httpx
 from pydantic import BaseModel
 
+from phase_6_capstone.retrieval import clean_sentence_boundary
+
 logger = logging.getLogger(__name__)
 
 HTML_TAG_CLEANER = re.compile(r"<[^>]+>")
@@ -318,7 +320,7 @@ def _extract_portal_citations_from_wikitext(
                 movie_title=title,
                 portal_name="Rotten Tomatoes",
                 critic_name="Critical Consensus",
-                excerpt=consensus_text[:180],
+                excerpt=clean_sentence_boundary(consensus_text, max_len=240),
                 review_url=page_url,
                 score_or_consensus="Consensus",
             )
@@ -375,7 +377,7 @@ def _extract_portal_citations_from_wikitext(
                     CriticReviewCitation(
                         movie_title=title,
                         portal_name=portal_name,
-                        excerpt=snippet[:180],
+                        excerpt=clean_sentence_boundary(snippet, max_len=240),
                         review_url=page_url,
                         score_or_consensus="Review",
                     )

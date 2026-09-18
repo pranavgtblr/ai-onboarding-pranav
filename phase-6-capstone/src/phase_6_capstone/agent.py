@@ -23,6 +23,7 @@ from phase_6_capstone.retrieval import (
     HybridMovieRetriever,
     MovieCitation,
     SearchResult,
+    clean_sentence_boundary,
 )
 from phase_6_capstone.taste_engine import TasteProfileManager, UserTasteProfile
 from phase_6_capstone.web_search import search_cinema_web
@@ -134,9 +135,13 @@ You must detect the user's intent and respond with the appropriate conversationa
 ---
 
 # CONVERSATIONAL CADENCE & STYLE GUIDELINES
-- Format titles cleanly as *Movie Title* (Year).
-- Show ratings with clean star glyphs (e.g., ★ 4.5, ★ 0.5).
-- Keep paragraphs conversational and digestible (2–4 punchy paragraphs).
+- Format movie recommendations with visual breathing room and clean markdown:
+  - Header: 🎬 **Movie Title** (Year) · ★ Rating (or 🌍 for wider cinema)
+  - Review: formatted as blockquote (> "Your authentic diary review...")
+  - Critic consensus: on its own line (*Critic Source consensus:* "...")
+- Separate individual recommendations with double newlines for a card layout.
+- Keep excerpts clean—never end mid-sentence or mid-word.
+- Conclude with a warm, open question back to the user.
 - Always maintain continuity: if the user references something mentioned earlier,
   acknowledge it like a friend remembering the conversation.
 """
@@ -713,24 +718,9 @@ class CapstoneAgent:
         """Dynamic conversational synthesis for offline fallback or test suites."""
         # Single targeted movie discussion (from PG's diary)
         if target_movie is not None:
-            clean_review = (
-                target_movie.review_text.strip()
-                .replace("&#039;", "'")
-                .replace("&#39;", "'")
-                .replace("&quot;", '"')
-                .replace("&amp;", "&")
+            snippet = clean_sentence_boundary(
+                target_movie.review_text or "", max_len=280
             )
-            clean_review = re.sub(r'"+', '"', clean_review).strip()
-
-            if len(clean_review) > 280:
-                cut = clean_review[:280]
-                last_punct = max(cut.rfind("."), cut.rfind("!"), cut.rfind("?"))
-                if last_punct > 100:
-                    snippet = cut[: last_punct + 1]
-                else:
-                    snippet = cut.rsplit(" ", 1)[0] + "..."
-            else:
-                snippet = clean_review
 
             critic_part = ""
             for cc in critic_citations:
@@ -739,11 +729,16 @@ class CapstoneAgent:
                     cc.movie_title.lower() in target_movie.title.lower()
                     or target_movie.title.lower() in cc.movie_title.lower()
                 ) and not _is_generic_critic_excerpt(cc.excerpt):
-                    critic_part = (
-                        f" Reputed critics at {cc.portal_name} also pointed out: "
-                        f'"{cc.excerpt.rstrip(".")}."'
-                    )
-                    break
+                    clean_critic = clean_sentence_boundary(cc.excerpt, max_len=220)
+                    if (
+                        clean_critic
+                        and clean_critic.lower() not in snippet.lower()
+                        and snippet.lower() not in clean_critic.lower()
+                    ):
+                        critic_part = (
+                            f'\n\n*{cc.portal_name} consensus:* "{clean_critic}"'
+                        )
+                        break
 
             if target_movie.rating is not None and target_movie.rating <= 2.0:
                 paragraphs = [
@@ -754,8 +749,8 @@ class CapstoneAgent:
                         "I stand by every bit of that half-star rating."
                     ),
                     (
-                        "When I logged it in my diary, my immediate reaction was: "
-                        f'"{snippet}"{critic_part}'
+                        "When I logged it in my diary, my immediate reaction was:\n"
+                        f'> "{snippet}"{critic_part}'
                     ),
                     (
                         "Did you actually sit through all of it, or were you wondering "
@@ -770,7 +765,7 @@ class CapstoneAgent:
                         f"({target_movie.year})! I logged it at a solid "
                         f"★ {target_movie.rating:.1f} in my Letterboxd diary."
                     ),
-                    (f'My take when I watched it: "{snippet}"{critic_part}'),
+                    (f'My take when I watched it:\n> "{snippet}"{critic_part}'),
                     (
                         "What did you think of it, or are you planning to check it "
                         "out soon?"
@@ -786,7 +781,7 @@ class CapstoneAgent:
                         f"I logged *{target_movie.title}* ({target_movie.year}) at "
                         f"{rating_str} in my Letterboxd diary."
                     ),
-                    (f'My take on it was: "{snippet}"{critic_part}'),
+                    (f'My take on it was:\n> "{snippet}"{critic_part}'),
                     ("How did it land for you?"),
                 ]
                 return "\n\n".join(paragraphs)
@@ -798,15 +793,12 @@ class CapstoneAgent:
             if critic_citations:
                 cc = critic_citations[0]
                 if not _is_generic_critic_excerpt(cc.excerpt):
-                    critic_part = (
-                        f" Looking at reputed critic consensus from {cc.portal_name}: "
-                        f'"{cc.excerpt.rstrip(".")}."'
-                    )
+                    clean_cc = clean_sentence_boundary(cc.excerpt, max_len=220)
+                    critic_part = f'*{cc.portal_name} consensus:* "{clean_cc}"'
             elif web_results:
                 wr = web_results[0]
-                critic_part = (
-                    f' From what film publications note: "{wr.get("snippet", "")}"'
-                )
+                clean_wr = clean_sentence_boundary(wr.get("snippet", ""), max_len=220)
+                critic_part = f'From what film publications note: "{clean_wr}"'
 
             paragraphs = [
                 (
@@ -814,7 +806,7 @@ class CapstoneAgent:
                     "diary yet!"
                 ),
                 (
-                    f"{critic_part}"
+                    f"> {critic_part}"
                     if critic_part
                     else "It's one I've got on my radar to catch up with."
                 ),
@@ -861,58 +853,51 @@ class CapstoneAgent:
                 intro = "Here's what I'd genuinely point you towards."
 
         commentary = []
-        for i, cit in enumerate(good_citations[:3]):
-            clean_snippet = cit.excerpt.strip().rstrip(".").strip()
-            clean_snippet = (
-                clean_snippet.replace("&#039;", "'")
-                .replace("&#39;", "'")
-                .replace("&quot;", '"')
-                .replace("&amp;", "&")
-            )
+        for cit in good_citations[:3]:
+            clean_snippet = clean_sentence_boundary(cit.excerpt, max_len=240)
 
             if cit.source_type == "acclaimed_cinema":
-                rating_tag = f" [{cit.source_portal}]"
-                # For acclaimed cinema use the excerpt only if it's a real description
-                if (
-                    clean_snippet
-                    and len(clean_snippet) > 40
-                    and not clean_snippet.startswith("The ")
-                    or len(clean_snippet) > 80
-                ):
-                    take = f'"{clean_snippet}."'
+                badge = (
+                    f"🌍 **{cit.title}** ({cit.year}) · "
+                    f"*Beyond my diary ({cit.source_portal})*"
+                )
+                if clean_snippet and len(clean_snippet) > 40:
+                    take = f'> "{clean_snippet}"'
                 else:
-                    take = "Critically acclaimed and widely celebrated."
-                source_note = "Beyond my diary"
+                    take = (
+                        "> Widely celebrated and acclaimed across international "
+                        "critics."
+                    )
             else:
-                rating_tag = f" (★ {cit.rating:.1f})" if cit.rating else ""
-                source_note = "In my diary"
+                rating_str = f"★ {cit.rating:.1f}" if cit.rating else "PG Logged"
+                badge = f"🎬 **{cit.title}** ({cit.year}) · {rating_str}"
                 if clean_snippet and not clean_snippet.startswith("Rated "):
-                    take = f'"{clean_snippet}."'
+                    take = f'> "{clean_snippet}"'
                 else:
-                    take = "It really resonated with me."
+                    take = "> It really resonated with my personal cinematic taste."
 
-            critic_addon = ""
+            critic_line = ""
             for cc in critic_citations:
                 if (
                     cc.movie_title.lower() in cit.title.lower()
                     or cit.title.lower() in cc.movie_title.lower()
                 ) and not _is_generic_critic_excerpt(cc.excerpt):
-                    critic_addon = (
-                        f' {cc.portal_name} wrote: "{cc.excerpt.rstrip(".")}."'
-                    )
-                    break
+                    clean_critic = clean_sentence_boundary(cc.excerpt, max_len=220)
+                    # Deduplicate: don't repeat identical or subset synopsis
+                    if (
+                        clean_critic
+                        and clean_critic.lower() not in clean_snippet.lower()
+                        and clean_snippet.lower() not in clean_critic.lower()
+                    ):
+                        critic_line = f'*{cc.portal_name} consensus:* "{clean_critic}"'
+                        break
 
-            entry = (
-                f"*{cit.title}* ({cit.year}){rating_tag} — {take}{critic_addon}"
-                if i == 0
-                else (
-                    f"{source_note}, *{cit.title}* ({cit.year}){rating_tag} — "
-                    f"{take}{critic_addon}"
-                )
-            )
-            commentary.append(entry)
+            card_lines = [badge, take]
+            if critic_line:
+                card_lines.append(critic_line)
+            commentary.append("\n".join(card_lines))
 
-        body = "  \n".join(commentary)
+        body = "\n\n".join(commentary)
         closing = (
             "Have you seen any of these, or should we dig into a different direction?"
         )

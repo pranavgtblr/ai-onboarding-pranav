@@ -27,6 +27,38 @@ class MovieCitation(BaseModel):
     backdrop_url: str | None = None
 
 
+def clean_sentence_boundary(text: str, max_len: int = 240) -> str:
+    """Cleanly truncates text at sentence boundaries or whole words."""
+    if not text:
+        return ""
+    s = (
+        html.unescape(html.unescape(text))
+        .replace("&#039;", "'")
+        .replace("&#39;", "'")
+        .replace("&quot;", '"')
+        .replace("&amp;", "&")
+        .replace("''", '"')
+    )
+    # Remove robotic language/phonetic brackets like (Korean: 곡성; RR: Gokseong)
+    s = re.sub(r"\([A-Z][a-z]+:\s*[^)]+\)", "", s)
+    s = " ".join(s.split()).strip()
+    if len(s) <= max_len:
+        return s.rstrip(".,;:- ")
+
+    cut = s[:max_len]
+    puncts = [cut.rfind(". "), cut.rfind("! "), cut.rfind("? ")]
+    last_punct = max(puncts)
+    if last_punct > 70:
+        return cut[: last_punct + 1].strip()
+
+    last_space = cut.rfind(" ")
+    if last_space > 40:
+        cut = cut[:last_space]
+
+    cut = re.sub(r"[\s,;:—\-\.\'\"]+$", "", cut).strip()
+    return cut + "..."
+
+
 class SearchResult(BaseModel):
     """Ranked search result with record and fusion score."""
 
@@ -35,17 +67,9 @@ class SearchResult(BaseModel):
 
     def to_citation(self) -> MovieCitation:
         """Constructs a verifiable citation with star rating and review snippet."""
-        raw_excerpt = (self.record.review_text or "").strip()
-        clean_excerpt = (
-            html.unescape(html.unescape(raw_excerpt))
-            .replace("&#039;", "'")
-            .replace("&#39;", "'")
-            .replace("&quot;", '"')
-            .replace("&amp;", "&")
+        clean_excerpt = clean_sentence_boundary(
+            self.record.review_text or "", max_len=240
         )
-        clean_excerpt = " ".join(clean_excerpt.split())
-        if len(clean_excerpt) > 180:
-            clean_excerpt = clean_excerpt[:177] + "..."
 
         label = (
             f"[PG Review: {self.record.title} ({self.record.year}) "

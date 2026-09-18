@@ -22,6 +22,118 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? (import.meta.env.PROD ? '' : 'http://localhost:8000');
 
+function renderInlineMarkdown(text) {
+  if (!text) return null;
+  const regex = /(\*\*.*?\*\*|\*[^*]+?\*|★\s*\d+(?:\.\d+)?)/g;
+  const parts = [];
+  let lastIdx = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(text.substring(lastIdx, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith('**') && token.endsWith('**')) {
+      parts.push(
+        <strong key={match.index} className="msg-strong">
+          {token.slice(2, -2)}
+        </strong>
+      );
+    } else if (token.startsWith('★')) {
+      parts.push(
+        <span key={match.index} className="msg-star-badge">
+          {token}
+        </span>
+      );
+    } else if (token.startsWith('*') && token.endsWith('*')) {
+      parts.push(
+        <em key={match.index} className="msg-em">
+          {token.slice(1, -1)}
+        </em>
+      );
+    } else {
+      parts.push(token);
+    }
+    lastIdx = regex.lastIndex;
+  }
+  if (lastIdx < text.length) {
+    parts.push(text.substring(lastIdx));
+  }
+  return parts.length > 0 ? parts : text;
+}
+
+function FormattedMessage({ text, isStreaming }) {
+  if (!text) return null;
+
+  const blocks = text.split(/\n\s*\n/);
+
+  return (
+    <div className="msg-formatted-content">
+      {blocks.map((block, bIdx) => {
+        const trimmed = block.trim();
+        if (!trimmed) return null;
+
+        const lines = trimmed.split('\n');
+        const firstLine = lines[0].trim();
+        const isMovieCard = firstLine.startsWith('🎬') || firstLine.startsWith('🌍');
+
+        if (isMovieCard) {
+          return (
+            <div key={bIdx} className="msg-rec-card">
+              {lines.map((line, lIdx) => {
+                const lineTrimmed = line.trim();
+                if (!lineTrimmed) return null;
+                if (lineTrimmed.startsWith('🎬') || lineTrimmed.startsWith('🌍')) {
+                  return (
+                    <div key={lIdx} className="msg-rec-header">
+                      {renderInlineMarkdown(lineTrimmed)}
+                    </div>
+                  );
+                } else if (lineTrimmed.startsWith('>')) {
+                  const quoteContent = lineTrimmed.replace(/^>\s*/, '');
+                  return (
+                    <blockquote key={lIdx} className="msg-rec-quote">
+                      {renderInlineMarkdown(quoteContent)}
+                    </blockquote>
+                  );
+                } else {
+                  return (
+                    <div key={lIdx} className="msg-rec-critic">
+                      {renderInlineMarkdown(lineTrimmed)}
+                    </div>
+                  );
+                }
+              })}
+            </div>
+          );
+        }
+
+        if (lines.every((l) => l.trim().startsWith('>'))) {
+          const quoteText = lines.map((l) => l.trim().replace(/^>\s*/, '')).join(' ');
+          return (
+            <blockquote key={bIdx} className="msg-rec-quote">
+              {renderInlineMarkdown(quoteText)}
+            </blockquote>
+          );
+        }
+
+        return (
+          <p key={bIdx} className="msg-paragraph">
+            {lines.map((line, lIdx) => (
+              <span key={lIdx}>
+                {renderInlineMarkdown(line)}
+                {lIdx < lines.length - 1 && <br />}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+      {isStreaming && <span className="streaming-cursor"></span>}
+    </div>
+  );
+}
+
 export default function App() {
   const [messages, setMessages] = useState([
     {
@@ -636,10 +748,7 @@ export default function App() {
                       </span>
                     </div>
                   ) : (
-                    <div style={{ whiteSpace: 'pre-line' }}>
-                      {msg.text}
-                      {msg.isStreaming && <span className="streaming-cursor"></span>}
-                    </div>
+                    <FormattedMessage text={msg.text} isStreaming={msg.isStreaming} />
                   )}
 
                   {/* Film Citations with High-Res Posters */}
